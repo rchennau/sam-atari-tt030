@@ -1,0 +1,471 @@
+An Introduction to Signals Under MiNT
+
+MiNT introduces the new (to TOS) concept of a signal. If you're
+familiar with Unix/Posix signals, then MiNT signals will will be
+easy to learn; but note that there are some (not so subtle) differences
+between MiNT and Unix!
+
+What is a Signal?
+
+A signal is a small non-negative integer that represents an exceptional event;
+something that is very urgent. It's somewhat like an interrupt or
+exception to the CPU, only it's implemented in the operating system
+instead of in the hardware. Like many exceptions (bus errors, etc.) signals
+are usually fatal. Most signals can be caught by programs (so that a
+program-defined routine is called) or ignored; if a signal is caught or
+ignored, it is no longer fatal. Signals can also be blocked; a
+blocked signal is not acted upon until it is unblocked.
+
+A signal is said to be sent to a process when the exceptional
+condition related to that signal occurs, or when another process sends
+the signal with the Pkill system call. The signal is said to
+be delivered to the process when that process wakes up and
+begins to take whatever actions are appropriate for the signal. Note
+that there may be a considerable time interval between the sending of
+a signal and its delivery. For example, if process A has blocked the
+SIGHUP signal (signal 1), then no SIGHUP will be delivered to it until
+it has unblocked that signal, even if process B sends it SIGHUP with
+the Pkill system call. Note also that a signal is not
+necessarily delivered the same number of times that it is sent. If both
+process B and process C send SIGHUP to process A, when process A
+unblocks SIGHUP only one SIGHUP will be delivered. This is because signals
+are like flags; once a flag has been set (the signal is sent) setting
+the flag again will have no effect until it has been cleared (the signal
+is delivered).
+
+What Signals Are There?
+
+There are 32 possible signals, 0-31. Not all of these have been assigned
+a meaning under MiNT. Here are the ones that have been given a meaning;
+we give the symbolic name for the signal, the corresponding integer,
+and the "traditional" meaning for the process that the signal is sent to.
+Any signal not listed here should be considered as "reserved" and should not
+be used by applications.
+
+Unless otherwise noted, the default action for signals is to terminate
+the process.
+
+#define	SIGNULL		0	[no default action, signal is never delivered]
+This isn't really a signal at all; it is never delivered to processes
+and has no effect. It exists only so that processes can test to see if
+a particular child process has exited, by attempting to send SIGNULL
+to the child. If the child exists, the attempt will succeed but nothing
+will be done. If the child has terminated, the caller will get an error.
+It is not possible to catch or block this signal, since it is never
+sent to processes anyway.
+
+#define SIGHUP		1
+"The terminal that you're connected to is no longer valid." This signal
+is commonly sent by, for example, window managers when the user has
+closed the window. Processes should not attempt any I/O to their
+controlling terminal after receiving this signal, and indeed should probably
+exit unless the user has specifically asked them to continue.
+
+#define SIGINT		2
+"Please stop what you're doing." This signal is sent when the user
+presses control-C. It usually means that the process should exit; interactive
+processes may wish to catch SIGINT so that the user can use it to
+break out of time-consuming tasks.
+
+#define SIGQUIT		3
+"Stop what you're doing, something's gone wrong!" This signal is sent when
+the user presses control-\. It usually indicates a desire to immediately
+abort the process because of an error that the user has noticed. It is
+generally thought to be "stronger" than SIGINT, and exiting (perhaps after
+cleaning up data structures) is an appropriate response to this.
+
+#define SIGILL		4
+"An illegal instruction has been encountered." This corresponds to the
+680x0 illegal instruction trap, and usually indicates a very serious error;
+catching this signal is generally unwise.
+
+#define SIGTRAP		5
+"The single-step trace trap has been encountered." This corresponds to the
+680x0 trace trap, and is usually activated (and handled) by debuggers;
+user programs shouldn't catch this.
+
+#define SIGABRT		6
+"An awful error has occured." This is commonly sent by the abort library
+function, and indicates that something has gone very, very wrong (for
+example, data structures have been unexpectedly corrupted). It is unlikely
+that anything useful can be done after this signal is sent; programs
+should not normally catch or ignore SIGABRT.
+
+#define SIGPRIV		7
+"Privilege violation." An attempt has been made to execute an instruction
+in user mode that is normally restricted to supervisor mode; this corresponds
+to the 680x0 privilege violation exception, and indicates a serious error.
+
+#define SIGFPE		8
+"Division by zero or a floating point error has occured." Processes may
+ignore or catch this signal (which corresponds to the 680x0 division by zero
+trap) and deal with it as they see fit.
+
+#define SIGKILL		9		[cannot be blocked or caught]
+"Die!" This signal will never be seen by a process; nor can processes
+block it. Sending SIGKILL is a way to be sure of killing a run-away
+process. Use it only as a last resort, since it gives the process no
+chance to clean up and exit gracefully.
+
+#define SIGBUS		10
+"Bus error." Corresponds to the 680x0 bus error exception, and indicates
+a very serious error; programs should generally not attempt to ignore
+or catch this signal.
+
+#define SIGSEGV		11
+"Illegal memory reference." Corresponds to the 680x0 address error
+exception, and indicates a very serious error; catching or ignoring this
+signal is not recommended.
+
+#define SIGSYS		12
+"Bad argument to a system call." This signal is sent when an illegal
+(usually, out of range) parameter is sent to a system call, and when that
+system call does not have any "nice" way to report errors. For example,
+Super(0L) when the system is already in supervisor mode causes SIGSYS to
+be raised. Note that the kernel does not always detect illegal/out of
+range arguments to system calls, only sometimes.
+
+#define SIGPIPE		13
+"A pipe you were writing to has no readers." Programs may catch this signal
+and attempt to exit gracefully after receiving it; note that exiting is
+appropriate because the standard output is probably no longer connected
+to anything.
+
+#define SIGALRM		14
+"The alarm you set earlier has happened." This signal is sent to processes
+when the alarm clock set by Talarm (q.v.) expires. It's very
+common to catch this signal and from the signal handler jump to a known
+point in the program; for example, to indicate a timeout while attempting
+to communicate over a serial line.
+
+#define SIGTERM		15
+"Please die." This is a polite form of SIGKILL (#9). Programs should
+respect this nice request; they may want to catch the signal to perform
+some cleanup actions, but they should then exit (since if they don't,
+the user will probably get mad and send SIGKILL later anyway...). This
+is the signal that is sent when a process is dragged to the trashcan on
+the desktop.
+
+#define SIGSTOP		17		[default action: suspend the process]
+"Suspend yourself." This signal is sent to a process when it should be
+stopped temporarily. SIGSTOP is used primarily by debuggers and similar
+programs; suspensions requested directly by the user usually are signalled
+by SIGTSTP (q.v.) This signal cannot be ignored, blocked, or caught.
+
+#define SIGTSTP		18		[default action: suspend the process]
+"The user is asking you to suspend yourself." This signal is sent immediately
+when the user presses the control-Z key, and is sent when the process tries
+to read a control-Y key in cooked mode (for a delayed stop). In both cases,
+the process should suspend itself. Since this is the default action, no
+special handling is normally required, although some programs may wish to
+save the screen state and restore it when they are unsuspended.
+
+#define SIGCONT		19		[default action: continue a stopped
+					 process]
+"You are being restarted after having been suspended." This signal is
+sent by shells to resume a suspended process. If the process is not
+suspended, the signal does nothing. This signal cannot be blocked, but
+it *is* possible to install a handler for it (this is rarely necessary,
+though).
+
+#define SIGCHLD		20		[default action: no action taken]
+"One of your children has been suspended or has exited." This signal is
+sent by the kernel to the parent of any process that is terminated (either
+because of a signal or by a Pterm, Pterm0, or Ptermres system call) or
+which is suspended because of a signal. Programs that are concerned with the
+status of their children (for example, shells) may wish to catch this signal;
+after a SIGCHLD has been received, the Pwait3 system call may be
+used to determine exactly which child has exited or been suspended.
+Note that the Psigaction system call may be used to force SIGCHLD to be
+delivered only when a child process terminates (so that suspension of
+child processes, for example via job control, does not raise SIGCHLD.
+
+#define SIGTTIN		21		[default action: suspended the process]
+"Attempt to read from a terminal you don't own." This signal is sent to
+any process that attempts to do input from a terminal with a different
+process group than their own. Usually, this happens if the user has started
+the job in the background; the process will be suspended until the user
+explicitly brings it to the foreground with the appropriate shell command
+(at which time the shell will reset the terminal's process group and
+send the stopped process a SIGCONT signal to tell it to continue).
+[NOTE: in fact, SIGTTIN and SIGTTOU are sent to all processes in the same
+process group as the process that attempted to do the i/o; this is for
+compatibility with Unix, and it simplifies the implementation of job
+control shells.]
+
+#define SIGTTOU		22		[default action: suspend the process]
+"Attempt to write to a terminal that you don't own." Similar to SIGTTIN (q.v.).
+Processes should normally respect the user's job control and should
+override or ignore SIGTTOU only in situations where a very critical error
+has occured and a message must be printed immediately.
+
+#define SIGXCPU		24
+"Your CPU time limit has been exhausted." Sent to processes when they have
+consumed more than the maximum number of milliseconds of CPU time allowed
+by the Psetlimit() system call. The signal will continue to be sent to
+the process until it exits; if a process does catch this signal, it should
+do whatever clean up actions are necessary and then terminate.
+
+#define SIGWINCH	28		[default action: no action taken]
+"The window you were running in has changed size." This signal is sent
+to processes by some window managers to indicate that the user has changed
+the size of the window the process is running in. If the process cares
+about the window size, it may catch this signal and use an Fcntl call
+to inquire about the new window size when the signal is received.
+(See the documentation for Fcntl for details.)
+
+#define SIGUSR1		29
+#define SIGUSR2		30
+
+These two signals are reserved for applications, which may define whatever
+meaning they wish for them. Note, however, that these signals do
+terminate processes by default, so don't send them to a process which
+isn't prepared to deal with them.
+
+
+System Calls Dealing With Signals
+
+
+WORD
+Pkill( WORD pid, WORD sig )
+
+If pid > 0, then the given signal (see the numbers above) is sent to the
+process with that pid.
+If pid == 0, then the given signal is sent to all members of the process
+group of the process making the Pkill call. This includes, of course,
+the process itself.
+If pid < 0, the signal is sent to all members of process group (-pid).
+
+Returns:
+0 	for successful sending of the signal
+	(Note that if the current process is a recipient of the signal,
+	and the signal proves to be fatal, then Pkill will never return.)
+ERANGE	if "sig" is less than 0 or greater than 31
+EFILNF	if pid > 0 and the indicated process has terminated or does not
+	exist, or if pid < 0 and there are no processes in the given
+	process group
+EACCDN  if the sending process is not authorized to send signals to
+	the specified receiving process or group (for example, they
+	belong to different users)
+
+
+#define SIG_DFL (0L)
+#define SIG_IGN (1L)
+
+LONG
+Psignal( WORD sig, LONG handler )
+
+Change the handling of the indicated signal.
+
+If "handler" is SIG_DFL, then the default action for the signal will occur when
+the signal is delivered to the current process.
+
+If "handler" is SIG_IGN, then the signal will be ignored by the process, and
+delivery of the signal will have no noticeable effect (in particular, the
+signal will not interrupt the Pause system call, q.v.). If the signal
+is pending at the time of the Psignal call, it is discarded.
+
+If "handler" is any other value, it is assumed to be the address of a
+user function that will be called when the signal is delivered to the
+process. The user function is called with a single LONG argument on
+the stack, which is the number of the signal being delivered (this is done
+so that processes may use the same handler for a number of different
+signals). While the signal is being handled, it is blocked from delivery;
+thus, signal handling is "reliable" (unlike Version 7 and early System V
+Unix implementations, in which delivery of a second signal while it
+was being handled could kill the process). Also note that, unlike some
+versions of Unix, the signal handling is *not* reset to the default action
+before the handler is called; it remains set to the given signal handler.
+
+The signal handler must either return (via a normal 680x0 rts instruction)
+or call the Psigreturn system call to indicate when signal handling is
+complete; in both cases, the signal will be unblocked. Psigreturn also
+performs some internal clean-up of the kernel stack that is necessary if
+the signal handler is not planning to return (for example, if the C
+longjmp() function is to be used to continue execution at another point
+in the program).
+
+Signal handlers may make any GEMDOS, BIOS, or XBIOS system calls freely.
+GEM AES and VDI calls should not be made in a signal handler.
+
+Note that calling Psignal to change behavior of a signal has the side
+effect of unmasking that signal, so that delivery is possible. This is done
+so that processes may, while handling a signal, reset the behavior and
+send themselves another instance of the signal, for example in order
+to suspend themselves while handling a job control signal.
+
+Signal handling is preserved across Pfork and Pvfork calls. Signals
+that are ignored by the parent are also ignored by the child after a Pexec
+call; signals that were being caught for handling in a function are reset
+in the child to the default behavior.
+
+Returns:
+The old value of handler on success.
+ERANGE	if sig < 1 or sig > 31
+EACCDN	if sig cannot be caught by the user (i.e. SIGKILL or SIGSTOP)
+
+Bugs:
+Signal handling can be nested only a small (around 3) number of times,
+i.e. if 4 signals are delivered to a process, and the process has established
+handlers for all 4, and none of the handlers has returned or called
+Psigreturn, then there is a very good chance of a stack overflow killing
+the process off. In practice, this is unlikely to happen.
+
+
+LONG
+Psigblock( LONG amask )
+
+Block receipt of some signals. The "amask" argument is added to the
+current set of signals being masked, i.e. the new set of blocked signals
+is the union of the old set and the set represented by amask. Sets of
+blocked signals are represented by a 32 bit unsigned long quantity, with
+bit (1L << sig) set if signal "sig" is to be blocked, and clear if not.
+
+Blocked signals remain blocked across Pfork and Pvfork calls. For Pexec
+calls, children always start out with an empty set of blocked signals,
+regardless of which signals are blocked in the parent.
+
+Returns:
+The old set of blocked signals (i.e. the set as it was before amask
+was added to it).
+
+NOTE: Certain signals (SIGKILL, SIGSTOP, SIGCONT) cannot be blocked;
+if the corresponding bits are set in amask, the kernel will clear them
+but will not report an error.
+
+
+LONG
+Psigsetmask( LONG mask )
+
+Decide which signals are to be blocked from delivery. Unlike Psigblock
+(which adds to the set of blocked signals) Psigsetmask changes the
+entire set, replacing the old set of blocked signals with the one
+specified in "mask". As with Psigblock, signal n is blocked from
+delivery if bit (1L << n) is set in mask. Note that certain signals
+cannot be blocked, and if the corresponding bits are set in the
+mask the kernel will clear them.
+
+Returns:
+The old set of blocked signals.
+
+Usage:
+Typically, Psigblock and Psigsetmask are used together to temporarily
+block signals, e.g.:
+
+	oldmask = Psigblock( (1L << SIGINT) );
+	... do some things with SIGINT blocked from delivery ...
+	(void) Psigsetmask(oldmask);
+
+
+
+LONG
+Psigpending()
+
+Give an indication of what signals are pending (i.e. have been sent to
+the process but not yet delivered, probably because they are blocked
+from delivery).
+
+Returns:
+A 32 bit unsigned long representing the set of signals that are pending.
+Signal n is pending if bit (1L << n) is set in the returned value.
+
+
+void
+Psigreturn()
+
+Terminate signal handling. This call should be used by any signal
+handler that is not planning to return to the kernel (i.e. if the
+handler is going to execute a non-local jump to another point in the
+program). It cleans up the signal delivery stack and unblocks the
+signal that was being delivered. Calling Psigreturn when no signal
+is being delivered is harmless.
+
+Bugs:
+Calling Psigreturn from a signal handler, and then actually returning
+from that handler, is likely to produce extremely unpleasant results.
+Don't do it.
+
+
+void
+Pause()
+
+Wait until a signal is delivered. This call will return after any (non-fatal)
+signal has been delivered to the process. Note that signals that are being
+ignored are never delivered.
+
+
+void
+Psigpause( LONG mask )
+
+Block the set of signals specified by "mask", and then wait until
+a signal is delivered. This call will return after any (non-fatal)
+signal has been delivered to the process. Before returning, the signal
+mask is restored to its original value.
+
+
+
+struct sigaction {
+	LONG	sa_handler;
+	LONG	sa_mask;
+	WORD	sa_flags;
+#define SA_NOCLDSTOP 1;
+}
+
+WORD
+Psigaction( WORD sig, struct sigaction *act, struct sigaction *act )
+
+Like Psignal, this call changes the handling of the indicated signal.
+If "act" is non-zero, it is a pointer to a structure which describes
+the new signal handling behavior, as follows:
+
+sa_handler	is the function to be called when the signal is delivered,
+		or SIG_DFL, or SIG_IGN. For further information about
+		signal handling functions, see Psignal.
+sa_mask		is a set of additional signals to mask while the signal
+		is being delivered. The signal itself is always masked,
+		but sometimes it might be desireable to mask some
+		other signals as well; this allows a "prioritization"
+		of signals
+sa_flags	extra flags which can affect the behavior of the
+		signal. This field should normally be set to 0.
+		If "sig" is SIGCHLD and "flags" is SA_NOCLDSTOP,
+		then the SIGCHLD signal will not be delivered to
+		this process when one of its children are stopped.
+
+If "oact" is non-zero, then the old signal handling behavior is
+copied into "oact" and returned.
+
+Returns:
+0 on success
+ERANGE	if sig < 1 or sig > 31
+EACCDN	if sig cannot be caught by the user
+
+Usage:
+If "sig" is a valid signal, the call:
+	foo = Psignal(sig, newfunc)
+is equivalent to:
+	struct sigaction newact, oact;
+	newact->sa_mask=0L;
+	newact->sa_flags=0;
+	newact->sa_handler = newfunc;
+	Psigaction(sig, &newact, &oact);
+	foo = oact->sa_handler;
+
+
+LONG
+Talarm( LONG s )
+
+If s > 0, schedule a SIGALRM signal to occur in s seconds. This alarm
+will replace any previously scheduled alarm.
+If s = 0, cancel any previously scheduled alarm.
+If s < 0, inquire about a scheduled alarm but do not change it.
+
+Returns:
+If an alarm was previously scheduled, returns the number of seconds remaining
+until that previously scheduled alarm. Otherwise, returns 0.
+
+Bugs:
+Internal calculations are done in milliseconds, not seconds, so the returned
+value is not exactly accurate.
+For the same reason, setting an alarm more than 2 million seconds or so
+into the future will not work correctly.

@@ -1,0 +1,21 @@
+gulam's "mem" command will produce nonsensical results, since it looks
+at the GEMDOS memory list directly, and according to GEMDOS all the
+computer's memory is allocated to MINT.PRG. "mem" crashes under TOS 1.4
+anyways, so this problem is not new.
+
+Turtle reports an error in memory configuration; yet the configuration
+printed out looks perfectly fine. I don't know whether this one is
+turtle's fault or MiNT's. (Probably turtle's: the problem has also
+been reported on newer versions of TOS.)
+
+GFA Basic programs often (usually?) try to use memory they don't own.
+Needless to say, this can cause problems under MiNT, ranging from
+bus errors to a system crash.
+
+A lot of programs don't act very nicely in a multi-tasking environment.
+Programs that redefine the keyboard (eg gulam), run in supervisor mode,
+or steal interrupt vectors can cause problems. (Programs in supervisor mode
+tend to hog the processor, because MiNT won't pre-empt them -- this may
+be excessively cautious of MiNT, but it serves to avoid any problems with
+device drivers). If you're only running one program at a time under MiNT,
+these problems don't arise.

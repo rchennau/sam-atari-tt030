@@ -1,0 +1,45 @@
+SUPERCHARGER NOTES
+
+The ICD host adapter software fully supports the Supercharger PC
+emulator.  You MUST determine the SCSI ID of your Supercharger.
+They are shipped as ID 3.  After setting up your hard drive to
+auto-boot with HDUTIL, go to the Config option of that program.
+Near the bottom of the screen you will see a line that says 'Skip
+SCSI ID's:'.  Normally only ID 6 is skipped; this is the ICD real
+time clock.  You MUST also set the ID of your Supercharger here,
+then save.  This means that all ICD programs will not do any SCSI
+commands on this ID.  (This means that you need no longer hold
+down the Supercharger's reset button when booting the computer 
+with the Supercharger attached).
+
+You must also disable write caching when running the 
+Supercharger, otherwise you will never write to your hard disk.
+This can be accomplished in several ways.  First, you can set up
+your booter to disable write caching.  Second, you can
+permanently enable write caching and turn it off temporarily with
+the DESKTOP.ACC or with the CACHEOFF.PRG.  There is also a
+CACHEON.PRG to turn the caching back on.  See below for a more
+complete explanation.
+
+If using COLDBOOT.PRG you must also configure it with 
+CFGCBOOT.PRG to skip the Supercharger's ID.
+
+Please note that the Supercharger is fully compatible with old
+ICD Host Adapters.  It is NOT compatible with early release 
+versions of the ICD AdSCSI ST and AdSCSI Plus ST host adapters.
+In addition to the software you will need a hardware upgrade kit
+which replaces one of the GAL chips on the AdSCSI ST and AdSCSI
+Plus ST boards. The cost for this upgrade kit is $15.00.
+
+To check whether your AdSCSI ST has this upgrade, see if a small
+circuit board (daughterboard) is plugged into one of the sockets
+on the board.  If you see this, you have the correct upgrade.
+
+          Address:  ICD AdSCSI ST Upgrade Offer
+                    1220 Rock St.
+                    Rockford, IL  61101-1437
+
+Note that AdSCSI ST and AdSCSI Plus ST host adapters shipped 
+from ICD after the date of this file will have hardware upgrades
+in place to be compatible with the Supercharger.  This may not be
+true of units bought from a dealer's existing stock.

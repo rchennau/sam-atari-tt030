@@ -1,0 +1,61 @@
+MiNT is Not TOS: A Multitasking Operating System Extension for the Atari ST
+
+Copyright 1990,1991,1992 Eric R. Smith. All rights reserved. See the file
+"copying" for conditions of redistribution.
+
+MiNT COMES WITH ABSOLUTELY NO WARRANTY, NOR WILL I BE LIABLE FOR ANY
+DAMAGES INCURRED FROM THE USE OF IT. USE ENTIRELY AT YOUR OWN RISK!!!
+---------------------------------------------------------------------
+
+New features for MiNT 0.95:
+
+Bug fixes:
+
+Bconmap() should work now. Some bugs have been fixed in Dlock()
+(and it now returns ELOCKED if used on a drive that is locked).
+Hardware scrolling has been fixed to work on the TT.
+
+
+Enhancements:
+
+If the right shift key is held down when mint.prg runs, it will ask
+you whether or not you want to start MiNT.
+
+MiNT now automatically runs everything after it in the auto folder, so
+it no longer needs to be the last thing in that folder.
+
+If (and only if) no mint.cnf configuration file is found in the current
+directory, MiNT tries to load one from the \mint directory.
+
+MiNT loads .XFS files from the current directory and from the \mint
+directory; first it loads ".\*.xfs" and then "\mint\*.xfs".
+
+The serial ports can now be controlled via Fcntl (at least in theory;
+in practice this works well only for MODEM1). This should make porting
+Unix programs much easier.
+
+A new directory, u:\shm, is provided for programs that wish to share
+their memory. See the file "shm.doc" for details.
+
+New system calls, Psigpause() and Psigaction(), provide additional
+signal handling features.
+
+The logical screen base is now per-process (unless the hardware scrolling
+has been turned on; in that case it must be global or hardware scrolling
+loses). Also, the critical error vector is now per-process so that TOS
+programs can print "Abort,Retry,Fail?" and GEM programs can use alert
+boxes.
+
+The Dpathconf() system call now has an option to describe the case
+sensitivity (or not) of file systems.
+
+Two new system calls, Pgeteuid() and Pgetegid(), have been provided
+to get the effective user and group id's.
+
+
+INCOMPATIBILITIES:
+
+The date/time stamp of a process is now the date & time when the process
+started. The amount of CPU time the process has used is available via
+Fcntl calls (which ps and top have always used, so these still work
+correctly).

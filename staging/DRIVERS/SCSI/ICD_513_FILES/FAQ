@@ -1,0 +1,67 @@
+This file may be freely reproduced.
+
+Here are some frequently asked questions about MiNT, with answers:
+
+
+(1) Will MiNT work on my _______ (insert name of ST system)?
+
+Yes. Whether or not you *want* it to work on your system is another
+question. MiNT is of virtually no use if you only have 512K of RAM.
+If you have 1 megabyte of RAM on no hard drive, MiNT is not very useful.
+With pretty much any other configuration, MiNT has some uses. As with
+any multitasking system, the more memory you have, the more processes
+you can run (and hence, the better).
+
+(2) What's the difference between MiNT and Gulam?
+
+Gulam is a command line interpreter (CLI). MiNT is an operating
+system kernel. That means that MiNT accepts commands from
+programs, rather than directly from the user, and allows those
+programs to launch other programs that run concurrently
+(multitask) or to take advantage of other MiNT features like
+pipes and shared memory. Gulam doesn't provide any extended
+operating system features, but it does provide a nice user interface
+to the existing operating system. It's quite possible to use gulam
+as a CLI running under MiNT.
+
+(3) Do I need to use a CLI to use MiNT? What CLIs work with MiNT?
+
+No, you don't *need* a command line interface to use MiNT. But, since
+MiNT can run only one GEM program at a time, you'll probably find one
+useful! There are several good CLIs available for MiNT. The one that
+comes with MiNT (mintshel) is moderately useful, albeit quite buggy;
+it does have the advantage of being small. There are ports of several
+Unix shells (such as tcsh, bash, and ksh) available from various FTP
+servers.
+
+(4) I can't do an "ls" or "dir" command in mintshel.ttp -- it always gives
+    me "command exit code -33". What's wrong?
+
+"Exit code -33" means "file not found". mintshel has very few built in
+commands, and "ls" is not among them. So it looks along your PATH for
+a program called "ls.ttp", "ls.prg", or "ls.tos". If none is found, you get
+the error indicated. There are various file utilities available (for
+example, the GNU file utilities, or Allan Pratt's utilities) which can
+be used with mintshel; just put them in one of the directories specified
+in the PATH environment variable. See the mintshel documentation for more
+details.
+(In a pinch, you can always "alias ls 'echo *'", but this produces a
+less than desireable output.)
+
+(5) When I try to run MGR, I get a message like "can't get a pty".
+    What's wrong?
+
+This message usually means that MGR can't run a shell. This could be
+for a variety of reasons, but the most common is that there is no SHELL
+environment variable, or it doesn't point to a valid shell. Make sure
+you put the whole path in, e.g. setenv SHELL c:\bin\sh.ttp.
+
+(6) XXXX.PRG (insert name of some program or other) doesn't work any more
+    if I boot with MiNT. Why not?
+
+There are several possible explanations. The most likely is that XXXX.PRG
+does something illegal or questionable, like stealing certain system
+vectors or accessing undocumented memory locations. In some cases, it's
+just a conflict between MiNT and XXXX. Some of these conflicts can be fixed
+by running XXXX *after* MiNT, instead of having it before MINT.PRG in the AUTO
+folder.

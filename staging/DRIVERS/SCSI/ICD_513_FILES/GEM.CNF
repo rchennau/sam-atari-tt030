@@ -1,0 +1,28 @@
+# This is a sample GEM.CNF 5/1/92	D.Mui
+# Use 'setenv' to set AES environment, current useful strings are
+# PATH -> for searching all the resources
+# ACCPATH -> for searching all the accessories
+# AE_SREDRAW redraw screen when program starts on/off
+# AE_TREDRAW redraw screen when program exits on/off
+# Use 'shell' with full path for default shell and skip newdesk  
+# Use 'run' for auto launch program
+# SHPRINT full path for print utility
+# SHSHOW full path for show utility
+setenv PATH=.,C:\BIN,C:\APP,C:\MINT\BIN,C:\MINT
+setenv ACCPATH=C:\,C:\DA
+setenv ACCEXT=ACC,ACX
+setenv GEMEXT=PRG,APP,GTP
+setenv TOSEXT=TOS,TTP
+setenv SHSHOW=C:\MINT\VIEWER.PRG
+setenv SHPRINT=C:\MINT\LPR.PRG
+#AE_PNTSIZE=9
+AE_TREDRAW=0
+AE_SREDRAW=0
+
+# Set AES's font
+# AE_FONTNAME=Lucida Sans Italic
+# Set AES's point size
+#AE_PNTSIZE=9
+#Set the language preferences
+#0-USA 1-UK 2-GERMAN 3-Italian 4-Spain 5-Sweden 6-Swiss French 7-Swiss German 8-UK
+AE_LANG=0

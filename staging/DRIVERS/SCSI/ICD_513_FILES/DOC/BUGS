@@ -1,0 +1,26 @@
+MiNT is Not TOS: A Multitasking Operating System Extension for the Atari ST
+
+Copyright 1990,1991,1992 Eric R. Smith. All rights reserved. See the file
+"copying" for conditions of redistribution.
+========================================================================
+
+Terminals connected to the MODEMx or MIDI ports don't act like the console
+terminal; special characters (e.g. ^C or ^Z) are not always interpreted.
+Moreover, Fselect on serial devices doesn't work.
+
+Files with null names won't show up in Fsfirst/Fsnext.
+
+The date and time are not necessarily correct for volume labels created under
+MiNT.
+
+Only the TOS file system checks in Fdelete for the read-only bit of a file.
+
+If more than 999 pipes are created at once, the system will hang.
+
+A symbolic link to file '\FOO' will always point to the file "FOO" in the
+directory of the current drive of the reading process, *not* the root of the
+drive the link is located on. If an explicit drive letter is given (e.g.
+A:\FOO) the link will work correctly.
+
+Only the first process to Fselect() on a device will be woken up when data
+arrives for the device.

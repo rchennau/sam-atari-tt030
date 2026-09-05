@@ -1,0 +1,160 @@
+Here are some notes on writing device drivers; before reading
+them, you should familiarize yourself with the information in
+"filesys.doc", especially the material on device drivers.
+
+Serial Port Device Drivers
+
+Serial port device drivers should recognize the
+following ioctl calls:
+(here "f" is always a FILEPTR referring to an open
+file on the device)
+
+
+ioctl(f, TIOCIBAUD, long *r):
+
+Set input speed. "r" is a pointer to a 32 bit value, and is both an
+input and output parameter. If *r is > 0, it represents the value
+to which the serial port's input speed should be set. This value
+is a long word representation of the speed in bits per second,
+e.g. to set 9600 bits per second *r should be 9600L.
+If *r is 0, it indicates that DTR should be dropped.
+If *r is < 0, the call is an inquiry call only.
+
+On return, *r is set to the value of the input speed before the
+ioctl call was made. If, for some reason, this value is unknown,
+*r is set to -1L.
+
+Returns:
+0 on success
+ERANGE if the requested input speed is not available. In this case,
+the input speed has not been changed, and is still returned in *r.
+
+
+
+ioctl(f, TIOCOBAUD, long *r):
+
+Set output speed. "r" is a pointer to a 32 bit value, and is both an
+input and output parameter. If *r is > 0, it represents the value
+to which the serial port's output speed should be set. This value
+is a long word representation of the speed in bits per second,
+e.g. to set 9600 bits per second *r should be 9600L.
+If *r is 0, it indicates that the device should be hung up, i.e.
+that DTR should no longer be asserted.
+If *r is < 0, no change is to be made to the output speed.
+
+On return, *r is set to the value of the output speed before the
+ioctl call was made. If, for some reason, this value is unknown,
+*r is set to -1L.
+
+Returns:
+0 on success
+ERANGE if the requested output speed is not available. In this case,
+the input speed has not been changed, and is still returned in *r.
+
+Note: For many devices both the input and output speeds must always be
+the same. For such devices, TIOCIBAUD and TIOCOBAUD may affect both
+input and output speed.
+
+
+
+ioctl(f, TIOCSBRK, dummy):
+
+Causes a BREAK condition to be set on the output line.
+Returns:
+0 on success
+EINVFN if the serial port cannot send BREAK
+
+
+
+ioctl(f, TIOCCBRK, dummy)
+
+Causes any existing BREAK condition to be cleared.
+Returns:
+0 on success
+EINVFN if the serial port cannot send BREAK
+
+
+
+ioctl(f, TIOCGFLAGS, short *flags)
+
+Get the terminal control flags bits. 16 bit flag word
+pointed to by "flags" is set to reflect the current
+terminal state, as follows:
+
+TF_STOPBITS	0x0003
+The two low order bits describe the stop bits:
+0x0000	illegal -- attempts to set this value are
+	ignored
+0x0001	1 stop bit
+0x0002	1.5 stop bits
+0x0003	2 stop bits
+
+TF_CHARBITS	0x000C
+The next two bits describe the number of bits
+transmitted per character:
+0x0000	8 bits per character
+0x0004	7 bits per character
+0x0008	6 bits per character
+0x000C	5 bits per character
+
+The final nybble contains miscellaneous flags:
+T_TANDEM	0x1000		^S/^Q flow control active
+T_RTSCTS	0x2000		RTS/CTS flow control active
+T_EVENP		0x4000		even parity enabled
+T_ODDP		0x8000		odd parity enabled
+	(note: T_EVENPAR and T_ODDPAR are mutually exclusive)
+
+All other bits are reserved, and should be set to 0.
+
+Returns:
+0 on success
+
+
+
+ioctl(f, TIOCSFLAGS, short *flags)
+
+Set the terminal control flags (see the description
+of TIOCGFLAGS for details) based on the values in the
+word pointed to by "flags".
+
+Returns:
+0 on success
+ERANGE if an illegal or unsupported combination of flags
+ is detected.
+
+
+INTERFACE WITH EXISTING TIOCSETP/TIOCGETP CALLS:
+
+The MiNT kernel will automatically make appropriate
+TIOCIBAUD, TIOCOBAUD, TIOCGFLAGS, and TIOCSFLAGS calls
+whenever a TIOCSETP or TIOCGETP Fcntl is made on a
+terminal. The kernel will convert a Unix style baud
+specification into a MiNT style one, as follows:
+
+value of sg_ispeed or	     value sent to
+     sg_ospeed		         driver
+#define B0     0		    0L
+#define B50    1		   50L
+#define B75    2		   75L
+#define B110   3		  110L
+#define B134   4		  134L
+#define B150   5		  150L
+#define B200   6		  200L
+#define B300   7		  300L
+#define B600   8		  600L
+#define B1200  9		 1200L
+#define B1800  10		 1800L
+#define B2400  11		 2400L
+#define B4800  12		 4800L
+#define B9600  13		 9600L
+#define B19200 14		19200L
+#define B38400 15		38400L (*)
+
+anything else			   -1L
+
+
+(*) 38400 baud is not supported by the built
+in device drivers, but may be by external drivers
+
+If a speed other than those listed above is desired, the
+TIOCIBAUD and/or TIOCOBAUD Fcntls should be used directly.

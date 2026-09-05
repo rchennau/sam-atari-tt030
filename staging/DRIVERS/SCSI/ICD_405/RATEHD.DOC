@@ -1,0 +1,182 @@
+RATEHD.PRG & RATEHD.DOC
+Copyright 1989-1991  ICD, Inc.
+ 
+This document and the program RATEHD.PRG, may be distributed by 
+any non-commercial means (may not be sold) as long as the they
+are distributed together and no modifications are made.  
+Language translations are allowed.
+
+The copyright holder is:
+
+     ICD, Inc.
+     1220 Rock Street
+     Rockford, IL  61101-1437
+
+     Voice:  (815) 968-2228
+     BBS:    (815) 968-2229
+     FAX:    (815) 968-6888
+     Orders: (800) 373-7700   NO TECH SUPPORT on this number!!!
+
+RATEHD.PRG was written in Personal Pascal, a product of ICD, Inc.
+-----------------------------------------------------------------
+
+RATEHD was written to show performance characteristics of 
+various hard disk drives.  It was developed at ICD to allow fair
+comparison when evaluating hard disk drive mechanisms, embedded
+SCSI drives and SCSI controllers when used on the Atari ST.  It
+does not go through a hard disk handler (like ICDBOOT.SYS) so it
+is not useful in rating the speed of different handlers.  
+Generally, the ICD hard disk handler provides a significant 
+speed improvement in actual use due to its caching.
+
+We were a bit apprehensive about releasing this to the public 
+because of our fears that people would not understand it and 
+will use it for the wrong purpose.  It is intended as a
+comparison test and should not be used to verify a drive or
+controller against printed specifications.  Drive manufacturers
+test their drives on specialized test equipment and not on an
+Atari ST.  Data rates are also usually shown as a burst rate.  
+What we are measuring is the sustained rate, which is closer to
+the top end in real life usage.
+
+Our final decision to release RATEHD was twofold:
+
+1) There is too much misinformation out there when it comes to 
+   computers and hard drives.  There needed to be a uniform
+   benchmark test for the Atari ST.  Magazine reviews have
+   typically mislead the public, not maliciously, but because of
+   the reviewer's ignorance on the subject and lack of 
+   scientific testing methods.  Now you have a benchmark; just
+   don't abuse it.
+
+2) When we finished the FA-ST Tape Backup, we realized that a 
+   hard drive system would need a certain amount of finesse to
+   keep up with the streaming tape.  If the tape had to keep
+   backing up and waiting for the hard drive to catch up, the
+   backup time would become laboriously long and almost not 
+   usable.  A data rate of about 300 K/s (kilobytes per second)
+   is required to keep the tape moving without any stopping and
+   backing up.  As the data rate gets slower, the tape will begin
+   to backup and restart several times per partition.  A data
+   rate of less than 200 K/s would probably become unbearable at
+   attempting a backup.
+
+We have tested many drives and controllers at their optimum 
+interleaves and found that Adaptec MFM controllers (including
+Atari SH204, Megafile 20) run about 300 K/s if they are formatted
+at 1:1 interleave.  Adaptec RLL controllers (including Atari
+Megafile 30 and 60) run about 315 K/s at 2:1 interleave.  Omti
+MFM controllers move along about 360 K/s using 1:1 with Omti RLL
+at about 375 K/s at 1:1.  Embedded controller drives are usually
+the speedsters with the Seagate ST138N and ST157N cruising at 550
+K/s at 1:1.  The quickest we have measured was a Quantum LP105S
+which flies at 1197 K/s which is probably fast enough to do real
+time video.  It also had 21 ms average access time and had a 105
+Megabyte formatted capacity.
+
+
+THE PROBLEM WITH MOST TEST METHODS
+----------------------------------
+
+There are many variables in something as complex as a computer 
+with a hard disk drive that can make testing a cumbersome task.  
+The most obvious way to test hard drive speed is to copy files
+from a hard drive to a RAMDISK and then back to a clean hard
+drive while timing the process.  Although on the surface a test
+like this appears sufficient, it cannot give an accurate picture
+of what to expect in performance after using the drive for a
+while.  Both hard drives would need to be freshly formatted (no
+files yet) and with identical partition sizes.  If not freshly
+formatted, the DOS fat table delays and fragmentation would enter
+a significant amount of error into the rating equation.  Of
+course the same DOS and same computer must also be used.
+
+While this seems like a reasonable test method, it would only 
+show the data rate (assuming both drives were formatted at their
+optimal interleave).  Step rate in this type of test would not be
+a measurable factor as it would later on when the files on the
+drives become fragmented.  Fragmentation occurs as a hard drive
+gets used and files are modified.  They increase in size and 
+when rewritten to the drive, not all the file parts are in
+consecutive sectors anymore, probably not even in the same area
+of the disk.  The file eventually becomes a group of "fragments."
+This is where the movement of the head from track to track (step
+rate measured as average access time) really becomes an 
+important speed factor.  It would not be an easy task to create 
+two freshly formatted drives of different manufacture with
+identical fragmentation on each drive.
+
+Many of the magazine reviews we have seen give no indication of 
+the test method.  It is almost as if the numbers were arrived at
+by magic.  We now offer RATEHD as a solution to all magazine
+reviewers desiring to test hard disk drives.  If you all use
+this, then the results can be believable.
+
+Since RATEHD does not use the OS nor the hard disk handler, it 
+is easily repeatable and virtually foolproof.  Both are important
+factors in any test method.  It will run on any hard drive and
+does not care about how the partitions are set up nor does it
+matter what the file structure is like.  Since RATEHD *never*
+writes to the disk, it is totally safe and can be run at any 
+time.
+
+
+ABOUT THE PROGRAM
+-----------------
+
+RATEHD begins at SCSI ID #0, Logical Unit Number 0, and proceeds 
+to check LUNs 0-3 for each SCSI ID going through all SCSI IDs 0-7
+except special cases for ID #6 (reserved for our real time clock)
+and ID# 7 (where it only reads LUN 0).  When the program finds a
+hard drive present, it will print the manufacturers
+identification under Device Name, and proceed with the tests.
+After each drive is tested, it will display the results and
+search for the next drive.  When finished with all drives, RATEHD
+will allow you to RETEST or EXIT back to the desktop.  (A screen
+dump will print the results.)
+
+Don't worry: It is only a read test so no damage will be done to
+your drive data.
+
+
+ABOUT THE TESTS
+---------------
+
+The Data Rate Test
+     In this test, one megabyte of data is read (2,000 sectors) 
+     in 100 sector continuous blocks (burst mode).  This is timed
+     and the math is done to calculate the number of K/s
+     (Kilobytes read in one second).
+
+The Average Access Test
+     The Average Access is based on an assumed 16 megabyte 
+     partition beginning with sector 0 and ending with sector
+     31,000.  The head is told to read a sector at the innermost
+     cylinder of the partition area (31,000) then to read one in
+     the outermost cylinder (0).  This is repeated 50 times but
+     each time the sector number is adjusted so that the head
+     will move 1/50 less distance. If there were 51 tries, the
+     head would end up on the center cylinder of the partition
+     (15,500), not stepping at all for the inner and outer
+     cylinders.
+
+     This movement is timed and the sector read time is removed. 
+     An average time for the head travel is then calculated and
+     shown in ms (milliseconds).  Since this average time also
+     includes the command overhead time, it will be slightly
+     higher than specifications from the drive manufacturer.
+
+
+WHAT YOU HAVE LEARNED
+---------------------
+
+There are really only two significant variables concerning 
+performance with a hard disk.  These are Data Rate and Average
+Access.  We are assuming that you are concerned about speed and
+have the optimum interleave on your drive.
+
+There is one other bottleneck that does affect hard disk 
+performance.  The Disk Operating System is a major slowdown.  To
+optimize your DOS speed get TOS 1.4 from Atari as soon as you
+can.  Using it, we have seen a tremendous improvement in both 
+speed and reliability.  Thank you Atari!

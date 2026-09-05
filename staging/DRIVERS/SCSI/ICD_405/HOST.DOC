@@ -1,0 +1,9 @@
+This is a utility to tell you what kind of Host Adapter you have connected
+to each hard drive on line.   Note that it is not always possible to
+differentiate between Advantage Plus / Advantage / Advantage Micro adapters.
+This is particularly true when multiple Host Adapters are connected.
+
+Nor is it possible to differentiate between one of ICD's original STHA
+boards and one of those made by another manufacturer.  These items do NOT
+have signatures.  We are merely seeing which ones do full SCSI commands 
+and which ones have ICD real time clocks.
