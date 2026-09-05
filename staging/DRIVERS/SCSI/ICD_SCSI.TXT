@@ -1,0 +1,13 @@
+==============================================================================
+ICD AdSCSI DRIVER SETTINGS (ATARI TT030)
+==============================================================================
+
+ICDBOOT.PRG Configuration:
+  - Default Target ID: 0 (Internal HDD / BlueSCSI Image HD00_512.img)
+  - Bus Type: SCSI / ACSI Auto-Detect
+  - Fast-RAM Buffer allocation: Enabled (TT-RAM target preferred)
+
+Partition Types Supported:
+  - BGM (Big DOS Partitions up to 1GB under TOS 3.06)
+  - GEM (Standard TOS partitions up to 32MB)
+  - RAW / FreeMiNT ext2 swap volumes
