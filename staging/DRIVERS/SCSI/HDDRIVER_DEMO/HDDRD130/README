@@ -1,0 +1,26 @@
+How to install the HDDRIVER demo version:
+
+Boot your system from floppy disk and start HDDRIVER.PRG. Now launch
+HDDRUTIL.APP. After double-clicking drive C: HDDRIVER will be installed.
+Reboot your Atari in order to activate HDDRIVER.
+In order to partition, you select a drive/memory card in the "Devices"
+window and then "Partition" in the menu. Partition the medium TOS
+compatible and ensure that in the compatibility settings "Byte Swapping"
+is disabled.
+
+
+Important notes:
+
+- TOS cannot boot from SCSI drives that require initiator identification.
+With the Atari ST such devices only work with the LINK96/97 host adapters
+or the host adapter by Inventronik.
+- Most Falcons have problems with their SCSI hardware, especially with high
+screen resolutions. Atari proposed several hardware fixes (clock patches).
+Because in contrast to other drivers HDDRIVER drives Falcon SCSI with
+maximum speed, you might not have noticed this problem before.
+
+
+Please visit the HDDRIVER website for more information, and for the prices
+of the full version and the upgrade conditions:
+
+https://www.hddriver.net

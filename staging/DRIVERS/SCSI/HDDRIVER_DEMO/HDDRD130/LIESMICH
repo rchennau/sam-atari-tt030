@@ -1,0 +1,29 @@
+Hinweise zur Installation der HDDRIVER-Demoversion:
+
+Booten Sie Ihr System von Floppy und starten Sie HDDRIVER.PRG. Starten Sie
+danach HDDRUTIL.APP. Mit einem Doppelklick auf Laufwerk C: wird HDDRIVER
+installiert. Booten Sie den Atari nach dieser Aktion neu, ist HDDRIVER
+aktiviert.
+Zum Partitionieren selektieren Sie eine Platte/Speicherkarte im
+"GerÑte"-Fenster und dann "Partitionieren" im MenÅ. Partitionieren Sie
+das Medium TOS-kompatibel und stellen Sie sicher, dass "Byte-Swapping" in
+den KompatibilitÑts-Einstellungen deaktiviert ist.
+
+
+Wichtige Hinweise:
+
+- Von SCSI-Platten, die Initiator-Identifizierung erfordern, kann TOS nicht
+booten. Am Atari ST kînnen solche GerÑte nur mit den Hostadaptern LINK96/97
+oder dem Hostadapter von Inventronik betrieben werden.
+- Die meisten Falcons haben Probleme mit ihrer SCSI-Hardware, die sich
+insbesondere bei hohen Bildschirmauflîsungen zeigen. Atari hat zur Behebung
+dieser Fehler diverse Hardware-Modifikationen (Clockpatches) vorgeschlagen.
+Da HDDRIVER Falcon SCSI im Gegensatz zu anderen Treibern mit maximaler
+Geschwindigkeit betreibt, kann es sein, dass diese Fehler bisher unbemerkt
+geblieben sind.
+
+
+Bitte entnehmen Sie weitere Informationen und die Preise fÅr die Vollversion
+sowie die Upgrade-Konditionen der HDDRIVER-Website:
+
+https://www.hddriver.net
