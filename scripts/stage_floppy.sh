@@ -81,7 +81,7 @@ echo "[2/4] Formatting image as FAT12 (Volume label: ${VOLUME_NAME})..."
 mkfs.vfat -F 12 -n "${VOLUME_NAME}" "${IMAGE_FILE}"
 
 echo "[3/4] Populating floppy image from staging directory..."
-# We use mcopy from mtools if available, or mount loopback
+# We use mcopy from mtools if available, or 7z, or fatcat
 if command -v mcopy &>/dev/null; then
     echo "Using mtools (mcopy) to transfer files to FAT12 image..."
     export MTOOLS_SKIP_CHECK=1
@@ -90,15 +90,12 @@ if command -v mcopy &>/dev/null; then
             mcopy -i "${IMAGE_FILE}" -s "$item" ::/
         fi
     done
+elif command -v 7z &>/dev/null; then
+    echo "Using 7z to populate FAT12 image..."
+    (cd "${STAGING_DIR}" && 7z a "${REPO_DIR}/${IMAGE_FILE}" ./*)
 else
-    echo "mcopy not found, using temporary loopback mount..."
-    TMP_MOUNT="$(mktemp -d)"
-    trap 'sudo umount "${TMP_MOUNT}" 2>/dev/null || true; rmdir "${TMP_MOUNT}" 2>/dev/null || true' EXIT
-    sudo mount -o loop,uid="$(id -u)",gid="$(id -g)" "${IMAGE_FILE}" "${TMP_MOUNT}"
-    cp -r "${STAGING_DIR}"/* "${TMP_MOUNT}/"
-    sudo umount "${TMP_MOUNT}"
-    rmdir "${TMP_MOUNT}"
-    trap - EXIT
+    echo "Error: Neither mtools (mcopy) nor 7z found! Please install mtools (e.g. sudo apt install mtools) to populate FAT images without root." >&2
+    exit 1
 fi
 
 echo "Floppy image ${IMAGE_FILE} built successfully."
