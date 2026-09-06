@@ -1,0 +1,49 @@
+--------- Description of the software for transputer use with the ATW800/2 ------------
+André Saischowa , Udo Matthe / 15 Feb 2025
+
+One of the main motivations for the development of the ATW800/2 was the use of transputers, the “hot shit...” of the 1980s. People dreamed of having a supercomputer on their desk.  Me too, the goal was to own the ATW800 from Atari. What remained just a dream was that Europe would play a leading role in the development of high-performance computers, but that's another story...
+
+With the ATW800/2 you can now play with transputers on the Atari, in the simplest form no additional hardware for the Atari (MegaST, MegaSTe, TT) is necessary, apart from an ATW800/2. However, a hard disk solution is required for meaningful operation. Multitransputer operation is also possible, more on this later. This is not a “real” ATW800, in particular the BLOSSOM is missing, the above comes quite close, and has, especially in the graphics area, better features than the original.
+
+In addition to the graphics core, the ATW800/2 contains a transputer as an FPGA implementation, currently a T425 with 40MHz clock frequency. Like the Atari, this has direct access to the video hardware. This is possible thanks to the ingenious work of Claus Peter Meder as developer of the FPGA firmware. Here is a description of the software components. First of all, the software was developed or ported to the best of our knowledge, no liability is assumed. The major part of it will be made public as source after the beta phase, everyone is invited to contribute to the improvement and extension.
+
+The directory atw800_2 contains various directories and files. Please copy atw800_2 to the C: drive of the Atari. A driver is required to operate the ATW800/2 as a graphics card, preferably the XVDI driver from Wolfgang Hiestand. But NVDI5 is also possible.
+
+nvdi.5   
+- In addition to using XVDI, which Wolfgang Hiestand has ported for the ATW800/2, it is also possible to use NVDI5. The necessary files can be found in this directory. There must be an installed version of NVDI5 on the Atari. I have adapted it to the ATW800/2 based on the ET4000 drivers, which can be found at https://github.com/th-otto/MagicMac. To use it, the files in the “Auto” and “Gemdos” directories, as well as the Assign.sys, must be copied to the file system.
+
+atari.dev
+- here you will find the sources of the iserver as a PureC project, which is used for the development tools of INMOS (e.g. d7205/d72uni). These sources can be used to find out how to use the GEMDOS drivers for the transputer links in your own programs.
+
+atwtools
+Here you will find the drivers for using the link interfaces to the transputer and some other tools for using/testing the transputer on the ATW800
+
+fpgabios.tos - Gemdos driver for using the link adapter in the FPGA
+tbios.tos - Gemdos driver for using the C011 on the ATW800/2 (assembly option)
+trombios.tos - Gemdos driver for using a transfertech romport link adapter
+
+Please note that only one driver can be used at a time, which connects to the Gemdos at startup. By default, fpgabios.tos is used. A driver must be activated before using the other tools and programs (exception helios.tos). These drivers are further developments of AliaBios by Helge Schulz, which was used in the Tek project in c`t and others.
+
+afserver.ttp - the alien server for early INMOS development tools, such as the OCS
+
+iserver.ttp - the host server for the more “modern” INMOS development tools. The default setting is 2MB Ram on the transputer (changeable in the file profile of mupfel.ttp). To test, simply enter iserver -sb hello.btl (start fpgabios.prg beforehand, of course) 
+
+ispy.ttp - a tool for researching the connected transputers. Simply call it up, all recognized transputers and their connections are listed.
+
+rspy.ttp - THE swiss army knife for working with transputers. Used to operate linkalia.tos. Ported and further developed by Michael Brüstle. Many thanks for that. By the way, there is hardly a transputer problem to which Mike does not know a line-leading answer...
+
+tmon.ttp - the monitoring program from the transputer book by Uwe Gerlach. Useful when using transputers.
+
+resetatw.tos - resets the ATW800/2 graphics after using the transputer tools. Especially the LUT after using X11 or changed values ​​of the VTG.
+
+d72uni
+Mike Bruestle has reviewed the development tools for OCCAM and Ansi-C provided by Inmos and adapted them for use on modern systems. Udo Matthe has adapted the Atari version from this, as well as various demos for use. To use it, please start the mupfel shell. Please note that the compilers etc. run natively on the transputer, the Atari is only the host system. The scripts used for this are located under muptools. 
+
+trans.dev
+some demos in OCCAM or Ansi-C for the use of the transputer, also in connection with the graphics part of the ATW800/2. To use, please set the resolution to 1024x768 / 256 colors. Please read the file occ.read.me for compiling and using the demos. The information there applies to OCCAM and C demos
+
+Note: to use helios 1.3 with X11 please install the package atw800_2_helios13pack (ed.: It's already part of this folder)
+
+Finally, have fun (and gain knowledge) with the ATW800/2
+
+André Saischowa, Udo Matthe (with many thanks to Mike Bruestle)
