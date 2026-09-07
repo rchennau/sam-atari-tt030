@@ -11,4 +11,5 @@ echo "Config: ${EMU_DIR}/hatari.cfg"
 echo "HD Root: ${EMU_DIR}/hd0"
 echo "--------------------------------------------------------"
 
-flatpak run --user org.tuxfamily.hatari//stable --configfile "${EMU_DIR}/hatari.cfg" "$@"
+export FLATPAK_USER_DIR="$HOME/.local/share/flatpak"
+flatpak run --user org.tuxfamily.hatari --configfile "${EMU_DIR}/hatari.cfg" "$@"
