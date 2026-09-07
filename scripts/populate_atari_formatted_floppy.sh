@@ -8,14 +8,15 @@ if [[ ! -b "$DEV" ]]; then
     exit 1
 fi
 
-sudo -n umount /mnt 2>/dev/null || true
+sudo -n umount /mnt/atari 2>/dev/null || true
+sudo -n mkdir -p /mnt/atari 2>/dev/null || true
 echo "[1/3] Mounting Atari TT 030 formatted floppy..."
-sudo -n mount -t vfat -o umask=000 "$DEV" /mnt
+sudo -n mount -t vfat -o umask=000 "$DEV" /mnt/atari
 
 echo "[2/3] Copying drivers to Atari formatted floppy..."
-rsync -rtDhP --fsync /home/sam/Projects/atari-tt030-enhancement/staging/ /mnt/
+rsync -rtDhP --fsync /home/sam/Projects/atari-tt030-enhancement/staging/ /mnt/atari/
 
 echo "[3/3] Syncing and unmounting..."
 sync
-sudo -n umount /mnt
+sudo -n umount /mnt/atari
 echo "SUCCESS: Atari TT formatted floppy populated cleanly!"
