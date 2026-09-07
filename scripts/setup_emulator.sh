@@ -3,7 +3,10 @@ set -e
 
 EMU_DIR="/home/sam/Projects/atari-tt030-enhancement/emulator"
 
-# Grant flatpak user sandbox permissions to user's home directory
+# Kill any existing background instances under current user
+pkill -f hatari 2>/dev/null || true
+
+# Grant flatpak user sandbox permissions
 flatpak override --user --filesystem=host org.tuxfamily.hatari 2>/dev/null || true
 
 echo "========================================================"
