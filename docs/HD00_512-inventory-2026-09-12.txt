@@ -1,0 +1,123 @@
+=== tt-C.img: 8192 B/sector x2, capacity 293 MiB, used 24.8 MiB, 684 entries
+      4.90 MiB  OUTPUT/
+      2.04 MiB  NVDI5/
+      1.63 MiB  WORDPLUS/
+      1.01 MiB  TMP/
+      1.00 MiB  AUTO/
+      0.74 MiB  GEMSYS/
+      0.58 MiB  TOOLS/
+      0.56 MiB  ICD_PR~1/
+      0.56 MiB  FONTS/
+      0.56 MiB  HAWK_432/
+      0.48 MiB  BTFONTS/
+      0.48 MiB  NVDITOOL.S/
+      0.48 MiB  HDDRIVER.11/
+      0.45 MiB  STING_~1/
+      0.40 MiB  TBCAD2TT.PRG
+      0.27 MiB  STING/
+      0.18 MiB  TS4000.DVR/
+      0.15 MiB  XBOOT/
+      0.12 MiB  SYS/
+      0.11 MiB  CPX/
+      0.11 MiB  SLM/
+      0.10 MiB  HDX/
+      0.06 MiB  TBSHELL.PRG
+      0.05 MiB  IDC_0.ACX
+      0.05 MiB  ICDBOOT.SYS
+      0.04 MiB  COPS.ACX
+      0.04 MiB  XCONTROL.ACX
+      0.04 MiB  GEM_TEST.PRG
+      0.03 MiB  TFO/
+      0.03 MiB  LASBRAIN.ACX
+      0.02 MiB  LNG/
+      0.02 MiB  TBOUT.PRG
+      0.01 MiB  TBPACK/
+      0.01 MiB  DESKICON.RSC
+      0.01 MiB  SHDRIVER.SYS
+      0.00 MiB  OUTCONF.PRG
+      0.00 MiB  SDUMP.PRG
+      0.00 MiB  NVDIDFLT.PRG
+      0.00 MiB  SAMPLE.PRG
+      0.00 MiB  DEFAULT.CFG
+      0.00 MiB  UNLOCK.PRG
+      0.00 MiB  OUTFLAGS.PRG
+      0.00 MiB  NVDICONF.ACX
+      0.00 MiB  NEWDESK.INF
+      0.00 MiB  ASSIGN.SYS
+      0.00 MiB  ASSIGN.XXX
+      0.00 MiB  STING.INF
+      0.00 MiB  NVDI.INF
+      0.00 MiB  NVDI.XXX
+      0.00 MiB  LASBRAIN.BAK
+      0.00 MiB  LASBRAIN.BAT
+      0.00 MiB  CONTROL.INF
+      0.00 MiB  DESKICON.DFN
+      0.00 MiB  HDDRUTIL.INF
+      0.00 MiB  CLIPBRD/
+      0.00 MiB  DATA/
+      0.00 MiB  TC2/
+         686  AUTO/XVDI_RES.PRX
+        8522  AUTO/XVDI_R.PRX
+          86  AUTO/XVDI_R.BIB
+       15583  AUTO/XVDIMENU.PRX
+          22  AUTO/XVDIMENU.INF
+      130148  AUTO/XVDI.PRX
+        3096  AUTO/XVDI.BIB
+        8864  AUTO/OUTSIDE.PRX
+        1051  AUTO/CACHE100.PRX
+         820  AUTO/FOLDR900.PRX
+      320651  AUTO/NVDI.PGR
+       11148  AUTO/MACCEL3.PRX
+        9521  AUTO/GDOS.PRX
+       17032  AUTO/SM124.PRX
+       56699  AUTO/SM124.IMG
+         482  AUTO/SM124.INF
+       86944  AUTO/WDIALOG.PRX
+        2346  AUTO/REDIRECT.PRX
+      320651  AUTO/NVDI.PR
+       31175  AUTO/SLCT_DEV.PRX
+       20118  AUTO/STING.PRG
+          10  AUTO/STING.INF
+          64  AUTO/00JAR032.PRG
+          53  XBOOT/README.TXT
+        1267  XBOOT/SETS.DAT
+         286  XBOOT/XBOOT.CFG
+        1243  XBOOT/SETS.BAK
+       86944  XBOOT/WDIALOG.PRG
+       47126  XBOOT/COPS.ACC
+       10008  XBOOT/NCACHE.CPX
+        7229  XBOOT/SI.CPX
+        6651  STING/CEN_PLEP.STY
+        6275  STING/CEN_PLIP.STY
+         329  STING/DEFAULT.CFG
+       68740  STING/DIALER.APP
+          11  STING/DIAL.INF
+       24552  STING/DIAL.RSC
+       11999  STING/DIAL.SCR
+       10052  STING/SCSILINK.STX
+           0  STING/ICON.RSC
+           0  STING/LCLTLK.STY
+           0  STING/LOCAL.FEE
+           0  STING/LOGIN.BAT
+           0  STING/MASQUE.STY
+           0  STING/MIDI.STY
+       10052  STING/DAYNAPOR.STX
+         315  STING/STING.INF
+        6651  STING/STING/CEN_PLEP.STY
+        6275  STING/STING/CEN_PLIP.STY
+        4056  STING/STING/DEFAULT.CFG
+       68740  STING/STING/DIALER.APP
+          11  STING/STING/DIAL.INF
+       24552  STING/STING/DIAL.RSC
+       11999  STING/STING/DIAL.SCR
+       10052  STING/STING/SCSILINK.STX
+           0  STING/STING/ICON.RSC
+           0  STING/STING/LCLTLK.STY
+           0  STING/STING/LOCAL.FEE
+           0  STING/STING/LOGIN.BAT
+           0  STING/STING/MASQUE.STY
+           0  STING/STING/MIDI.STY
+       10052  STING/STING/DAYNAPOR.STX
+         315  STING/STING/STING.INF
+=== tt-D.img: 8192 B/sector x2, capacity 342 MiB, used 0.0 MiB, 0 entries
+=== tt-E.img: 8192 B/sector x2, capacity 365 MiB, used 0.0 MiB, 0 entries
