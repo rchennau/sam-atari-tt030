@@ -1,0 +1,2 @@
+Source: https://github.com/freemint/m68k-atari-mint-gcc/releases/tag/tags_gcc-13_4_0-mintelf (fetched 2026-09-12)
+NATIVE Atari build (file: "Atari 68xxx executable") — runs on the TT under FreeMiNT (68020-60), not on fractal.
