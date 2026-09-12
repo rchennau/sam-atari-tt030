@@ -4,7 +4,8 @@
 # ICDBOOT must be last: after installing it runs the hard disk's C:\AUTO\*.PRG itself and the
 # rest of A:\AUTO never runs (measured in Hatari 2026-09-11 with --trace gemdos: with ICDBOOT
 # before STING.PRG, STING.PRG was never Pexec'd; with it after, all four STX modules load).
-AUTO/00JAR032.PRG          staging/AUTO_EXTRA/00JAR032.PRG
+# 00JAR032.PRG removed 2026-09-11: the 64-byte "cookie jar expander" ends in a bare RTS, so TOS
+# kills it with 11 bombs (Pterm(-1) in the Hatari trace). TOS 3.06 has its own cookie jar.
 AUTO/STING.INF             floppy/STING.INF              # one line: A:\STING\
 AUTO/STING.PRG             staging/AUTO/STING.PRG        # STiNG 1.26 kernel
 AUTO/ICDBOOT.PRG           staging/AUTO/ICDBOOT.PRG      # ICD AdSCSI Pro 6.5.5 (freeware, C3)
