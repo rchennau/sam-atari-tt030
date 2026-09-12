@@ -6,3 +6,4 @@
 backups/
 .venv-floppy/
 build/
+tools/
