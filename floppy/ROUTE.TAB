@@ -1,4 +1,7 @@
 # TT030 STiNG routes (FR-4/FR-9). TAB-separated: network, netmask, port, gateway.
-# Serial SLIP to fractal over the null-modem cable: fractal 192.168.10.1, TT 192.168.10.2.
+# First match wins; routes on ports that are not loaded are ignored (STiNG ROUTE.TAB docs),
+# so this table works with WiFi (BlueSCSI DaynaPORT = SCSI/Link) or with the serial link only.
 192.168.10.0	255.255.255.0	Modem 1	0.0.0.0
+192.168.0.0	255.255.255.0	SCSI/Link	0.0.0.0
+0.0.0.0	0.0.0.0	SCSI/Link	192.168.0.1
 0.0.0.0	0.0.0.0	Modem 1	192.168.10.1
