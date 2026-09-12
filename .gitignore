@@ -5,3 +5,4 @@
 *.PRG
 backups/
 .venv-floppy/
+build/
