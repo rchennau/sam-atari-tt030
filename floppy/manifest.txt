@@ -1,0 +1,24 @@
+# TT030 bootstrap floppy (FR-6): mounts BlueSCSI/internal SCSI partitions and loads STiNG.
+# <dest on A:>            <source, repo-relative>
+# AUTO/ runs in THIS order: cookie jar -> STiNG -> SCSI driver LAST.
+# ICDBOOT must be last: after installing it runs the hard disk's C:\AUTO\*.PRG itself and the
+# rest of A:\AUTO never runs (measured in Hatari 2026-09-11 with --trace gemdos: with ICDBOOT
+# before STING.PRG, STING.PRG was never Pexec'd; with it after, all four STX modules load).
+AUTO/00JAR032.PRG          staging/AUTO_EXTRA/00JAR032.PRG
+AUTO/STING.INF             floppy/STING.INF              # one line: A:\STING\
+AUTO/STING.PRG             staging/AUTO/STING.PRG        # STiNG 1.26 kernel
+AUTO/ICDBOOT.PRG           staging/AUTO/ICDBOOT.PRG      # ICD AdSCSI Pro 6.5.5 (freeware, C3)
+
+# STiNG loads every *.STX in the folder named by STING.INF.
+STING/DEFAULT.CFG          floppy/DEFAULT.CFG            # distribution template, ACTIVATE = TRUE
+STING/ROUTE.TAB            staging/STING/ROUTE.TAB
+STING/TCP.STX              staging/STING/TCP.STX
+STING/UDP.STX              staging/STING/UDP.STX
+STING/RESOLVE.STX          staging/STING/RESOLVE.STX
+STING/SCSILINK.STX         staging/AUTO_EXTRA/SCSILINK.STX   # Anodyne DaynaPORT driver (BlueSCSI ID 3)
+STING/PING.PRG             staging/STING/TOOLS/PING.PRG
+
+# Port IP config is done on the TT in the Control Panel (STNGPORT.CPX).
+XCONTROL.ACC               staging/XCONTROL.ACC
+CPX/STING.CPX              staging/CPX/STING.CPX
+CPX/STNGPORT.CPX           staging/CPX/STNGPORT.CPX
