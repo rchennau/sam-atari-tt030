@@ -12,7 +12,7 @@ AUTO/ICDBOOT.PRG           staging/AUTO/ICDBOOT.PRG      # ICD AdSCSI Pro 6.5.5 
 
 # STiNG loads every *.STX in the folder named by STING.INF.
 STING/DEFAULT.CFG          floppy/DEFAULT.CFG            # distribution template, ACTIVATE = TRUE
-STING/ROUTE.TAB            staging/STING/ROUTE.TAB
+STING/ROUTE.TAB            floppy/ROUTE.TAB              # Modem 1 SLIP routes to fractal 192.168.10.1
 STING/TCP.STX              staging/STING/TCP.STX
 STING/UDP.STX              staging/STING/UDP.STX
 STING/RESOLVE.STX          staging/STING/RESOLVE.STX

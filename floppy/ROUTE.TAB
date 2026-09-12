@@ -1,0 +1,4 @@
+# TT030 STiNG routes (FR-4/FR-9). TAB-separated: network, netmask, port, gateway.
+# Serial SLIP to fractal over the null-modem cable: fractal 192.168.10.1, TT 192.168.10.2.
+192.168.10.0	255.255.255.0	Modem 1	0.0.0.0
+0.0.0.0	0.0.0.0	Modem 1	192.168.10.1
