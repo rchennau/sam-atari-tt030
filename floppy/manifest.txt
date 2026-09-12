@@ -7,6 +7,7 @@
 # 00JAR032.PRG removed 2026-09-11: the 64-byte "cookie jar expander" ends in a bare RTS, so TOS
 # kills it with 11 bombs (Pterm(-1) in the Hatari trace). TOS 3.06 has its own cookie jar.
 AUTO/STING.INF             floppy/STING.INF              # one line: A:\STING\
+AUTO/SCSIDRV.PRG           staging/DRIVERS/SCSI/CBHD/cbhd502/CBHD502/SCSIDRV.PRG   # CBHD 5.02 SCSIDRV cookie; SCSILINK.STX (WiFi) needs it
 AUTO/STING.PRG             staging/AUTO/STING.PRG        # STiNG 1.26 kernel
 AUTO/ICDBOOT.PRG           staging/AUTO/ICDBOOT.PRG      # ICD AdSCSI Pro 6.5.5 (freeware, C3)
 

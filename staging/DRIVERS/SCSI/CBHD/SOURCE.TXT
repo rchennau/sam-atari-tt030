@@ -1,0 +1,2 @@
+Source: http://ftp.funet.fi/pub/atari/diskutil/cbhd502.tos (fetched 2026-09-12; padua.org and uni-paderborn.de mirrors dead)
+CBHD 5.02, public domain (Claus Brod), maintained by Steffen Engel. Self-extracting TOS archive.
