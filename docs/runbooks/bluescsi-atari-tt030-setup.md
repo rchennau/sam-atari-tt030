@@ -1,50 +1,46 @@
-# Atari TT 030 BlueSCSI v2 & STiNG WiFi DaynaPORT Integration Runbook
+# Atari TT 030 BlueSCSI v2 & STiNG Runbook
 
-## 1. System Overview
-- **Hardware Platform**: Atari TT 030 (32MHz Motorola 68030, 68882 FPU, 64MB TT RAM).
-- **Solid-State Storage**: BlueSCSI v2 (RP2350 Pico 2 W) Target ID 0 (`HD00_512.hda`, 1GB RAW SCSI Image).
-- **Embedded AHDI Partition Table**: `HD00_512.hda` contains 3 Atari AHDI FAT16 partitions (`C:`, `D:`, `E:`).
-- **Wireless Ethernet**: Emulated DaynaPORT SCSI/Link on SCSI ID 3 (`NE3.hda`) bound to WiFi SSID `chennault`.
-- **TCP/IP Stack**: STiNG v1.26 with Anodyne `DAYNAPOR.STX` / `SCSILINK.STX` drivers.
-- **Boot Manager**: XBOOT III v3.21 Registered (`SHOW_MENU = 1`).
-- **Multitasking & Open OS**: FreeMiNT 1.18.0 distribution (`D:\APPS\FREEMINT\`) & EmuTOS 1.3 512k ROM suite (`E:\ARCHIVE\EMUTOS\`).
-- **Emulation Workstation**: Hatari v2.5.0 Atari TT 030 (`emulator/hatari.cfg`, `scripts/setup_emulator.sh`).
-- **Host Mount Location Mandate**: `/media/atari/` for all block devices and image mounts.
+> **Rewritten 2026-09-12 from measurements.** The canonical, maintained copies are in the SAM repo:
+> inf-card `docs/runbooks/inf-cards/atari-tt030.md` and procedure `docs/runbooks/atari-tt030-bootstrap.md`.
+> The 2026-09-07 version of this file made several claims that measurement disproved; they are
+> corrected below, next to what replaced them.
 
----
+## 1. System overview (measured unless marked)
 
-## 2. Inner AHDI Logical Partition Distribution (`HD00_512.hda`)
-- **`C:` System Partition (292 MB)**: Operating System Core (`AUTO/`, `STING/`, `XBOOT/`).
-  - `C:\AUTO\`: `HDDRIVER.PRG`, `00JAR032.PRG`, `STING.INF`, `XBOOT.PRG`, `XBOOT.INF`.
-  - `C:\STING\`: `STING.PRG`, `DEFAULT.CFG`, `DAYNAPOR.STX`, `STING.INF`.
-  - `C:\XBOOT\`: `XBOOT.PRG`, `XBOOT.INF` (`SHOW_MENU = 1`, `TIMEOUT = 10`).
-- **`D:` Apps Partition (341 MB)**: User Applications & Multitasking (`D:\APPS\FREEMINT\freemint\`).
-- **`E:` Drivers & Archive Partition (365 MB)**:
-  - `E:\DRIVERS\`: `ATW800/` Transputer, `SCSI/`, `NET/`.
-  - `E:\ARCHIVE\`: `GERMAN_DOCS/`, `EMUTOS/`, `LOGS/`, `FIRMWARE/`.
+- **Platform:** Atari TT 030 (68030/68882), 4 MB ST-RAM, 64 MB TT-RAM *(operator-reported)*, TOS 3.06.
+- **BlueSCSI v2 (Pico 2):** disk `HD00_512.hda` (1 GiB) at **SCSI ID 0**; DaynaPORT `NE3.hda` at **ID 3**.
+  `bluescsi.ini` uses `System="MegaSTE"`; it holds the WiFi password — never copy it into docs.
+- **Disk layout:** 3 ICD-formatted FAT16 partitions with **8192 B logical sectors** (not readable by
+  Linux vfat/mtools/pyfatfs/7z — use `scripts/atari_fat16_ls.py` / `scripts/atari_fat16.py`).
+- **Host mounts on fractal:** `/media/atari/sd` and `/media/atari/floppy` (fstab `user` entries — sam
+  mounts them without sudo).
 
----
+## 2. Partitions
 
-## 3. STiNG & Hardware Boot Stack Configuration Rules
-- **Cookie Jar Expansion**: `C:\AUTO\00JAR032.PRG` expands Cookie Jar to 32 slots before STiNG initializes.
-- **SCSI Driver Order**: `C:\AUTO\HDDRIVER.PRG` (Uwe Seimet SCSI driver) must precede XBOOT III and STiNG to initialize partition tables.
-- **Boot Manager**: `C:\AUTO\XBOOT.PRG` and `C:\XBOOT\XBOOT.INF` configured with `SHOW_MENU = 1` and `TIMEOUT = 10`.
-- **DMA Safe ST-RAM Memory Directive**: `C:\AUTO\STING.INF` and `C:\STING\DEFAULT.CFG` include `STRAMONLY = 1` to prevent 2-bomb (Bus Error) crashes on 64MB TT RAM systems during NCR 5380 SCSI DMA transfers.
-- **Protocol Configuration**: `C:\STING\DEFAULT.CFG` contains TAB-separated configuration parameters (`IP = 192.168.0.185`, `GATEWAY = 192.168.0.1`).
-- **Driver Binary**: `C:\STING\DAYNAPOR.STX` (Official Anodyne DaynaPORT driver binary).
-- **Boot Diagnostics**: `C:\STING.LOG` and `C:\AUTO\00LOGALL.PRG` console logger.
+**Measured on the original image (2026-09-12, `docs/HD00_512-inventory-2026-09-12.txt`):** C: held a
+24.8 MiB legacy TT install; **D: and E: were empty** (0 entries). *Corrected:* the earlier claim that
+FreeMiNT lived at `D:\APPS\FREEMINT` and an archive at `E:\ARCHIVE` was never true of this image.
 
----
+**Rebuilt image (`floppy/hd00-reorg-plan.json`, byte-verified on a copy):** C: system core (AUTO,
+STING, XBOOT, GEMSYS, SYS, CPX); D: `APPS\` (incl. FreeMiNT 1.18.0, not installed) and `DATA\`;
+E: `DRIVERS\` and `ARCHIVE\`. The original is kept at `backups/HD00_512-orig-2026-09-12.hda`.
 
-## 4. Emulation Environment Setup & Launch
-To launch the Hatari Atari TT 030 workstation emulator on `fractal`:
+## 3. Boot stack and STiNG
 
-```bash
-/home/sam/Projects/atari-tt030-enhancement/scripts/setup_emulator.sh
-```
+- **AUTO order (floppy):** `SCSIDRV.PRG` (CBHD 5.02) → `STING.PRG` → `ICDBOOT.PRG` last. ICDBOOT runs
+  the boot partition's `C:\AUTO` itself, so nothing after it in `A:\AUTO` runs. *Corrected:* HDDRIVER
+  is not part of the stack (plan C3, freeware only) and did not "precede STiNG".
+- **SCSIDRV is required** for the DaynaPORT driver: without it STiNG prints
+  `SCSILINK.STX not installed: SCSIDRV not active` (Hatari, 2026-09-12).
+- **STiNG modules** in the folder named by `AUTO\STING.INF`: TCP, UDP, RESOLVE, SCSILINK (DaynaPORT),
+  SERIAL. *Corrected:* the old `C:\STING` had only `DAYNAPOR.STX`/`SCSILINK.STX` — no TCP/UDP/RESOLVE.
+- *Corrected:* `00JAR032.PRG` (64 bytes) is a broken stub that crashes TOS with 11 bombs — removed;
+  `STRAMONLY` is not a STiNG 1.26 key; `DEFAULT.CFG` needs `ACTIVATE = TRUE` and has no port/IP keys.
+- **Port IPs** are set on the TT in `STNGPORT.CPX` (SCSI/Link for WiFi, Modem 1 for SLIP to fractal);
+  routes are in `STING\ROUTE.TAB`.
 
-To run the automated integration test suite:
+## 4. Emulator
 
-```bash
-/home/sam/Projects/atari-tt030-enhancement/scripts/test_sting_hatari.py
-```
+`emulator/hatari.cfg` is a TT profile (see the SAM inf-card for key names). Attach the disk with
+`--scsi 0=<image>` and prove what loaded with `--trace gemdos`. *Corrected:* `scripts/test_sting_hatari.py`
+printed hard-coded PASS lines without checking anything — deleted 2026-09-12.

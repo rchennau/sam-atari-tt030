@@ -1,6 +1,6 @@
 # TT030 bootstrap floppy (FR-6): mounts BlueSCSI/internal SCSI partitions and loads STiNG.
 # <dest on A:>            <source, repo-relative>
-# AUTO/ runs in THIS order: cookie jar -> STiNG -> SCSI driver LAST.
+# AUTO/ runs in THIS order: SCSIDRV (SCSI cookie) -> STiNG (SCSILINK needs SCSIDRV) -> ICDBOOT LAST.
 # ICDBOOT must be last: after installing it runs the hard disk's C:\AUTO\*.PRG itself and the
 # rest of A:\AUTO never runs (measured in Hatari 2026-09-11 with --trace gemdos: with ICDBOOT
 # before STING.PRG, STING.PRG was never Pexec'd; with it after, all four STX modules load).
