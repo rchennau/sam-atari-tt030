@@ -1,0 +1,34 @@
+[
+  {"op": "move", "src": "C:\\NVDI5",      "dst": "D:\\APPS\\NVDI5"},
+  {"op": "move", "src": "C:\\WORDPLUS",   "dst": "D:\\APPS\\WORDPLUS"},
+  {"op": "move", "src": "C:\\HAWK_432",   "dst": "D:\\APPS\\HAWK_432"},
+  {"op": "move", "src": "C:\\TOOLS",      "dst": "D:\\APPS\\TOOLS"},
+  {"op": "move", "src": "C:\\FONTS",      "dst": "D:\\APPS\\FONTS"},
+  {"op": "move", "src": "C:\\BTFONTS",    "dst": "D:\\APPS\\BTFONTS"},
+  {"op": "move", "src": "C:\\NVDITOOL.S", "dst": "D:\\APPS\\NVDITOOL.S"},
+  {"op": "move", "src": "C:\\TBPACK",     "dst": "D:\\APPS\\TBPACK"},
+  {"op": "move", "src": "C:\\TC2",        "dst": "D:\\APPS\\TC2"},
+  {"op": "move", "src": "C:\\TFO",        "dst": "D:\\APPS\\TFO"},
+  {"op": "move", "src": "C:\\SLM",        "dst": "D:\\APPS\\SLM"},
+  {"op": "move", "src": "C:\\LNG",        "dst": "D:\\APPS\\LNG"},
+  {"op": "put",  "path": "D:\\APPS\\FREEMINT", "host": "/media/atari/sd/APPS/FREEMINT/freemint"},
+
+  {"op": "move", "src": "C:\\OUTPUT",     "dst": "D:\\DATA\\OUTPUT"},
+  {"op": "move", "src": "C:\\DATA",       "dst": "D:\\DATA\\DATA"},
+
+  {"op": "move", "src": "C:\\HDDRIVER.11", "dst": "E:\\DRIVERS\\HDDRIVER.11"},
+  {"op": "move", "src": "C:\\ICD_PR~1",    "dst": "E:\\DRIVERS\\ICD_PR~1"},
+  {"op": "move", "src": "C:\\HDX",         "dst": "E:\\DRIVERS\\HDX"},
+  {"op": "move", "src": "C:\\TS4000.DVR",  "dst": "E:\\DRIVERS\\TS4000.DVR"},
+  {"op": "move", "src": "C:\\STING_~1",    "dst": "E:\\DRIVERS\\STING_~1"},
+  {"op": "move", "src": "C:\\TMP",         "dst": "E:\\ARCHIVE\\TMP"},
+
+  {"op": "del",  "path": "C:\\AUTO\\00JAR032.PRG"},
+  {"op": "put",  "path": "C:\\AUTO\\STING.INF",   "host": "floppy/STING-C.INF"},
+  {"op": "del",  "path": "C:\\STING\\STING"},
+  {"op": "put",  "path": "C:\\STING\\DEFAULT.CFG", "host": "floppy/DEFAULT.CFG"},
+  {"op": "put",  "path": "C:\\STING\\TCP.STX",     "host": "staging/STING/TCP.STX"},
+  {"op": "put",  "path": "C:\\STING\\UDP.STX",     "host": "staging/STING/UDP.STX"},
+  {"op": "put",  "path": "C:\\STING\\RESOLVE.STX", "host": "staging/STING/RESOLVE.STX"},
+  {"op": "put",  "path": "C:\\STING\\ROUTE.TAB",   "host": "staging/STING/ROUTE.TAB"}
+]
