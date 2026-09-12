@@ -1,0 +1,3 @@
+Source: https://tho-otto.m68k.eu/crossmint.php (Thorsten Otto), fetched 2026-09-12. Linux x86-64 hosted m68k-atari-mint cross tools.
+gcc-15.2.0-mint-20250810-bin-linux64, binutils-2.45-mint-20250812-bin-linux64, mintlib-0.60.1 (20240718), fdlibm (20240425), gemlib-0.44.0 (20240425).
+Verified: -m68020-60 hello.prg (GEMDOS 601a) runs on emulated TT 030 / TOS 3.06 in Hatari.
