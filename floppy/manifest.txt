@@ -17,9 +17,11 @@ STING/TCP.STX              staging/STING/TCP.STX
 STING/UDP.STX              staging/STING/UDP.STX
 STING/RESOLVE.STX          staging/STING/RESOLVE.STX
 STING/SCSILINK.STX         staging/AUTO_EXTRA/SCSILINK.STX   # Anodyne DaynaPORT driver (BlueSCSI ID 3)
+STING/SERIAL.STX           staging/STING/SERIAL.STX      # SLIP/PPP on Modem 1 -> fractal /dev/atari-tt (null modem)
 STING/PING.PRG             staging/STING/TOOLS/PING.PRG
 
 # Port IP config is done on the TT in the Control Panel (STNGPORT.CPX).
 XCONTROL.ACC               staging/XCONTROL.ACC
 CPX/STING.CPX              staging/CPX/STING.CPX
 CPX/STNGPORT.CPX           staging/CPX/STNGPORT.CPX
+CPX/SERIAL.CPX             staging/CPX/SERIAL.CPZ        # Modem 1 baud rate (CPZ = disabled name; enabled here)
