@@ -1,0 +1,3 @@
+Source: https://github.com/freemint/freemint/releases/download/freemint-1_18_0/freemint-1.18.0.zip (GitHub release freemint-1_18_0, tag published 2017-01-28; fetched 2026-09-12)
+Newest binary release on GitHub; the FreeMiNT site says no formal release since 1.18.0 (2013). Snapshots: https://atari.joska.no/snapshots/freemint/
+auto/mint030.prg md5 8b4952d89bcb... = identical to the copy on the BlueSCSI SD card (APPS/FREEMINT/freemint).
