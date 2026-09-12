@@ -25,9 +25,8 @@
 
   {"op": "del",  "path": "C:\\AUTO\\00JAR032.PRG"},
   {"op": "put",  "path": "C:\\AUTO\\STING.INF",   "host": "floppy/STING-C.INF"},
-  {"op": "put",  "path": "C:\\AUTO\\SCSIDRV.PRG", "host": "staging/DRIVERS/SCSI/CBHD/cbhd502/CBHD502/SCSIDRV.PRG"},
-  {"op": "del",  "path": "C:\\AUTO\\STING.PRG"},
-  {"op": "put",  "path": "C:\\AUTO\\STING.PRG",   "host": "staging/AUTO/STING.PRG"},
+  {"op": "put",  "path": "C:\\ICDBOOT.SYS",       "host": "staging/DRIVERS/SCSI/CBHD/cbhd502/CBHD502/CBHD.PRG"},
+  {"op": "del",  "path": "C:\\STING\\DAYNAPOR.STX"},
   {"op": "del",  "path": "C:\\STING\\STING"},
   {"op": "put",  "path": "C:\\STING\\DEFAULT.CFG", "host": "floppy/DEFAULT.CFG"},
   {"op": "put",  "path": "C:\\STING\\TCP.STX",     "host": "staging/STING/TCP.STX"},
