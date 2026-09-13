@@ -1,0 +1,8 @@
+#!/bin/bash
+# FR-9: send files over the serial console with ZMODEM. lrzsz cannot turn tty echo off on MiNT,
+# so the TT would echo the receiver's ZRINIT back and rz aborts ("got ZRINIT") — do it here.
+stty -echo
+sz -e "$@"
+rc=$?
+stty echo
+exit $rc
