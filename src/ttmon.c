@@ -13,6 +13,7 @@
  */
 #include <arpa/inet.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,22 +104,29 @@ static int mqtt_publish(int s, const char *payload)
     return send_all(s, pkt, h + t + p);
 }
 
+/* Read a /kern file with open/read, never stdio: mintlib's fopen+fgets costs ~0.45 s CPU per /kern
+ * file on the TT, against ~0.05 s for read() (TT, 2026-09-13) — a stdio scan of 18 processes cost 9.5 s. */
+static int slurp(const char *file, char *buf, int size)
+{
+    int fd = open(file, O_RDONLY), n = 0, r;
+
+    if (fd < 0)
+        return 0;
+    while (n < size - 1 && (r = read(fd, buf + n, size - 1 - n)) > 0)
+        n += r;
+    close(fd);
+    buf[n] = 0;
+    return n;
+}
+
 /* first number after `key` in a /kern file (0 if missing) */
 static long kern_val(const char *file, const char *key)
 {
-    char line[160];
-    long v = 0;
-    FILE *f = fopen(file, "r");
+    char buf[1024], *p;
 
-    if (!f)
+    if (!slurp(file, buf, sizeof buf) || !(p = strstr(buf, key)))
         return 0;
-    while (fgets(line, sizeof line, f))
-        if (!key[0] || strncmp(line, key, strlen(key)) == 0) {
-            v = strtol(line + strlen(key), NULL, 10);
-            break;
-        }
-    fclose(f);
-    return v;
+    return strtol(p + strlen(key), NULL, 10);
 }
 
 /* CPU busy % since the previous call: sum of every process's CPU ms (/kern/<pid>/stat fields
@@ -136,16 +144,12 @@ static unsigned long proc_ticks(void)
         return 0;
     while ((e = readdir(d)))
         if (e->d_name[0] >= '0' && e->d_name[0] <= '9') {
-            FILE *f;
-            snprintf(path, sizeof path, "/kern/%s/stat", e->d_name);
-            if (!(f = fopen(path, "r")))
-                continue;
+            snprintf(path, sizeof path, "/kern/%.40s/stat", e->d_name);
             /* MiNT's stat has one field fewer than Linux's: utime/stime are fields 13/14. Measured on the
              * TT: toswin2's field 13 grew 307910->308225 and field 14 42390->42415 in 5 s (milliseconds). */
-            if (fgets(buf, sizeof buf, f) && (p = strrchr(buf, ')')) &&
+            if (slurp(path, buf, sizeof buf) && (p = strrchr(buf, ')')) &&
                 sscanf(p + 2, "%*c %*s %*s %*s %*s %*s %*s %*s %*s %*s %lu %lu", &ut, &st) == 2)
                 total += ut + st;
-            fclose(f);
         }
     closedir(d);
     return total;
@@ -157,17 +161,15 @@ static double cpu_busy(void)
 {
     static double pup;
     static unsigned long pms;
+    char buf[64];
     double up = 0, busy = 0;
     unsigned long ms = proc_ticks();
-    FILE *f = fopen("/kern/uptime", "r");
 
-    if (f) {
-        if (fscanf(f, "%lf", &up) == 1 && up > pup && pup > 0 && ms >= pms) {
-            busy = 100.0 * (ms - pms) / ((up - pup) * 1000.0);
-            if (busy > 100)
-                busy = 100;
-        }
-        fclose(f);
+    if (slurp("/kern/uptime", buf, sizeof buf) && sscanf(buf, "%lf", &up) == 1 && up > pup && pup > 0 &&
+        ms >= pms) {
+        busy = 100.0 * (ms - pms) / ((up - pup) * 1000.0);
+        if (busy > 100)
+            busy = 100;
     }
     pup = up;
     pms = ms;
@@ -179,7 +181,6 @@ int main(int argc, char **argv)
     const char *ip = argc > 1 ? argv[1] : "192.168.0.20";
     int interval = argc > 2 ? atoi(argv[2]) : 60, s = -1;
     char msg[512], load[32] = "0";
-    FILE *f;
 
     cpu_busy();                        /* prime the delta */
     for (;;) {
@@ -187,11 +188,8 @@ int main(int argc, char **argv)
             sleep(30);
             continue;
         }
-        if ((f = fopen("/kern/loadavg", "r"))) {
-            if (fscanf(f, "%31s", load) != 1)
-                strcpy(load, "0");
-            fclose(f);
-        }
+        if (!slurp("/kern/loadavg", msg, sizeof msg) || sscanf(msg, "%31s", load) != 1)
+            strcpy(load, "0");
         snprintf(msg, sizeof msg,
                  "{\"node_id\":\"" NODE "\",\"vram_free_mb\":0,\"cpu_load\":%.1f,\"status\":\"READY\","
                  "\"load1\":%s,\"uptime_s\":%ld,\"mem_free_kb\":%ld,\"tt_ram_free_kb\":%ld,"
