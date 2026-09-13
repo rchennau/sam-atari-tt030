@@ -1,0 +1,6 @@
+#!/bin/bash
+# Start Dropbear at boot (called from mint.cnf). -F keeps it in the foreground: when it daemonises
+# itself on MiNT, every connection exits "setsid: Bad file descriptor". The shell backgrounds it.
+# A script, not a quoted bash -c in mint.cnf: the mint.cnf parser dropped the quoted options
+# (TT 2026-09-12: boot-started dropbear logged "Running in background").
+/usr/sbin/dropbear -F -p 22 -r /etc/dropbear/dropbear_ed25519_host_key < /dev/null > /dev/null 2>&1 &

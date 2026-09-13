@@ -486,6 +486,7 @@ exec u:/usr/sbin/sntp
 exec u:/usr/sbin/inetd
 # SSH: Dropbear (Monocypher crypto), ed25519 key only; ~28 s per login on the TT (2026-09-12).
 # -F + shell "&": when Dropbear daemonises itself, each connection exits "setsid: Bad file descriptor".
-exec u:/bin/bash -c "/usr/sbin/dropbear -F -p 22 -r /etc/dropbear/dropbear_ed25519_host_key > /dev/null 2>&1 &"
+# (quoted bash -c lost its options in mint.cnf; the script keeps -F)
+exec u:/bin/bash /etc/rc.dropbear
 # Serial login on Modem 2, 57600 baud (space bar dead, 2026-09-12); script respawns login
 exec u:/bin/bash u:/c/mint/1-19-4eb/getty1.sh
