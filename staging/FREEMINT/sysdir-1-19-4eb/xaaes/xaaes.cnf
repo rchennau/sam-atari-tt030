@@ -937,4 +937,4 @@ run u:\opt\GEM\toswin2\toswin2.app
 setenv AVSERVER   "DESKTOP "
 setenv FONTSELECT "DESKTOP "
 #
-shell = u:\opt\GEM\teradesk\desktop.prg
+shell = u:\opt\GEM\teradesk\DESKTOP.PRG

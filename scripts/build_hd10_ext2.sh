@@ -38,6 +38,11 @@ PUB=${ATARI_TT_PUBKEY:-$HOME/.ssh/atari_tt_rsa.pub}
 [ -f "$PUB" ] || { echo "missing $PUB (ssh-keygen -t rsa -m PEM -f ~/.ssh/atari_tt_rsa)" >&2; exit 1; }
 mkdir -p "$WORK/overlay/etc/ssh" "$WORK/overlay/root/.ssh"
 cp -a "$REPO/staging/HD10_OVERLAY/." "$WORK/overlay/" && rm -f "$WORK/overlay/README.TXT"
+# GEM apps from the FreeMiNT 1.19 snapshot's sys-root/opt: TeraDesk (xaaes.cnf's AES shell), toswin2
+# (terminal windows), cops, fsetter, gemkfat, gluestik... (~3.4 MB). ext2 is case-sensitive: keep names.
+SNAP=$REPO/staging/FREEMINT/freemint-1-19-4eb44d14-tt_falcon_clones.zip
+unzip -q "$SNAP" 'mint/1-19-4eb/sys-root/opt/*' -d "$WORK/snap"
+cp -a "$WORK/snap/mint/1-19-4eb/sys-root/opt" "$WORK/overlay/"
 cp "$KEYS/ssh_host_rsa_key" "$KEYS/ssh_host_rsa_key.pub" "$WORK/overlay/etc/ssh/"
 cp "$PUB" "$WORK/overlay/root/.ssh/authorized_keys"
 # Root password for telnet/ftp (plain text on the LAN). DES crypt: MiNTLib 0.57's login knows no $1$.
