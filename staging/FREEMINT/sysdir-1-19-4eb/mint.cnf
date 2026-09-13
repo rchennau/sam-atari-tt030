@@ -479,6 +479,10 @@ exec u:/c/mint/1-19-4eb/route add default en0 gw 192.168.0.1
 # -r: without it sshd exits "re-exec requires execution with an absolute path" (argv0 is u:/..., Hatari 2026-09-12)
 #exec u:/usr/sbin/sshd -r   ; off: on the real TT the 1024-bit DH kex did not finish within LoginGraceTime 120 s
 # telnet (23) + ftp (21) via inetd, root has a password (2026-09-12)
+# syslog (creates /pipe/log; old MiNTLib programs printed "/pipe/log: No such file" without it)
+exec u:/usr/sbin/syslogd
+# clock: one SNTP query to pool.ntp.org (TT booted at 22 Jun 1989; no NTP server on the LAN)
+exec u:/usr/sbin/sntp
 exec u:/usr/sbin/inetd
 # Serial login on Modem 2, 57600 baud (space bar dead, 2026-09-12); script respawns login
 exec u:/bin/bash u:/c/mint/1-19-4eb/getty1.sh
