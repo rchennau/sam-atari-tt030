@@ -50,9 +50,14 @@ int main(int argc, char **argv)
             if (tcgetattr(fd, &t) == 0) {
                 cfsetispeed(&t, speed(argv[2]));
                 cfsetospeed(&t, speed(argv[2]));
-                t.c_iflag = ICRNL | IXON;
+                /* No flow control. CRTSCTS was on by default: the TT then transmits only while CTS
+                 * (fractal's RTS) is up, and fractal drops RTS whenever a program closes the port —
+                 * output froze mid-stream, the shell spun, and each respawn sat in state D waiting to
+                 * drain. `stty -crtscts` on the TT released it at once (2026-09-13). No IXON either:
+                 * a stray ^S in serial data would stop output the same way. */
+                t.c_iflag = ICRNL;
                 t.c_oflag = OPOST | ONLCR;
-                t.c_cflag = (t.c_cflag & ~(CSIZE | PARENB | CSTOPB)) | CS8 | CREAD | CLOCAL;
+                t.c_cflag = (t.c_cflag & ~(CSIZE | PARENB | CSTOPB | CRTSCTS)) | CS8 | CREAD | CLOCAL;
                 t.c_lflag = ISIG | ICANON | ECHO | ECHOE | ECHOK;
                 if (tcsetattr(fd, TCSANOW, &t) != 0)
                     perror("ttygetty: tcsetattr");
