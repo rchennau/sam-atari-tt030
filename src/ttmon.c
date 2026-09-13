@@ -12,6 +12,7 @@
  * Build: m68k-atari-mint-gcc -m68020-60 -Os -s -Wall -o ttmon src/ttmon.c
  */
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -120,26 +121,56 @@ static long kern_val(const char *file, const char *key)
     return v;
 }
 
-/* CPU busy % since the previous call, from /kern/uptime "uptime idle" (seconds, both cumulative).
- * Not /kern/stat: its idle column is not a running total on MiNT — the first build reported 396–501 %. */
+/* CPU busy % since the previous call: sum of every process's CPU ms (/kern/<pid>/stat fields
+ * 13 and 14) over elapsed uptime ms. Neither idle counter works on MiNT
+ * with XaAES running: /kern/stat's idle isn't cumulative (first build reported 396-501 %), and
+ * /kern/uptime's idle froze at 3996.99 s for 700+ s while per-process times showed ~7 % use by toswin2 (TT, 2026-09-13). */
+static unsigned long proc_ticks(void)
+{
+    char path[64], buf[512], *p;
+    unsigned long total = 0, ut, st;
+    struct dirent *e;
+    DIR *d = opendir("/kern");
+
+    if (!d)
+        return 0;
+    while ((e = readdir(d)))
+        if (e->d_name[0] >= '0' && e->d_name[0] <= '9') {
+            FILE *f;
+            snprintf(path, sizeof path, "/kern/%s/stat", e->d_name);
+            if (!(f = fopen(path, "r")))
+                continue;
+            /* MiNT's stat has one field fewer than Linux's: utime/stime are fields 13/14. Measured on the
+             * TT: toswin2's field 13 grew 307910->308225 and field 14 42390->42415 in 5 s (milliseconds). */
+            if (fgets(buf, sizeof buf, f) && (p = strrchr(buf, ')')) &&
+                sscanf(p + 2, "%*c %*s %*s %*s %*s %*s %*s %*s %*s %*s %lu %lu", &ut, &st) == 2)
+                total += ut + st;
+            fclose(f);
+        }
+    closedir(d);
+    return total;
+}
+
+/* Units: MiNT reports these times in MILLISECONDS, not /kern/hz ticks — a shell busy loop grew
+ * fields 13+14 by 4755 in 6.055 s of uptime (TT, 2026-09-13); ticks would have given ~1200. */
 static double cpu_busy(void)
 {
-    static double pup, pidle;
-    double up = 0, idle = 0, busy = 0;
+    static double pup;
+    static unsigned long pms;
+    double up = 0, busy = 0;
+    unsigned long ms = proc_ticks();
     FILE *f = fopen("/kern/uptime", "r");
 
     if (f) {
-        if (fscanf(f, "%lf %lf", &up, &idle) == 2 && up > pup) {
-            busy = 100.0 * (1.0 - (idle - pidle) / (up - pup));
-            if (busy < 0)
-                busy = 0;
+        if (fscanf(f, "%lf", &up) == 1 && up > pup && pup > 0 && ms >= pms) {
+            busy = 100.0 * (ms - pms) / ((up - pup) * 1000.0);
             if (busy > 100)
                 busy = 100;
         }
         fclose(f);
     }
     pup = up;
-    pidle = idle;
+    pms = ms;
     return busy;
 }
 
