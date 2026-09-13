@@ -41,8 +41,16 @@
   {"op": "put",  "path": "C:\\STING\\RESOLVE.STX", "host": "staging/STING/RESOLVE.STX"},
   {"op": "put",  "path": "C:\\STING\\ROUTE.TAB",   "host": "floppy/ROUTE.TAB"},
   {"op": "put",  "path": "C:\\STING\\SERIAL.STX",  "host": "staging/STING/SERIAL.STX"},
-  {"op": "move", "src": "C:\\XCONTROL.ACX",       "dst": "C:\\XCONTROL.ACC"},
+  {"op": "del",  "path": "C:\\XCONTROL.ACX"},
+  {"op": "put",  "path": "C:\\XCONTROL.ACC",      "host": "staging/XCONTROL.ACC"},
+  {"op": "del",  "path": "C:\\NEWDESK.INF"},
+  {"op": "put",  "path": "C:\\NEWDESK.INF",       "host": "staging/CARD_SAVED_2026-09-12/NEWDESK.INF"},
+  {"op": "put",  "path": "C:\\STING.PRT",         "host": "staging/CARD_SAVED_2026-09-12/STING.PRT"},
+  {"op": "del",  "path": "C:\\XBOOT\\SETS.DAT"},
+  {"op": "put",  "path": "C:\\XBOOT\\SETS.DAT",   "host": "staging/CARD_SAVED_2026-09-12/XBOOT/SETS.DAT"},
+  {"op": "del",  "path": "C:\\XBOOT\\SETS.BAK"},
+  {"op": "put",  "path": "C:\\XBOOT\\SETS.BAK",   "host": "staging/CARD_SAVED_2026-09-12/XBOOT/SETS.BAK"},
   {"op": "put",  "path": "C:\\CPX\\STING.CPX",     "host": "staging/CPX/STING.CPX"},
-  {"op": "put",  "path": "C:\\CPX\\STNGPORT.CPX",  "host": "staging/CPX/STNGPORT.CPX"},
+  {"op": "put",  "path": "C:\\CPX\\STNGPORT.CPX",  "host": "staging/CARD_SAVED_2026-09-12/CPX/STNGPORT.CPX"},
   {"op": "put",  "path": "C:\\CPX\\SERIAL.CPX",    "host": "staging/CPX/SERIAL.CPZ"}
 ]
