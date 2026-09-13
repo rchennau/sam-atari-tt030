@@ -30,6 +30,7 @@
   {"op": "del",  "path": "C:\\AUTO\\STING.PRG"},
   {"op": "put",  "path": "C:\\AUTO\\STING.PRG",   "host": "staging/AUTO/STING.PRG"},
   {"op": "put",  "path": "C:\\AUTO\\BOOTDEV.PRG", "host": "staging/AUTO_EXTRA/BOOTDEV.PRG"},
+  {"op": "put",  "path": "C:\\AUTO\\HELPSPC.PRG", "host": "staging/AUTO_EXTRA/HELPSPC.PRG"},
   {"op": "put",  "path": "C:\\AUTO\\MINT-4EB.PRX", "host": "staging/FREEMINT/auto-mint-4eb.prg"},
   {"op": "put",  "path": "C:\\MINT\\1-19-4EB",     "host": "staging/FREEMINT/sysdir-1-19-4eb"},
   {"op": "del",  "path": "C:\\STING\\DAYNAPOR.STX"},

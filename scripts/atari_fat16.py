@@ -13,6 +13,7 @@ Plan ops (paths are DRIVE:\\DIR\\NAME, 8.3 upper-case):
   {"op": "mkdir", "path": "E:\\ARCHIVE"}
 """
 import json
+import os
 import struct
 import sys
 import time
@@ -154,7 +155,9 @@ def pad83(name):
 
 
 def dirent(name11, attr, clus, size, raw):
-    t = time.localtime()
+    # Fixed stamp for new entries (SOURCE_DATE_EPOCH if set) so rebuilds are byte-reproducible;
+    # with time.localtime() every rebuild changed D:/E: bytes and forced a full-card rewrite.
+    t = time.gmtime(int(os.environ.get("SOURCE_DATE_EPOCH", "1789171200")))
     e = bytearray(raw) if raw else bytearray(32)
     if not raw:
         e[22:26] = struct.pack("<HH", (t.tm_hour << 11) | (t.tm_min << 5) | (t.tm_sec // 2),

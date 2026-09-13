@@ -471,3 +471,9 @@ echo
 # TT030 (2026-09-12): userland is the ext2 disk at SCSI ID 1 (F:), see scripts/build_hd10_ext2.sh
 sln u:/f/usr u:/usr
 sln u:/f/sbin u:/sbin
+# BlueSCSI WiFi (DaynaPORT, scsilink.xif -> en0): 192.168.0.30, free per operator + fractal ping/ARP 2026-09-12.
+# Same address as the TOS/STiNG SCSI/Link port (STNGPORT.CPX); only one of TOS or MiNT runs at a time.
+exec u:/c/mint/1-19-4eb/ifconfig en0 addr 192.168.0.30 netmask 255.255.255.0 up
+exec u:/c/mint/1-19-4eb/route add default en0 gw 192.168.0.1
+# Serial login on Modem 2, 57600 baud (space bar dead, 2026-09-12); script respawns login
+exec u:/bin/bash u:/c/mint/1-19-4eb/getty1.sh
