@@ -198,7 +198,7 @@
   {
     "op": "put",
     "path": "C:\\AUTO\\XVDI.PRX",
-    "host": "staging/XVDI_ORIG/XVDI.PRX"
+    "host": "staging/XVDI_FLOPPY/AUTO/XVDI.PRG"
   },
   {
     "op": "put",

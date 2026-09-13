@@ -1,0 +1,3 @@
+Operator's ATW800/2 boot floppy (720 KB DD), imaged read-only on fractal 2026-09-13; boots the TT with HDMI output.
+Full image: backups/atw800_2-floppy-2026-09-13.img (gitignored), sha256 3d26a67ab7e752050139b881fee6bb90f95e7cc073d91dee19412dc919e940f6.
+AUTO/ = files identical to C:\AUTO except XVDI.PRG, which here is the 68000 build (= DATA/XVDI.000).
