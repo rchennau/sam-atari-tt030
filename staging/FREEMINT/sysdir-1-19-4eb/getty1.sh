@@ -8,4 +8,6 @@
 # (Hatari, 2026-09-12). ttygetty (src/ttygetty.c, mintlib 0.60) sets the line up and runs the
 # snapshot's bash, respawning it on exit. No password: local null-modem cable only.
 S=/c/mint/1-19-4eb
-$S/ttygetty /dev/ttyS1 38400 $S/bash < /dev/null > /dev/console 2>&1 &
+# --noediting: no readline on the serial line. Stray ZMODEM bytes (ZDLE = ^X, a readline prefix key)
+# reach the shell when a transfer fails to start; the readline bash then went silent (2026-09-13).
+$S/ttygetty /dev/ttyS1 38400 $S/bash --noediting < /dev/null > /dev/console 2>&1 &

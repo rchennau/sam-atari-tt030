@@ -5,7 +5,7 @@
  * on MiNT 1.19 (Hatari, 2026-09-12), so the line is never configured. Built with mintlib 0.60.
  * No password: the TT console is a local null-modem cable only.
  *
- * Usage: ttygetty DEVICE SPEED SHELL     e.g. ttygetty /dev/modem2 57600 /c/mint/1-19-4eb/bash
+ * Usage: ttygetty DEVICE SPEED SHELL [ARG]   e.g. ttygetty /dev/ttyS1 38400 /c/mint/1-19-4eb/bash --noediting
  * Build: m68k-atari-mint-gcc -m68020-60 -Os -s -o ttygetty src/ttygetty.c
  */
 #include <fcntl.h>
@@ -29,8 +29,8 @@ static speed_t speed(const char *s)
 
 int main(int argc, char **argv)
 {
-    if (argc != 4) {
-        fprintf(stderr, "usage: ttygetty DEVICE SPEED SHELL\n");
+    if (argc != 4 && argc != 5) {
+        fprintf(stderr, "usage: ttygetty DEVICE SPEED SHELL [ARG]\n");
         return 2;
     }
     for (;;) {
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
             if (fd > 2)
                 close(fd);
             setenv("TERM", "vt100", 1);
-            execl(argv[3], "-bash", (char *)NULL);
+            execl(argv[3], "-bash", argc == 5 ? argv[4] : (char *)NULL, (char *)NULL);
             perror(argv[3]);
             _exit(1);
         }
