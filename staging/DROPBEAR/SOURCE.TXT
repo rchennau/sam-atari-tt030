@@ -1,1 +1,2 @@
 dropbear-2026.94.tar.bz2  e098034a843699200c8c977a991fff73159735bf795d5f72ef672c41a6b1ae81  https://matt.ucc.asn.au/dropbear/releases/ (no upstream checksum file; sha256 recorded on download 2026-09-12)
+monocypher-4.0.3.tar.gz  8cc9bc341a66249016db9bd70e9142d8d0aef9945973744b1ac05dbc55d8ee66  https://monocypher.org/download/ (CC0/BSD-2; fe = i32[10])
