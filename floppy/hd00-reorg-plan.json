@@ -41,6 +41,7 @@
   {"op": "put",  "path": "C:\\STING\\RESOLVE.STX", "host": "staging/STING/RESOLVE.STX"},
   {"op": "put",  "path": "C:\\STING\\ROUTE.TAB",   "host": "floppy/ROUTE.TAB"},
   {"op": "put",  "path": "C:\\STING\\SERIAL.STX",  "host": "staging/STING/SERIAL.STX"},
+  {"op": "move", "src": "C:\\XCONTROL.ACX",       "dst": "C:\\XCONTROL.ACC"},
   {"op": "put",  "path": "C:\\CPX\\STING.CPX",     "host": "staging/CPX/STING.CPX"},
   {"op": "put",  "path": "C:\\CPX\\STNGPORT.CPX",  "host": "staging/CPX/STNGPORT.CPX"},
   {"op": "put",  "path": "C:\\CPX\\SERIAL.CPX",    "host": "staging/CPX/SERIAL.CPZ"}
