@@ -43,6 +43,10 @@ cp -a "$REPO/staging/HD10_OVERLAY/." "$WORK/overlay/" && rm -f "$WORK/overlay/RE
 SNAP=$REPO/staging/FREEMINT/freemint-1-19-4eb44d14-tt_falcon_clones.zip
 unzip -q "$SNAP" 'mint/1-19-4eb/sys-root/opt/*' -d "$WORK/snap"
 cp -a "$WORK/snap/mint/1-19-4eb/sys-root/opt" "$WORK/overlay/"
+# The zip stores no Unix mode bits for some files: TeraDesk's DESKTOP.PRG/DESKTOS.PRG came out 0644, and
+# MiNT will not exec a non-executable file on ext2 — XaAES logged "Launch shell ...DESKTOP.PRG" and no
+# desktop appeared (TT, 2026-09-13). Make every Atari program under /opt executable.
+find "$WORK/overlay/opt" -type f \( -iname '*.prg' -o -iname '*.app' -o -iname '*.ttp' -o -iname '*.tos' -o -iname '*.gtp' \) -exec chmod 755 {} +
 cp "$KEYS/ssh_host_rsa_key" "$KEYS/ssh_host_rsa_key.pub" "$WORK/overlay/etc/ssh/"
 cp "$PUB" "$WORK/overlay/root/.ssh/authorized_keys"
 # Dropbear (scripts/build_dropbear.sh, Monocypher crypto): ed25519 only, so also fractal's ed25519 key.
