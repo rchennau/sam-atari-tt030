@@ -47,9 +47,9 @@
   {"op": "put",  "path": "C:\\NEWDESK.INF",       "host": "staging/CARD_SAVED_2026-09-12/NEWDESK.INF"},
   {"op": "put",  "path": "C:\\STING.PRT",         "host": "staging/CARD_SAVED_2026-09-12/STING.PRT"},
   {"op": "del",  "path": "C:\\XBOOT\\SETS.DAT"},
-  {"op": "put",  "path": "C:\\XBOOT\\SETS.DAT",   "host": "staging/CARD_SAVED_2026-09-12/XBOOT/SETS.DAT"},
+  {"op": "put",  "path": "C:\\XBOOT\\SETS.DAT",   "host": "staging/XBOOT_SETS/SETS.DAT"},
   {"op": "del",  "path": "C:\\XBOOT\\SETS.BAK"},
-  {"op": "put",  "path": "C:\\XBOOT\\SETS.BAK",   "host": "staging/CARD_SAVED_2026-09-12/XBOOT/SETS.BAK"},
+  {"op": "put",  "path": "C:\\XBOOT\\SETS.BAK",   "host": "staging/CARD_SAVED_2026-09-12/XBOOT/SETS.DAT"},
   {"op": "put",  "path": "C:\\CPX\\STING.CPX",     "host": "staging/CPX/STING.CPX"},
   {"op": "put",  "path": "C:\\CPX\\STNGPORT.CPX",  "host": "staging/CARD_SAVED_2026-09-12/CPX/STNGPORT.CPX"},
   {"op": "put",  "path": "C:\\CPX\\SERIAL.CPX",    "host": "staging/CPX/SERIAL.CPZ"}
