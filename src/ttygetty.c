@@ -37,11 +37,14 @@ int main(int argc, char **argv)
         pid_t pid = fork();
         if (pid == 0) {
             setsid();
-            int fd = open(argv[1], O_RDWR);
+            /* O_NONBLOCK: a blocking open waits for carrier before CLOCAL is set, and this cable gives
+             * none — every respawn after the first sat in state D forever (TT, 2026-09-13). */
+            int fd = open(argv[1], O_RDWR | O_NONBLOCK);
             if (fd < 0) {
                 perror(argv[1]);
                 _exit(1);
             }
+            fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
             ioctl(fd, TIOCSCTTY, 0);
             struct termios t;
             if (tcgetattr(fd, &t) == 0) {
