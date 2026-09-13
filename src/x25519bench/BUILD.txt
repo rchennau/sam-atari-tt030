@@ -1,0 +1,8 @@
+# x25519bench — kanban a764de13 step 1 (2026-09-13)
+# 68030 (FreeMiNT, m68k gcc -O2):
+#   m68k-atari-mint-gcc -m68020-60 -O2 -Ic25519 -o bench.ttp bench.c c25519/f25519.c c25519/c25519.c
+#   m68k-atari-mint-gcc -m68020-60 -O2 -I../../staging/DROPBEAR -o monobench.ttp monobench.c ../../staging/DROPBEAR/monocypher.c
+# T425 (INMOS icc under t4, from a dir holding bench.c, c25519/*.[ch] and icc/stdint.h):
+#   . tools/d72uni-env.sh; ISEARCH="$PWD/ $D72UNI/libs/" icc X.c -t4 -o X.t4h   (bench, f25519, c25519)
+#   ilink -f bench.lnk -t4 -h -o bench.c4h   (single-entry ISEARCH: a two-entry one crashes ilink)
+#   icollect bench.c4h -t -o bench.b4h   -> upload as x25519.btl; on the TT: fpgabios.tos, then iserver.ttp -sb x25519.btl 3
