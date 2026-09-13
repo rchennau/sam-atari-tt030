@@ -22,21 +22,4 @@
     STNGPORT
     SERIAL
 #ENDSET
-#SET ATW
-  #PRG
-    XBOOT
-    STING
-    BOOTDEV
-    HELPSPC
-    XVDI_RES
-    XVDI_R
-    XVDIMENU
-    XVDI
-  #ACC
-    XCONTROL
-  #CPX
-    STING
-    STNGPORT
-    SERIAL
-#ENDSET
 

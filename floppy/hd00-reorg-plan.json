@@ -1,59 +1,326 @@
 [
-  {"op": "move", "src": "C:\\NVDI5",      "dst": "D:\\APPS\\NVDI5"},
-  {"op": "move", "src": "C:\\WORDPLUS",   "dst": "D:\\APPS\\WORDPLUS"},
-  {"op": "move", "src": "C:\\HAWK_432",   "dst": "D:\\APPS\\HAWK_432"},
-  {"op": "move", "src": "C:\\TOOLS",      "dst": "D:\\APPS\\TOOLS"},
-  {"op": "move", "src": "C:\\FONTS",      "dst": "D:\\APPS\\FONTS"},
-  {"op": "move", "src": "C:\\BTFONTS",    "dst": "D:\\APPS\\BTFONTS"},
-  {"op": "move", "src": "C:\\NVDITOOL.S", "dst": "D:\\APPS\\NVDITOOL.S"},
-  {"op": "move", "src": "C:\\TBPACK",     "dst": "D:\\APPS\\TBPACK"},
-  {"op": "move", "src": "C:\\TC2",        "dst": "D:\\APPS\\TC2"},
-  {"op": "move", "src": "C:\\TFO",        "dst": "D:\\APPS\\TFO"},
-  {"op": "move", "src": "C:\\SLM",        "dst": "D:\\APPS\\SLM"},
-  {"op": "move", "src": "C:\\LNG",        "dst": "D:\\APPS\\LNG"},
-  {"op": "put",  "path": "D:\\APPS\\FREEMINT", "host": "staging/FREEMINT/sd-apps-freemint"},
-
-  {"op": "move", "src": "C:\\OUTPUT",     "dst": "D:\\DATA\\OUTPUT"},
-  {"op": "move", "src": "C:\\DATA",       "dst": "D:\\DATA\\DATA"},
-
-  {"op": "move", "src": "C:\\HDDRIVER.11", "dst": "E:\\DRIVERS\\HDDRIVER.11"},
-  {"op": "move", "src": "C:\\ICD_PR~1",    "dst": "E:\\DRIVERS\\ICD_PR~1"},
-  {"op": "move", "src": "C:\\HDX",         "dst": "E:\\DRIVERS\\HDX"},
-  {"op": "move", "src": "C:\\TS4000.DVR",  "dst": "E:\\DRIVERS\\TS4000.DVR"},
-  {"op": "move", "src": "C:\\STING_~1",    "dst": "E:\\DRIVERS\\STING_~1"},
-  {"op": "move", "src": "C:\\TMP",         "dst": "E:\\ARCHIVE\\TMP"},
-
-  {"op": "del",  "path": "C:\\AUTO\\00JAR032.PRG"},
-  {"op": "put",  "path": "C:\\AUTO\\STING.INF",   "host": "floppy/STING-C.INF"},
-  {"op": "put",  "path": "C:\\ICDBOOT.SYS",       "host": "staging/DRIVERS/SCSI/CBHD/cbhd502/CBHD502/CBHD.PRG"},
-  {"op": "put",  "path": "C:\\AUTO\\XBOOT.PRG",   "host": "staging/XBOOT/XBOOT.PRG"},
-  {"op": "del",  "path": "C:\\AUTO\\STING.PRG"},
-  {"op": "put",  "path": "C:\\AUTO\\STING.PRG",   "host": "staging/AUTO/STING.PRG"},
-  {"op": "put",  "path": "C:\\AUTO\\BOOTDEV.PRG", "host": "staging/AUTO_EXTRA/BOOTDEV.PRG"},
-  {"op": "put",  "path": "C:\\AUTO\\HELPSPC.PRG", "host": "staging/AUTO_EXTRA/HELPSPC.PRG"},
-  {"op": "put",  "path": "C:\\AUTO\\MINT-4EB.PRX", "host": "staging/FREEMINT/auto-mint-4eb.prg"},
-  {"op": "put",  "path": "C:\\MINT\\1-19-4EB",     "host": "staging/FREEMINT/sysdir-1-19-4eb"},
-  {"op": "del",  "path": "C:\\STING\\DAYNAPOR.STX"},
-  {"op": "del",  "path": "C:\\STING\\STING"},
-  {"op": "put",  "path": "C:\\STING\\DEFAULT.CFG", "host": "floppy/DEFAULT.CFG"},
-  {"op": "put",  "path": "C:\\STING\\TCP.STX",     "host": "staging/STING/TCP.STX"},
-  {"op": "put",  "path": "C:\\STING\\UDP.STX",     "host": "staging/STING/UDP.STX"},
-  {"op": "put",  "path": "C:\\STING\\RESOLVE.STX", "host": "staging/STING/RESOLVE.STX"},
-  {"op": "put",  "path": "C:\\STING\\ROUTE.TAB",   "host": "floppy/ROUTE.TAB"},
-  {"op": "put",  "path": "C:\\STING\\SERIAL.STX",  "host": "staging/STING/SERIAL.STX"},
-  {"op": "del",  "path": "C:\\XCONTROL.ACX"},
-  {"op": "put",  "path": "C:\\XCONTROL.ACC",      "host": "staging/XCONTROL.ACC"},
-  {"op": "del",  "path": "C:\\NEWDESK.INF"},
-  {"op": "put",  "path": "C:\\NEWDESK.INF",       "host": "staging/CARD_SAVED_2026-09-12/NEWDESK.INF"},
-  {"op": "put",  "path": "C:\\STING.PRT",         "host": "staging/CARD_SAVED_2026-09-12/STING.PRT"},
-  {"op": "del",  "path": "C:\\XBOOT\\SETS.DAT"},
-  {"op": "put",  "path": "C:\\XBOOT\\SETS.DAT",   "host": "staging/XBOOT_SETS/SETS.DAT"},
-  {"op": "del",  "path": "C:\\XBOOT\\SETS.BAK"},
-  {"op": "del",  "path": "C:\\XBOOT\\XBOOT.CFG"},
-  {"op": "put",  "path": "C:\\XBOOT\\XBOOT.CFG",   "host": "staging/CARD_SAVED_2026-09-12/XBOOT/XBOOT.CFG"},
-  {"op": "put",  "path": "C:\\MINT\\1-19-4EB\\MINT.INI", "host": "staging/CARD_SAVED_2026-09-12/MINT/MINT.INI"},
-  {"op": "put",  "path": "C:\\XBOOT\\SETS.BAK",   "host": "staging/CARD_SAVED_2026-09-12/XBOOT/SETS.DAT"},
-  {"op": "put",  "path": "C:\\CPX\\STING.CPX",     "host": "staging/CPX/STING.CPX"},
-  {"op": "put",  "path": "C:\\CPX\\STNGPORT.CPX",  "host": "staging/CARD_SAVED_2026-09-12/CPX/STNGPORT.CPX"},
-  {"op": "put",  "path": "C:\\CPX\\SERIAL.CPX",    "host": "staging/CPX/SERIAL.CPZ"}
+  {
+    "op": "move",
+    "src": "C:\\NVDI5",
+    "dst": "D:\\APPS\\NVDI5"
+  },
+  {
+    "op": "move",
+    "src": "C:\\WORDPLUS",
+    "dst": "D:\\APPS\\WORDPLUS"
+  },
+  {
+    "op": "move",
+    "src": "C:\\HAWK_432",
+    "dst": "D:\\APPS\\HAWK_432"
+  },
+  {
+    "op": "move",
+    "src": "C:\\TOOLS",
+    "dst": "D:\\APPS\\TOOLS"
+  },
+  {
+    "op": "move",
+    "src": "C:\\FONTS",
+    "dst": "D:\\APPS\\FONTS"
+  },
+  {
+    "op": "move",
+    "src": "C:\\BTFONTS",
+    "dst": "D:\\APPS\\BTFONTS"
+  },
+  {
+    "op": "move",
+    "src": "C:\\NVDITOOL.S",
+    "dst": "D:\\APPS\\NVDITOOL.S"
+  },
+  {
+    "op": "move",
+    "src": "C:\\TBPACK",
+    "dst": "D:\\APPS\\TBPACK"
+  },
+  {
+    "op": "move",
+    "src": "C:\\TC2",
+    "dst": "D:\\APPS\\TC2"
+  },
+  {
+    "op": "move",
+    "src": "C:\\TFO",
+    "dst": "D:\\APPS\\TFO"
+  },
+  {
+    "op": "move",
+    "src": "C:\\SLM",
+    "dst": "D:\\APPS\\SLM"
+  },
+  {
+    "op": "move",
+    "src": "C:\\LNG",
+    "dst": "D:\\APPS\\LNG"
+  },
+  {
+    "op": "put",
+    "path": "D:\\APPS\\FREEMINT",
+    "host": "staging/FREEMINT/sd-apps-freemint"
+  },
+  {
+    "op": "move",
+    "src": "C:\\OUTPUT",
+    "dst": "D:\\DATA\\OUTPUT"
+  },
+  {
+    "op": "move",
+    "src": "C:\\DATA",
+    "dst": "D:\\DATA\\DATA"
+  },
+  {
+    "op": "move",
+    "src": "C:\\HDDRIVER.11",
+    "dst": "E:\\DRIVERS\\HDDRIVER.11"
+  },
+  {
+    "op": "move",
+    "src": "C:\\ICD_PR~1",
+    "dst": "E:\\DRIVERS\\ICD_PR~1"
+  },
+  {
+    "op": "move",
+    "src": "C:\\HDX",
+    "dst": "E:\\DRIVERS\\HDX"
+  },
+  {
+    "op": "move",
+    "src": "C:\\TS4000.DVR",
+    "dst": "E:\\DRIVERS\\TS4000.DVR"
+  },
+  {
+    "op": "move",
+    "src": "C:\\STING_~1",
+    "dst": "E:\\DRIVERS\\STING_~1"
+  },
+  {
+    "op": "move",
+    "src": "C:\\TMP",
+    "dst": "E:\\ARCHIVE\\TMP"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\00JAR032.PRG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\STING.INF",
+    "host": "floppy/STING-C.INF"
+  },
+  {
+    "op": "put",
+    "path": "C:\\ICDBOOT.SYS",
+    "host": "staging/DRIVERS/SCSI/CBHD/cbhd502/CBHD502/CBHD.PRG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XBOOT.PRG",
+    "host": "staging/XBOOT/XBOOT.PRG"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\STING.PRG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\STING.PRG",
+    "host": "staging/AUTO/STING.PRG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\BOOTDEV.PRG",
+    "host": "staging/AUTO_EXTRA/BOOTDEV.PRG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\HELPSPC.PRG",
+    "host": "staging/AUTO_EXTRA/HELPSPC.PRG"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\XVDI_RES.PRX"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\XVDI_R.PRX"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\XVDI_R.BIB"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\XVDIMENU.PRX"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\XVDIMENU.INF"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\XVDI.PRX"
+  },
+  {
+    "op": "del",
+    "path": "C:\\AUTO\\XVDI.BIB"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XVDI_RES.PRX",
+    "host": "staging/XVDI_ORIG/XVDI_RES.PRX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XVDI_R.PRX",
+    "host": "staging/XVDI_ORIG/XVDI_R.PRX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XVDI_R.BIB",
+    "host": "staging/XVDI_ORIG/XVDI_R.BIB"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XVDIMENU.PRX",
+    "host": "staging/XVDI_ORIG/XVDIMENU.PRX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XVDIMENU.INF",
+    "host": "staging/XVDI_ORIG/XVDIMENU.INF"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XVDI.PRX",
+    "host": "staging/XVDI_ORIG/XVDI.PRX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\XVDI.BIB",
+    "host": "staging/XVDI_ORIG/XVDI.BIB"
+  },
+  {
+    "op": "put",
+    "path": "C:\\AUTO\\MINT-4EB.PRX",
+    "host": "staging/FREEMINT/auto-mint-4eb.prg"
+  },
+  {
+    "op": "put",
+    "path": "C:\\MINT\\1-19-4EB",
+    "host": "staging/FREEMINT/sysdir-1-19-4eb"
+  },
+  {
+    "op": "del",
+    "path": "C:\\STING\\DAYNAPOR.STX"
+  },
+  {
+    "op": "del",
+    "path": "C:\\STING\\STING"
+  },
+  {
+    "op": "put",
+    "path": "C:\\STING\\DEFAULT.CFG",
+    "host": "floppy/DEFAULT.CFG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\STING\\TCP.STX",
+    "host": "staging/STING/TCP.STX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\STING\\UDP.STX",
+    "host": "staging/STING/UDP.STX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\STING\\RESOLVE.STX",
+    "host": "staging/STING/RESOLVE.STX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\STING\\ROUTE.TAB",
+    "host": "floppy/ROUTE.TAB"
+  },
+  {
+    "op": "put",
+    "path": "C:\\STING\\SERIAL.STX",
+    "host": "staging/STING/SERIAL.STX"
+  },
+  {
+    "op": "del",
+    "path": "C:\\XCONTROL.ACX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\XCONTROL.ACC",
+    "host": "staging/XCONTROL.ACC"
+  },
+  {
+    "op": "del",
+    "path": "C:\\NEWDESK.INF"
+  },
+  {
+    "op": "put",
+    "path": "C:\\NEWDESK.INF",
+    "host": "staging/CARD_SAVED_2026-09-12/NEWDESK.INF"
+  },
+  {
+    "op": "put",
+    "path": "C:\\STING.PRT",
+    "host": "staging/CARD_SAVED_2026-09-12/STING.PRT"
+  },
+  {
+    "op": "del",
+    "path": "C:\\XBOOT\\SETS.DAT"
+  },
+  {
+    "op": "put",
+    "path": "C:\\XBOOT\\SETS.DAT",
+    "host": "staging/XBOOT_SETS/SETS.DAT"
+  },
+  {
+    "op": "del",
+    "path": "C:\\XBOOT\\SETS.BAK"
+  },
+  {
+    "op": "del",
+    "path": "C:\\XBOOT\\XBOOT.CFG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\XBOOT\\XBOOT.CFG",
+    "host": "staging/CARD_SAVED_2026-09-12/XBOOT/XBOOT.CFG"
+  },
+  {
+    "op": "put",
+    "path": "C:\\MINT\\1-19-4EB\\MINT.INI",
+    "host": "staging/CARD_SAVED_2026-09-12/MINT/MINT.INI"
+  },
+  {
+    "op": "put",
+    "path": "C:\\XBOOT\\SETS.BAK",
+    "host": "staging/XBOOT_SETS/SETS.BAK"
+  },
+  {
+    "op": "put",
+    "path": "C:\\CPX\\STING.CPX",
+    "host": "staging/CPX/STING.CPX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\CPX\\STNGPORT.CPX",
+    "host": "staging/CARD_SAVED_2026-09-12/CPX/STNGPORT.CPX"
+  },
+  {
+    "op": "put",
+    "path": "C:\\CPX\\SERIAL.CPX",
+    "host": "staging/CPX/SERIAL.CPZ"
+  }
 ]
