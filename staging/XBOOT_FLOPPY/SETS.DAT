@@ -1,0 +1,36 @@
+* Data file for XBoot
+* Copyright (C) 1990-1993 TEN Software Design - Tassilo Nitz
+
+#SET PLAIN
+  #PRG
+    XBOOT
+    SCSIDRV
+    STING
+    HELPSPC
+    ICDBOOT
+  #ACC
+    XCONTROL
+  #CPX
+    STING
+    STNGPORT
+    SERIAL
+#ENDSET
+#SET ATW
+  #PRG
+    XBOOT
+    SCSIDRV
+    STING
+    HELPSPC
+    XVDI_RES
+    XVDI_R
+    XVDIMENU
+    XVDI
+    ICDBOOT
+  #ACC
+    XCONTROL
+  #CPX
+    STING
+    STNGPORT
+    SERIAL
+#ENDSET
+

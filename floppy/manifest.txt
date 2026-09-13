@@ -7,9 +7,17 @@
 # 00JAR032.PRG removed 2026-09-11: the 64-byte "cookie jar expander" ends in a bare RTS, so TOS
 # kills it with 11 bombs (Pterm(-1) in the Hatari trace). TOS 3.06 has its own cookie jar.
 AUTO/STING.INF             floppy/STING.INF              # one line: A:\STING\
+AUTO/XBOOT.PRG             staging/XBOOT/XBOOT.PRG      # XBOOT III first: choose PLAIN or ATW (XVDI) per floppy boot (rev 9)
 AUTO/SCSIDRV.PRG           staging/DRIVERS/SCSI/CBHD/cbhd502/CBHD502/SCSIDRV.PRG   # CBHD 5.02 SCSIDRV cookie; SCSILINK.STX (WiFi) needs it
 AUTO/STING.PRG             staging/AUTO/STING.PRG        # STiNG 1.26 kernel
 AUTO/HELPSPC.PRG           staging/AUTO_EXTRA/HELPSPC.PRG   # keys right of L and P type space (space bar dead); must precede ICDBOOT, which ends A:\AUTO
+AUTO/XVDI_RES.PRX          staging/XVDI_FLOPPY/AUTO/XVDI_RES.PRG  # ATW800/2 XVDI (vendor floppy, 68000 build) - .PRX = off; the ATW set enables
+AUTO/XVDI_R.PRX            staging/XVDI_FLOPPY/AUTO/XVDI_R.PRG
+AUTO/XVDI_R.BIB            staging/XVDI_FLOPPY/AUTO/XVDI_R.BIB
+AUTO/XVDIMENU.PRX          staging/XVDI_FLOPPY/AUTO/XVDIMENU.PRG
+AUTO/XVDIMENU.INF          staging/XVDI_FLOPPY/AUTO/XVDIMENU.INF
+AUTO/XVDI.PRX              staging/XVDI_FLOPPY/AUTO/XVDI.PRG
+AUTO/XVDI.BIB              staging/XVDI_FLOPPY/AUTO/XVDI.BIB
 AUTO/ICDBOOT.PRG           staging/AUTO/ICDBOOT.PRG      # ICD AdSCSI Pro 6.5.5 (freeware, C3)
 
 # STiNG loads every *.STX in the folder named by STING.INF.
@@ -28,3 +36,6 @@ CPX/STING.CPX              staging/CPX/STING.CPX
 CPX/STNGPORT.CPX           staging/CARD_SAVED_2026-09-12/CPX/STNGPORT.CPX   # as saved on the TT: Ethernet0 192.168.0.30/24
 CPX/SERIAL.CPX             staging/CPX/SERIAL.CPZ        # Modem 1 baud rate (CPZ = disabled name; enabled here)
 STING.PRT                  staging/CARD_SAVED_2026-09-12/STING.PRT   # STiNG port settings saved by STNGPORT on the TT
+
+XBOOT/SETS.DAT             staging/XBOOT_FLOPPY/SETS.DAT   # sets PLAIN and ATW
+XBOOT/XBOOT.CFG            staging/XBOOT_FLOPPY/XBOOT.CFG  # C: copy with A:\NEWDESK.INF and default set PLAIN
