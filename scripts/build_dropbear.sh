@@ -22,6 +22,8 @@ patch_curve() {
   cp "$REPO/staging/DROPBEAR/curve25519-monocypher.c" "$1/src/curve25519.c"
   cp "$REPO"/staging/DROPBEAR/monocypher{.c,.h,-ed25519.c,-ed25519.h} "$1/src/"
 }
+# Run it with -F (and background it from the shell): when Dropbear daemonises itself on MiNT, each
+# connection's child exits "setsid: Bad file descriptor" (TT, 2026-09-12); with -F it works.
 rm -rf $VER && tar xjf $VER.tar.bz2
 cp "$REPO/staging/DROPBEAR/localoptions.h" $VER/
 patch_curve $VER

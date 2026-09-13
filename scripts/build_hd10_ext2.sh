@@ -45,6 +45,16 @@ unzip -q "$SNAP" 'mint/1-19-4eb/sys-root/opt/*' -d "$WORK/snap"
 cp -a "$WORK/snap/mint/1-19-4eb/sys-root/opt" "$WORK/overlay/"
 cp "$KEYS/ssh_host_rsa_key" "$KEYS/ssh_host_rsa_key.pub" "$WORK/overlay/etc/ssh/"
 cp "$PUB" "$WORK/overlay/root/.ssh/authorized_keys"
+# Dropbear (scripts/build_dropbear.sh, Monocypher crypto): ed25519 only, so also fractal's ed25519 key.
+# Host key generated once on fractal (native dropbearkey) so the fingerprint survives rebuilds.
+DB=$REPO/tools/dropbear-2026.94/dropbear
+DBKEY=$KEYS/dropbear_ed25519_host_key
+PUB25519=${ATARI_TT_PUBKEY_ED25519:-$HOME/.ssh/atari_tt_ed25519.pub}
+for f in "$DB" "$DBKEY" "$PUB25519"; do [ -f "$f" ] || { echo "missing $f (scripts/build_dropbear.sh)" >&2; exit 1; }; done
+mkdir -p "$WORK/overlay/usr/sbin" "$WORK/overlay/etc/dropbear"
+cp "$DB" "$WORK/overlay/usr/sbin/dropbear"
+cp "$DBKEY" "$WORK/overlay/etc/dropbear/"
+cat "$PUB25519" >> "$WORK/overlay/root/.ssh/authorized_keys"
 # Root password for telnet/ftp (plain text on the LAN). DES crypt: MiNTLib 0.57's login knows no $1$.
 # The hash lives only on fractal (~/.config/atari-tt/root-password.des, mode 600), never in the repo.
 PWHASH_FILE=${ATARI_TT_PWHASH:-$HOME/.config/atari-tt/root-password.des}
@@ -57,7 +67,7 @@ fakeroot sh -c "
   python3 '$REPO/scripts/cpio_symlinks.py' '$WORK/root' '$WORK'/cpio/*.cpio
   mkdir -p '$WORK/root/tmp' && chmod 1777 '$WORK/root/tmp'
   cp -a '$WORK/overlay/.' '$WORK/root/'
-  chmod 700 '$WORK/root/root/.ssh' && chmod 600 '$WORK/root/root/.ssh/authorized_keys' '$WORK/root/etc/ssh/ssh_host_rsa_key'
+  chmod 700 '$WORK/root/root/.ssh' '$WORK/root/etc/dropbear' && chmod 600 '$WORK/root/root/.ssh/authorized_keys' '$WORK/root/etc/ssh/ssh_host_rsa_key' '$WORK/root/etc/dropbear/dropbear_ed25519_host_key' && chmod 755 '$WORK/root/usr/sbin/dropbear'
   mke2fs -q -t ext2 -r 1 -O none -I 128 -b 1024 -L TTROOT -d '$WORK/root' '$WORK/part' $BLOCKS
 "
 e2fsck -fy "$WORK/part" >/dev/null || [ $? -le 1 ]     # 1 = errors corrected, which is fine here
