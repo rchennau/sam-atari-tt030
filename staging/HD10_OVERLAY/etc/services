@@ -1,0 +1,4 @@
+# Minimal services for inetd (SpareMiNT rootfs ships none), 2026-09-12
+ftp-data	20/tcp
+ftp		21/tcp
+telnet		23/tcp

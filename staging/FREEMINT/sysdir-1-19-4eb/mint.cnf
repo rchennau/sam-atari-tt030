@@ -477,6 +477,8 @@ exec u:/c/mint/1-19-4eb/ifconfig en0 addr 192.168.0.30 netmask 255.255.255.0 up
 exec u:/c/mint/1-19-4eb/route add default en0 gw 192.168.0.1
 # SSH from fractal: ssh atari-tt (SpareMiNT OpenSSH 5.6, RSA key only; sshd forks into the background).
 # -r: without it sshd exits "re-exec requires execution with an absolute path" (argv0 is u:/..., Hatari 2026-09-12)
-exec u:/usr/sbin/sshd -r
+#exec u:/usr/sbin/sshd -r   ; off: on the real TT the 1024-bit DH kex did not finish within LoginGraceTime 120 s
+# telnet (23) + ftp (21) via inetd, root has a password (2026-09-12)
+exec u:/usr/sbin/inetd
 # Serial login on Modem 2, 57600 baud (space bar dead, 2026-09-12); script respawns login
 exec u:/bin/bash u:/c/mint/1-19-4eb/getty1.sh

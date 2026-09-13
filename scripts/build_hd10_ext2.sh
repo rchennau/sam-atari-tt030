@@ -40,6 +40,11 @@ mkdir -p "$WORK/overlay/etc/ssh" "$WORK/overlay/root/.ssh"
 cp -a "$REPO/staging/HD10_OVERLAY/." "$WORK/overlay/" && rm -f "$WORK/overlay/README.TXT"
 cp "$KEYS/ssh_host_rsa_key" "$KEYS/ssh_host_rsa_key.pub" "$WORK/overlay/etc/ssh/"
 cp "$PUB" "$WORK/overlay/root/.ssh/authorized_keys"
+# Root password for telnet/ftp (plain text on the LAN). DES crypt: MiNTLib 0.57's login knows no $1$.
+# The hash lives only on fractal (~/.config/atari-tt/root-password.des, mode 600), never in the repo.
+PWHASH_FILE=${ATARI_TT_PWHASH:-$HOME/.config/atari-tt/root-password.des}
+[ -f "$PWHASH_FILE" ] || { echo "missing $PWHASH_FILE" >&2; exit 1; }
+sed -i "s|^root::|root:$(cat "$PWHASH_FILE"):|" "$WORK/overlay/etc/passwd"
 # One fakeroot session for extraction AND mke2fs, so every file in the image is owned by root.
 fakeroot sh -c "
   mkdir -p '$WORK/root' && tar xzf '$TGZ' -C '$WORK/root'
