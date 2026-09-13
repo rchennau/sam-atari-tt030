@@ -61,6 +61,17 @@ int main(int argc, char **argv)
                 t.c_lflag = ISIG | ICANON | ECHO | ECHOE | ECHOK;
                 if (tcsetattr(fd, TCSANOW, &t) != 0)
                     perror("ttygetty: tcsetattr");
+                /* termios can't clear the SCC driver's own flow control: scc.xdd changes TANDEM
+                 * (XON/XOFF) and RTSCTS only when BOTH are in the TIOCSFLAGSB mask (scc.c
+                 * ctl_TIOCSFLAGSB), so `ixon` stayed on — and its XOFF/high-water path froze TX
+                 * after a 20 KB inbound ZMODEM (TT, 2026-09-13). Read the flags, clear just those two. */
+                long fb[2] = { -1, 0 };
+                if (ioctl(fd, TIOCSFLAGSB, fb) == 0) {
+                    fb[0] &= ~(TANDEM | RTSCTS);
+                    fb[1] = TANDEM | RTSCTS;
+                    if (ioctl(fd, TIOCSFLAGSB, fb) != 0)
+                        perror("ttygetty: TIOCSFLAGSB");
+                }
             } else {
                 perror("ttygetty: tcgetattr");
             }
