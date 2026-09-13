@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Copy a FreeMiNT keyboard table with the German Ö and Ü keys (scancodes 0x27, 0x1A) typing a space.
+"""Copy a FreeMiNT keyboard table with the keys right of L and P (scancodes 0x27, 0x1A; UK ; and [, German Ö and Ü) typing a space.
 
 Why: the TT's space bar is dead (2026-09-12); the operator touch-types, so the space moves to
-the keys right of L and P. Unshifted and caps tables get ' '; Shift+Ö/Ü still type Ö/Ü.
+the keys right of L and P. Unshifted and caps tables get ' '; Shift still types the shifted character.
 FreeMiNT loads <sysdir>/keyboard.tbl at boot; TOS gets the same patch from src/helpspc.c.
 
 Format (measured on en_uk.tbl / de_de.tbl): 4-byte header (0x2772, version), then 128-byte
