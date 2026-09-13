@@ -1,0 +1,3 @@
+#!/bin/bash
+# FR-5: publish the TT's health to SAM (sam/node/telemetry/atari-tt030) every 60 s. Called from mint.cnf.
+/usr/sbin/ttmon 192.168.0.20 60 < /dev/null > /dev/null 2>&1 &

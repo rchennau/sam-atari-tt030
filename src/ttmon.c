@@ -120,22 +120,26 @@ static long kern_val(const char *file, const char *key)
     return v;
 }
 
-/* CPU busy % since the previous call, from /kern/stat "cpu user nice system idle" */
+/* CPU busy % since the previous call, from /kern/uptime "uptime idle" (seconds, both cumulative).
+ * Not /kern/stat: its idle column is not a running total on MiNT — the first build reported 396–501 %. */
 static double cpu_busy(void)
 {
-    static unsigned long pu, pn, ps, pi;
-    unsigned long u = 0, n = 0, s = 0, i = 0;
-    double busy = 0;
-    FILE *f = fopen("/kern/stat", "r");
+    static double pup, pidle;
+    double up = 0, idle = 0, busy = 0;
+    FILE *f = fopen("/kern/uptime", "r");
 
     if (f) {
-        if (fscanf(f, "cpu %lu %lu %lu %lu", &u, &n, &s, &i) == 4 && (u + n + s + i) > (pu + pn + ps + pi)) {
-            unsigned long work = (u - pu) + (n - pn) + (s - ps), all = work + (i - pi);
-            busy = all ? 100.0 * work / all : 0;
+        if (fscanf(f, "%lf %lf", &up, &idle) == 2 && up > pup) {
+            busy = 100.0 * (1.0 - (idle - pidle) / (up - pup));
+            if (busy < 0)
+                busy = 0;
+            if (busy > 100)
+                busy = 100;
         }
         fclose(f);
     }
-    pu = u; pn = n; ps = s; pi = i;
+    pup = up;
+    pidle = idle;
     return busy;
 }
 

@@ -488,5 +488,7 @@ exec u:/usr/sbin/inetd
 # -F + shell "&": when Dropbear daemonises itself, each connection exits "setsid: Bad file descriptor".
 # (quoted bash -c lost its options in mint.cnf; the script keeps -F)
 exec u:/bin/bash /etc/rc.dropbear
+# FR-5: health telemetry to SAM over MQTT (sam/node/telemetry/atari-tt030)
+exec u:/bin/bash /etc/rc.ttmon
 # Serial login on Modem 2, 57600 baud (space bar dead, 2026-09-12); script respawns login
 exec u:/bin/bash u:/c/mint/1-19-4eb/getty1.sh
