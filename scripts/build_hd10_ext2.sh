@@ -27,12 +27,27 @@ mkdir -p "$WORK/cpio"
 for r in "$RPMS"/*.m68kmint.rpm; do
   7z e -y -o"$WORK/cpio" "$r" >/dev/null
 done
+# SSH for fractal -> TT (OpenSSH 5.6 predates ed25519/ecdsa-by-default, so RSA). Host keys are
+# generated once into build/hd10-keys/ (gitignored) so rebuilds keep the same fingerprint; the
+# login key is fractal's ~/.ssh/atari_tt_rsa.pub. Overlay files (passwd, group, resolv.conf) come
+# from staging/HD10_OVERLAY/.
+KEYS=$REPO/build/hd10-keys
+mkdir -p "$KEYS"
+[ -f "$KEYS/ssh_host_rsa_key" ] || ssh-keygen -q -t rsa -b 2048 -m PEM -N '' -C atari-tt030 -f "$KEYS/ssh_host_rsa_key"
+PUB=${ATARI_TT_PUBKEY:-$HOME/.ssh/atari_tt_rsa.pub}
+[ -f "$PUB" ] || { echo "missing $PUB (ssh-keygen -t rsa -m PEM -f ~/.ssh/atari_tt_rsa)" >&2; exit 1; }
+mkdir -p "$WORK/overlay/etc/ssh" "$WORK/overlay/root/.ssh"
+cp -a "$REPO/staging/HD10_OVERLAY/." "$WORK/overlay/" && rm -f "$WORK/overlay/README.TXT"
+cp "$KEYS/ssh_host_rsa_key" "$KEYS/ssh_host_rsa_key.pub" "$WORK/overlay/etc/ssh/"
+cp "$PUB" "$WORK/overlay/root/.ssh/authorized_keys"
 # One fakeroot session for extraction AND mke2fs, so every file in the image is owned by root.
 fakeroot sh -c "
   mkdir -p '$WORK/root' && tar xzf '$TGZ' -C '$WORK/root'
   for c in '$WORK'/cpio/*.cpio; do (cd '$WORK/root' && cpio -idmu --quiet --no-absolute-filenames < \"\$c\" 2>/dev/null); done
   python3 '$REPO/scripts/cpio_symlinks.py' '$WORK/root' '$WORK'/cpio/*.cpio
   mkdir -p '$WORK/root/tmp' && chmod 1777 '$WORK/root/tmp'
+  cp -a '$WORK/overlay/.' '$WORK/root/'
+  chmod 700 '$WORK/root/root/.ssh' && chmod 600 '$WORK/root/root/.ssh/authorized_keys' '$WORK/root/etc/ssh/ssh_host_rsa_key'
   mke2fs -q -t ext2 -r 1 -O none -I 128 -b 1024 -L TTROOT -d '$WORK/root' '$WORK/part' $BLOCKS
 "
 e2fsck -fy "$WORK/part" >/dev/null || [ $? -le 1 ]     # 1 = errors corrected, which is fine here

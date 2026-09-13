@@ -475,5 +475,8 @@ sln u:/f/sbin u:/sbin
 # Same address as the TOS/STiNG SCSI/Link port (STNGPORT.CPX); only one of TOS or MiNT runs at a time.
 exec u:/c/mint/1-19-4eb/ifconfig en0 addr 192.168.0.30 netmask 255.255.255.0 up
 exec u:/c/mint/1-19-4eb/route add default en0 gw 192.168.0.1
+# SSH from fractal: ssh atari-tt (SpareMiNT OpenSSH 5.6, RSA key only; sshd forks into the background).
+# -r: without it sshd exits "re-exec requires execution with an absolute path" (argv0 is u:/..., Hatari 2026-09-12)
+exec u:/usr/sbin/sshd -r
 # Serial login on Modem 2, 57600 baud (space bar dead, 2026-09-12); script respawns login
 exec u:/bin/bash u:/c/mint/1-19-4eb/getty1.sh
