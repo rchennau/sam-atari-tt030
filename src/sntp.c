@@ -21,6 +21,10 @@
 int main(int argc, char **argv)
 {
     const char *server = argc > 1 ? argv[1] : "pool.ntp.org";
+    /* Hard deadline: mint.cnf `exec`s this and waits, so a hang here stops the boot before inetd,
+     * dropbear and the serial console (TT, 2026-09-13: stuck after the ext2 mount). The resolver has
+     * no timeout, and MiNT may ignore SO_RCVTIMEO. SIGALRM's default action ends the process. */
+    alarm(30);
     struct hostent *h = gethostbyname(server);
     if (!h) {
         fprintf(stderr, "sntp: cannot resolve %s\n", server);
