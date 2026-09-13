@@ -37,14 +37,16 @@ int main(int argc, char **argv)
         pid_t pid = fork();
         if (pid == 0) {
             setsid();
-            /* O_NONBLOCK: a blocking open waits for carrier before CLOCAL is set, and this cable gives
-             * none — every respawn after the first sat in state D forever (TT, 2026-09-13). */
+            /* Stay O_NONBLOCK until CLOCAL is set. This cable carries no DCD, and the kernel's
+             * TIOCSCTTY waits for carrier (TIOCWONLINE) when the fd is blocking and the tty is
+             * TS_BLIND (freemint sys/tty.c) — the child then sat in state D forever. TS_BLIND is set
+             * whenever a modem-status interrupt lands before CLOCAL, so some boots hung and some
+             * didn't (TT, 2026-09-13). Blocking mode is restored just before the shell starts. */
             int fd = open(argv[1], O_RDWR | O_NONBLOCK);
             if (fd < 0) {
                 perror(argv[1]);
                 _exit(1);
             }
-            fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
             ioctl(fd, TIOCSCTTY, 0);
             struct termios t;
             if (tcgetattr(fd, &t) == 0) {
@@ -75,6 +77,7 @@ int main(int argc, char **argv)
             } else {
                 perror("ttygetty: tcgetattr");
             }
+            fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
             dup2(fd, 0);
             dup2(fd, 1);
             dup2(fd, 2);
