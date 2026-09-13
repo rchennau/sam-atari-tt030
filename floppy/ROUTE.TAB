@@ -1,7 +1,7 @@
 # TT030 STiNG routes (FR-4/FR-9). TAB-separated: network, netmask, port, gateway.
 # First match wins; routes on ports that are not loaded are ignored (STiNG ROUTE.TAB docs),
-# so this table works with WiFi (BlueSCSI DaynaPORT = SCSI/Link) or with the serial link only.
+# so this table works with WiFi (BlueSCSI DaynaPORT = Ethernet0, per SCSILINK.STX boot line on the TT 2026-09-12) or with the serial link only.
 192.168.10.0	255.255.255.0	Modem 1	0.0.0.0
-192.168.0.0	255.255.255.0	SCSI/Link	0.0.0.0
-0.0.0.0	0.0.0.0	SCSI/Link	192.168.0.1
+192.168.0.0	255.255.255.0	Ethernet0	0.0.0.0
+0.0.0.0	0.0.0.0	Ethernet0	192.168.0.1
 0.0.0.0	0.0.0.0	Modem 1	192.168.10.1
