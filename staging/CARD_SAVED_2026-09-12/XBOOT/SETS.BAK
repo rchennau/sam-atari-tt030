@@ -1,0 +1,11 @@
+* Data file for XBoot
+* Copyright (C) 1990-1993 TEN Software Design - Tassilo Nitz
+
+#SET DEFAULT
+  #PRG
+    ICDBOOT
+    STING
+  #ACC
+  #CPX
+#ENDSET
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     

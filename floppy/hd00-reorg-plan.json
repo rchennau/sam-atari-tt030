@@ -11,7 +11,7 @@
   {"op": "move", "src": "C:\\TFO",        "dst": "D:\\APPS\\TFO"},
   {"op": "move", "src": "C:\\SLM",        "dst": "D:\\APPS\\SLM"},
   {"op": "move", "src": "C:\\LNG",        "dst": "D:\\APPS\\LNG"},
-  {"op": "put",  "path": "D:\\APPS\\FREEMINT", "host": "/media/atari/sd/APPS/FREEMINT/freemint"},
+  {"op": "put",  "path": "D:\\APPS\\FREEMINT", "host": "staging/FREEMINT/sd-apps-freemint"},
 
   {"op": "move", "src": "C:\\OUTPUT",     "dst": "D:\\DATA\\OUTPUT"},
   {"op": "move", "src": "C:\\DATA",       "dst": "D:\\DATA\\DATA"},

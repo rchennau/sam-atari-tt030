@@ -1,0 +1,1273 @@
+
+   This text is NOT, that is _NOT_, official yet, as it is more a collection 
+ of notes for myself to remember right now. Consider everything in this 
+ textfile unusable/unimplemented unless clearly noted otherwise!
+
+  Intention is that this file will contain documentation on new calls/things 
+ added to XaAES. This file will also contain known differences between XaAES 
+ and other AES's.
+
+ToDo:
+
+ . Fix mono drawing -> much better now
+ . Fix PUSH menu-bar (and friends) -> done!
+ . Add config to disable alerts
+ . alt-ctrl-tab selects previous app
+===============================================================================
+                            -= The N.AES cookie =-
+
+ Because some programs insists on appl_control(), for example, instead of
+checking with appl_getinfo(), XaAES now has an option to install a fake
+'nAES' cookie. You enable this option by setting;
+
+naes_cookie = yes
+
+ in your xaaes.cnf.
+
+ This fake cookie contains the following;
+
+static N_AESINFO naes_cookie =
+{
+ 0x0300,             /* version 3.0.0 */
+ (25<<9)|(1<<5)|1,   /* 1 jan, 2005   */
+ (1<<11)|(2<<5)|3,   /* 01:02:03      */
+ 0x8000,             /* Bit 15 set indicates that this really is XaAES */
+ 0L,
+ 0L,
+};
+
+ This structures element will never change under XaAES. Since N.AES does not
+to be in development anymore, it is unlikely it will ever hit version 3.0.0.
+Furthermore, if date and time is Jan 1st, 2005/01:02:03 together with bit
+15 set in flags, one can safely assume this is the XaAES fake N.AES cookie.
+
+ It is extremely strongly recommended that one does NOT check cookies at
+all when determining function availability of any AES. The info above is more
+of interest to authors of sysinfo software, etc., and must not be used for
+anything else.
+
+===============================================================================
+                            -= Detecting XaAES =-
+
+ appl_getinfo() is the correct call to use if the application wants to know
+ which AES it runs under.
+
+ Normal binding;
+
+ INPUT:
+  control[0]    130                              Opcode
+  control[1]      1                              Elements in intin
+  control[2]      5 (or 1 - extended appl_info)  Elements in intout
+  control[3]      0 (or n - extended appl_info)  Elements in addrin
+  control[4]      0                              Elements in addrout
+
+  intin[0]        Mode
+
+ OUTPUT:
+  intout[0]       Return value - 0 = failure, 1 = success
+  intout[1]       ap_gout1
+  intout[2]       ap_gout2
+  intout[3]       ap_gout3
+  intout[4]       ap_gout4
+
+ With extended appl_info, control[N_ADDRIN] and control[N_INTOUT] is consulted
+ to determine what information should be returned based on 'Mode'. The meaning
+ of the different extended parameters are documented for each extended 'Mode'.
+
+ If control[N_INTOUT] have a value of 1, the normal ap_gout[1-4] elements are
+ not used.
+
+ If control[N_ADDRIN] have a value other than 0, then pointers are passed in
+ addrin[0 .. N_ADDRIN], whose value depends on the 'Mode' being used.
+
+
+ AES_WINDOW (11) - XaAES adds the following;
+
+ 'ap_gout1'     Bit  9 wind_get/set(WF_WHEEL)
+                Bit 10 wind_get(WF_FIRSTAREAXYWH)
+                Bit 11 wind_get/set(WF_OPTS)
+                Bit 12 wind_get/set(WF_MENU)
+		Bit 13 wind_get/set(WF_WORKXYWH)
+		Bit 14 support wind_get(WF_CALCW2F/WF_CALCF2W) and WO0_WCOWORK
+		       mode.
+
+ AES_MESSAGES (12) - XaAES addes the following;
+
+ 'ap_gout1'     Bit 10 WM_REPOSED supported.
+
+---------------------- Extended appl_info() modes --------------------------
+
+ AES_VERSION (96)
+
+ This is a new extended mode which will return detailed version information
+ about the AES. When control[N_INTOUT] == 5, the following is filled into
+ ap_gout[1-4];
+
+  ap_gout1 = Major version number (decimal)
+  ap_gout2 = Minor version number (decimal)
+  ap_gout3 = Development Status (Beta, alpha, etc.)
+  ap_gout4 = Target platform (m68k, etc.)
+ 
+ 'ap_gout1' &     Together, these two contain the decimal representation of
+ 'ap_gout2'       the AES's version number. For XaAES v0.992, 'ap_out1'
+                  contains 0 (0x0000) and 'ap_out2' contains 992 (0x3e0).
+ 'ap_gout3'       This is a 16-bit integer where bits 0-7 (the low byte) is
+                  a value indicating the development status of the AES,
+                  see below (AES_DEVSTATUS_xxx) for meaning of different
+                  values. Bits 8-15 are flags, see below (AES_FDEVSTATUS_xxx)
+                  for current definitions.
+ 'ap_gout4'       This is a value indicating which platform the AES was built
+                  for. See below (AES_ARCH_xxx) for meaning of different
+                  values.
+
+ When control[N_ADDRIN] == 4, the meaning of the pointers and what is filled
+ is defined as follows;
+
+  addrin[0]     'aes_id' pointer
+  addrin[1]     'long_name' pointer
+  addrin[2]     'info_string' pointer
+  addrin[3]	reserved, set to NULL.
+ 
+ 'aes_id'       This is a character string with a fixed lenght of 8 bytes,
+                into which the AES will write its unique AES ID.
+                the AES ID is a right-aligned, space padded string, and can
+                be considered to be the current AES's short name.
+                For XaAES this string is filled with "   XaAES".
+
+ 'long_name'    This is a character buffer that the application must ensure
+                can take up to 256 (255 + 0 termination) characters. The AES
+                fills its long name description into this buffer. Lines in
+                here are delimitted using CR (ascii 13). For XaAES, this
+                buffer contains the following after the call;
+
+                "XaAES Ain't the AES, a free MultiTasking AES for FreeMiNT"
+
+ 'info_string'  This is a character buffer that the application must ensure
+                can take up to 256 (255 + 0 termination) characters. The AES
+                fills this buffer with the following information where each
+                element is delimitted by the "|" (ascii 0x7c) character.
+                The string is constructed as follows;
+
+                "asci version|development status|architecture target|
+                 build date & time|compiler used",0
+
+                Example string returned might be;
+                "0.992|Alpha|m68k|Dec 17 2004 22:58:52|gcc 2.95.3",0
+............................................................................
+ 
+ AES_WOPTS (97)
+
+ This mode will return a bitmask of available WF_OPTS settings. This bitmask
+ is identical to that use by the actual wind_set/get(WF_OPTS).
+ 
+ ap_gout1 = available window options 0 - see wind_set/get(WF_OPTS, wopt0)
+ ap_gout2 = available window options 1 - see wind_set/get(WF_OPTS, wopt1)
+ ap_gout3 = available window options 2 - see wind_set/get(WF_OPTS, wopt2)
+ ap_gout4 = reserved - always cleared
+
+ See wind_set/get() WF_OPTS mode for a detailed description of the bitmasks
+ returned.
+............................................................................
+ AES_FUNCTIONS (98)
+
+ This mode will return information about the existance of extended AES
+ functions. Currently defined is;
+ 
+ ap_gout1:
+
+    bit 0 - AGI_WFORM
+            If set, the following MagiC 5.10 introduced functions
+            exists;
+                 objc_wdraw()
+                 objc_wchange()
+                 objc_wedit()
+                 graf_wwatchbox()
+                 form_wbutton()
+                 form_wkeybd()
+
+    bit 1 - AGI_AOPTS
+            If set, appl_options() exists.
+
+    bits 2 - 15 Not yet defined, always reads 0.
+
+ ap_gout2, ap_gout3 and ap_gout4:
+    Not yet defined, all bits reads 0
+............................................................................
+ AES_AOPTS (99)
+ 
+  This mode will return bitmasks of available application options.
+  The bitmasks returned here are identical to the bitmasks used to modify
+  the application options via appl_options(APL_OPTS). Needless to say, this option
+  is not available if bit 0 in ap_gout1 is cleared after
+  appl_getinfo(AES_FUNCTIONS).
+  
+  ap_gout1:
+     bit 0:   AO0_OBJC_EDIT
+              If set, extended slider management is available.
+     bit 1:   AO0_WF_SLIDER
+              If set, extended objc_edit() cursor management is present.
+              See more info about this below.
+     
+     bits 2 - 15: Not yet defined, always set to 0.
+
+ ap_gout2, ap_gout3, ap_gout4:
+     No bits defined, always set to 0.
+
+............................................................................
+ Here are new appl_info() constants to add to your header file;
+
+/*
+ * AES_VERSION mode for appl_getinfo()
+ */
+#define AES_VERSION  96
+
+/*
+ * AES_WOPTS mode for appl_getinfo() - Return supported Window Options
+ * available via wind_set/get(WF_OPTS)
+ */
+#define AES_WOPTS 97
+
+/*
+ * Target architecture definitions, returned by
+ * appl_getinfo(AES_VERSION) in ap_gout4.
+ */
+#define AES_ARCH_M68K 0
+
+/*
+ * Development status - values low byte returned
+ * by appl_getinfo(AES_VERSION) in low byte of ap_gout3 
+ */
+#define AES_DEVSTATUS_ALPHA   0
+#define AES_DEVSTATUS_BETA    1
+#define AES_DEVSTATUS_RELEASE 2
+/*
+ * Development status flags - bits 8-15 of ap_gout3
+ * returned by appl_getinfo(AES_VERSION)
+ */
+#define AES_FDEVSTATUS_STABLE 0x100
+
+/*
+ * AES_FUNCTIONS
+ */
+#define AES_FUNCTIONS  98
+/*
+ * Definition of bits in ap_gout1 after appl_getinfo(AES_FUNCTIONS)
+ /*
+#define AGI_WFORM 1  /* MagiC 5.10 introduced functions for easier dialog in/output exists */
+#define AGI_AOPTS 2  /* appl_options exists */
+ 
+/*
+ * AES_AOPTS
+ */
+#define AES_AOPTS 99
+
+/*
+ * Definition of bits in ap_gout1 after appl_getinfo(AES_AOPTS)
+ */
+#define AO0_WF_SLIDER 1  /* Extended slider information exists */
+#define AO0_OBJC_EDIT 2  /* Extended objc_edit() modes exists */
+
+===============================================================================
+=                                appl_options()                               =
+=                                                                             =
+=                            New function in XaAES                            =
+-------------------------------------------------------------------------------
+  
+ appl_options() is a new function introduced by XaAES. Its purpose is to let
+application set/get options available to it, such as the extended objc_edit
+mode.
+
+ short appl_options(short mode,
+                short aopts0, short aopts1, short aopts2, short aopt3,
+                short *out0, short *out1, short *out2, short *out3);
+ {
+ 	intin[0] = mode;
+ 	intin[1] = p1;
+ 	intin[2] = p2;
+ 	intin[3] = p3;
+ 	intin[4] = p4;
+ }
+
+ GEM arrays as follows:
+
+	Address     Element    meaning 
+        ------------------------------------------------------
+        control    control[0]   137        # Opcode
+        control+2  control[1]   5          # Entries in intin
+        control+4  control[2]   5          # Entries in intout
+        control+6  control[3]   0          # Entries in addrin 
+        control+8  control[4]   0          # entries in addrout 
+        intin      intin[0]    mode
+        intin+2    intin[1]    aopt0
+        intin+4    intin[2]    aopt1
+        intin+6    intin[3]    aopt2
+        intin+8    intin[4]    aopt3
+
+        intout     intout[0]   Return value (1 = OK, 0 = error)
+
+        intout+2   intout[1]  out0
+        intout+4   intout[2]  out1
+        intout+6   intout[3]  out2
+        intout+8   intout[4]  out3
+
+ mode:      Selects the mode. If mode is AOPT_CLEAR (0), then the selected
+            options found in aopt0 - aopt3 is cleared, disabling then.
+            If AOPT_SET (1) then the selected option bit is set, enabling
+            them.
+
+ aopt0:     The first 16 of options which have the following meaning;
+            
+            bit 0 - AO0_WF_SLIDER
+                If this bit is set, blah, blah, yeah.
+            Bit 1 - AO0_OBJC_EDIT
+                If this options is enabled, objc_edit()... blah
+
+ aopt1:    The second group of 16 options, none of which is defined yet.
+           Always reads 0.
+ aopt2:    The third group of 16 options, none of which is defined yet.
+           Always reads 0. 
+ aopt3:    The third group of 16 options, none of which is defined yet.
+           Always reads 0.
+ 
+====preliminary====preliminary====preliminary====preliminary===================
+=                                 objc_data()                                 =
+=                                                                             =
+=                            New function in XaAES                            =
+-------------------------------------------------------------------------------
+  
+ objc_data() is a new function introduced by XaAES. Its purpose is to let
+application get/set data in object trees. The idea behind this is to separate
+the data AES uses to render dialogs, etc. from the application.
+
+
+ short objc_data(void *handle, short index, short request, short p1, short wh,
+                 void *ptr0, void *ptr1, 
+                short aopts0, short aopts1, short aopts2, short aopt3,
+                short *out0, short *out1, short *out2, short *out3);
+ {
+ 	intin[0] = index;
+ 	intin[1] = request;
+ 	intin[2] = windowhandle;
+ 	intin[3] = p1;
+ 	intin[4] = p2;
+ 	intin[5] = p3;
+ 	intin[6] = p4;
+
+	addrin[0] = handle;
+	addrin[1] = clip;
+	addrin[2] = ptr2;
+	addrin[3] = ptr3;
+ }
+
+ GEM arrays as follows:
+
+	Address     Element    meaning 
+        ------------------------------------------------------
+  Input:
+        control    control[0]   140        # Opcode
+        control+2  control[1]   3 - 7      # Entries in intin
+        control+4  control[2]   1 - 5      # Entries in intout
+        control+6  control[3]   2 - 4      # Entries in addrin 
+        control+8  control[4]   0 - 4      # entries in addrout 
+        
+        intin      intin[0]    index
+        intin+2    intin[1]    request
+        intin+4    intin[2]    windowhandle
+        intin+6    intin[3]    p1
+        intin+8    intin[4]    p2
+        intin+10   intin[5]    p3
+        intin+12   intin[6]    p4
+
+        addrin     addrin[0]   handle
+        addrin+4   addrin[1]   clip
+        addrin+8   addrin[2]   pin0
+        addrin+12  addrin[3]   pin1
+    
+ Output:
+        intout     intout[0]   Return value (1 = OK, 0 = error)
+
+        intout+2   intout[1]  out1
+        intout+4   intout[2]  out2
+        intout+6   intout[3]  out3
+        intout+8   intout[4]  out4
+
+        addrout    addrout[0] aout0
+        addrout+4  addrout[1] aout1
+        addrout+8  addrout[2] aout2
+        addrout+12 addrout[4] aout3
+
+
+  handle:
+            This is the handle of the resource structure from which data is to
+            acquired. For now this is infact a pointer to a normal AES object
+            tree.
+  index:
+            The index of the resource one wants to work on.
+  request:
+            Specifies what kind of data one wants to get/set in the resource.
+  wh:
+            Window handle. If this is a positive number, it is interpreted as
+            a handle of a window whose rectangle list is used when visual
+            updates of the resource is necessary.
+  p1 - p4:
+            Four words whose meaning is dependant on request type.
+  clip:
+            Pointer to a struct GRECT containing a clipping rectangle which is
+            used when visual updates of the resource is necessary.
+  aout0 - aout3:
+            Four long words whose meaning is dependant on request type.
+
+
+ OBGET_TYPE
+            Returns the object type in 'out1'.
+            
+===============================================================================
+                       -= New window kind definitions =-
+
+ XaAES now makes use of bit 15 in the 'kind' parameter of wind_create(). Setting
+this bit will make XaAES allow for window border sizing without the SIZER gadget
+being used.
+
+#define BORDER  0x8000
+
+ I hope this bit is not used for other purposes. This also means there is no
+more free bits, and so future extensions will have to require an extended
+wind_create() call. As of now, if control[1] has a value of 6 or more, XaAES
+will pick up another 16-bits (short) of 'kind' bits from intin[5]. However,
+no definitions are made yet.
+
+===============================================================================
+
+                            -= Shading windows =-
+
+   XaAES now supports shading like N.AES and MagiC supports it, except from
+ one important point; ALL window status'es remains across
+ close_wind()/open_wind() calls, INCLUDING shaded. That means one should
+ not rely on the fact that SHADED status will be cleared when one closes
+ the window, like other AES's do. Instead, if you want to control SHADE
+ status of a window, use the documented;
+
+     wind_set(wh, WF_SHADE, mode, p2, p3, p4)
+
+     'mode' selects wether to SHADE (mode = 1) or UNSHADE (mode = 0) the
+     window in question. If 'mode' is -1 it toggle between SHADE and UNSHADE.
+     p2, p3 and p4 are usused at the moment and must be set to 0.
+
+===============================================================================
+
+                    -= Window Coordinate Orientation WORK =-
+
+  Normally, applications have had to cope with two defined areas in their
+ handling of windows, namely the WORK area and the FULL area. XaAES now offers
+ a new operating mode in which applications only work with one of the defined
+ window areas, the WORK area. The benefits of this, seen from application side,
+ are;
+ 
+  1. No need for wind_calc() anymore.
+  
+  2. No need to convert window coordinates carried by WM_SIZED/WM_MOVED/
+     WM_REPOSE, etc, to WORK coordinates. before doing modifications, like
+     snapping, before converting back to FULL for wind_set(WF_CURRXYWH).
+
+  Benefits seen from the AES side;
+
+  1. AES is free to modify the size of window borders without notifying
+     the application, unless the WORK area changes in which case a WM_REPOSED
+     or WM_SIZED is sent.
+
+     
+  The following changes happen when this mode is used;
+
+  1. wind_set(WF_CURRXYWH/WF_WORKXYWH) become the same call.
+  
+  2. wind_calc() will always return the same coordinates it is passed.
+     In other words, AES does not distinquish between BORDER and FULL
+     areas. For application that does not do gymnastics to place own
+     toolbars, etc., this makes the new mode work without any changes
+     to the application.
+
+  3. All AES messages carrying window coordinates will carry WORK area
+     coordinates only.
+  
+  4. All wind_get/set() calls (except WF_CALCx2x calls, see below) will
+     accept WORK area window coordinates only.
+  
+  5. For applications that need to know the FULL extent of windows
+     (for example to cascade windows, or position one window next to
+     another), there is wind_get(WF_CALCW2F) and wind_get(WF_CALCF2W). See
+     below for documentation.
+     
+     
+   Programming Model:
+   
+ This mode makes life a little easier for applications authors.
+
+ Creating a window
+ 
+  Creating a window under normal conditions looked something like this;
+  
+   wind_get(dth, WF_WORKXYWH, &full_x, &full_y, &full_w, &full_h);
+   wind_calc(WC_WORK, max_x, max_y, max_w, max_h, &w_x, &w_y, &w_w, &w_h);
+   if (snapping)
+   {
+   	snap(work_coords);
+	
+   
+
+===============================================================================
+=                            wind_set() extensions                            =
+=                                   and                                       =
+=                                wind_xset()                                  =
+-------------------------------------------------------------------------------
+
+  wind_xset() differs from wind_set() in that wind_xset() returns an additional
+ 4 values compared to wind_set(). The XaAES differentiate between the two by
+ looking at the third element of the control array which indicates the size
+ of the intout array.
+
+ short wind_set(short handle, short mode,
+                short p1, short p2, short p3, short p4);
+ {
+ 	intin[0] = handle;
+ 	intin[1] = mode;
+ 	intin[2] = p1;
+ 	intin[3] = p2;
+ 	intin[4] = p3;
+ 	intin[5] = p4;
+ }
+
+ GEM arrays as follows:
+
+	Address     Element    meaning 
+        ------------------------------------------------------
+        control    control[0]   105        # Opcode
+        control+2  control[1]   6          # Entries in intin
+        control+4  control[2]   1 (or 5)   # Entries in intout (wind_xset())
+        control+6  control[3]   0          # Entries in addrin 
+        control+8  control[4]   0          # entries in addrout 
+        intin      intin[0]    handle
+        intin+2    intin[1]    mode
+        intin+4    intin[2]    p1
+        intin+6    intin[3]    p2
+        intin+8    intin[4]    p3
+        intin+10   intin[5]    p4
+        intout     intout[0]   Return value (1 = OK, 0 = error)
+
+      Additional output when wind_xset() is used as follows - 
+      XaAES checks control[2] to see if wind_xset()
+      is used:
+
+        intout+2   intout[1]
+        intout+4   intout[2]
+        intout+6   intout[3]
+        intout+8   intout[4]
+
+ XaAES wind_set() extensions;
+...............................................................................
+  wind_set(handle, WF_CURRXYWH, x, y, w, h);
+ wind_xset(handle, WF_CURRXYWH, x, y, w, h);
+
+   Compatible with all other AES's, except from the following points;
+
+   1. If x, y, w and h all have a value of -1, XaAES ignores the call,
+      but fills in any return values when needed (see below).
+   2. x and y values of -1 are 'legal', i.e, one cannot use -1 to use
+      any old x value. Ofcourse, x and y coordinates are checked to be
+      inside the rootwindow (not X when noleft = false).
+   3. When h have a value of 0, the window is infact shaded. This is a thing
+      N.AES does with MiNTSetter, altho I'm not sure this is correct.
+      The application is sent a WM_SHADED. On the next
+      wind_set(handle, WF_CURRXYWH,...) where the h coordinate is not equal
+      to the window's shaded height, the window is unshaded. While the
+      window is shaded via this method, shift-clicks on the window title to 
+      shade a window is ignored.
+
+   wind_xset() output:
+   1. XaAES returns the CURRXYWH of the new position the window was moved to,
+      removing the need for a wind_get(handle, WF_CURRXYWH,...) call.
+
+  Note: wind_set(handle, WF_CURRXYWH, -1, -1, -1, -1); will return exactly
+        the same as wind_get(handle, WF_CURRXYWH);
+...............................................................................
+  wind_set(handle, WF_PREVXYWH, x, y, w, h);
+ wind_xset(handle, WF_PREVXYWH, x, y, w, h);
+
+   If either x, y, w or h have a value of -1, that coordinate is not changed.
+   If ALL coordinates have a value of -1, the window is actually moved to the
+   current PREVXYWH coordinates, making the current window position the new
+   PREVXYWH position.
+
+   wind_xset() output:
+     1. XaAES returns the resulting PREVXYWH, which the window will be moved to
+        on the next use of the FULLED gadget or...
+     2. When all coordinates passed have a value of -1, XaAES return the
+        CURRXYWH of the new position the window was moved to, removing the
+        need for a wind_get(handle, WF_CURRXYWH,...) call.
+ 
+-------------------------------------------------------------------------------
+ wind_set(handle, WF_FULLXYWH, x, y, w, h);
+ wind_xset(handle, WF_FULLXYWH, x, y, w, h);
+
+   If either x, y, w or h have a value of -1, that coordinate is not changed.
+   If ALL coordinates have a value of -1, the window is actually moved to the
+   current FULLXYWH coordinates, making the current window position the new
+   PREVXYWH position.
+
+   wind_xset() output:
+     1. XaAES returns the resulting FULLXYWH, which the window will be moved to
+        on the next use of the FULLED gadget or...
+     2. When all coordinates passed have a value of -1, XaAES return the
+        CURRXYWH of the new position the window was moved to, removing the
+        need for a wind_get(handle, WF_CURRXYWH,...) call.
+ 
+-------------------------------------------------------------------------------
+ wind_set(handle, WF_OPTS, mode, wopt0, wopt1, wopt2);
+
+ 'handle'     is window handle or -1. If handle is a legal window handle,
+              the options will only apply to that window. If 'handle' is
+              -1, the settings will apply to all windows the application
+              creates AFTER this call.
+
+ 'mode'       is 0 to clear the selected bits or 1 to set the selected bits.
+
+ 'wopt0'      Currently available options are as follows;
+
+           #define WO0_WHEEL           0x0001
+              Setting this bit will enable extended mouse wheel support, and
+              go into WHL_AROWWHEEL mode causing XaAES to send extended
+              WM_ARROWED messages to the application when the mouse wheel turns.
+              Read section "XaAES and wheel mouse handling." for details.
+
+           #define WO0_FULLREDRAW      0x0002
+              Setting this bit will make XaAES send WM_REDRAW messages to cover
+              the whole work-area of the window when it is FULLED. Default
+              behaviour is to only send WM_REDRAW messages for the areas that
+              need it, blitting the already visible parts. This can also be
+              configured via xaaes.cnf, see the app_options argument 'naesff'.
+
+           #define WO0_NOBLITW         0x0004
+              Setting this bit will make XaAES send WM_REDRAW messages to cover
+              the whole work-area of the window when its WIDTH changes. This is
+              handy for apps like HighWire, Textprocessors ,etc, that need to
+              reformat when window width changes. Default behaviour is to send
+              WM_REDRAW messages for the areas that need it.
+
+           #define WO0_NOBLITH         0x0008
+              Setting this bit will make XaAES send WM_REDRAW messages to cover
+              the whole work-area of the window when its HEIGHT changes.
+              Default behaviour is to send WM_REDRAW messages for the areas
+              that need it.
+
+           #define WO0_SENDREPOS       0x0010
+              Setting this bit will make XaAES send a WM_REPOSED(38) message
+              when a windows X/WIDTH and/or Y/HEIGHT coordinate pair changes.
+              Such changes happes when the user resizes the window using
+              upper/left borders. Default behaviour is to first send a WM_MOVED
+              followed by a WM_SIZED message under these conditions, because
+              older apps dont evaluate the WIDTH/HEIGHT in WM_MOVED messages.
+              So, dudes, set this bit and use WM_REPOSED! :)
+
+           #define WO0_WCOWORK         0x0020
+              Setting this bit will enable Window Coordinate Orientation WORK
+              mode. See above for more info.
+
+ 'wopt1'      Currently undefined and must be cleared.
+ 'wopt2'      Currently undefined and must be cleared.
+
+ usage:
+      wind_set(handle, 1, wopt0, wopt1, wopt2); to set selected bits
+      wind_set(handle, 0, wopt0, wopt1, wopt2); to clear selected bits
+
+===============================================================================
+=                        wind_xget(), wind_get() extension                    =
+-------------------------------------------------------------------------------
+
+   wind_xget is an extension that was first seen in MyAES via the
+ wind_xget(WF_FIRSTAREAXYWH) function. The big difference between wind_get()
+ and this new wind_xget() is that wind_xget() accepts 4 more input values than
+ wind_get(). The AES looks at the second control element, which indicates the
+ size of the intout array, to differentiate between the two.
+
+
+ short wind_xget(short handle, short mode,
+                short p1, short p2, short p3, short p4);
+ {
+ 	intin[0] = handle;
+ 	intin[1] = mode;
+ 	intin[2] = p1;
+ 	intin[3] = p2;
+ 	intin[4] = p3;
+ 	intin[5] = p4;
+ }
+
+ GEM arrays as follows:
+
+	Address     Element    meaning 
+        ------------------------------------------------------
+        control    control[0]   104        # Opcode
+        control+2  control[1]   6          # Entries in intin
+        control+4  control[2]   5          # Entries in intout
+        control+6  control[3]   0          # Entries in addrin 
+        control+8  control[4]   0          # entries in addrout 
+        intin      intin[0]    handle
+        intin+2    intin[1]    mode
+
+        intin+4    intin[2]    p1
+        intin+6    intin[3]    p2
+        intin+8    intin[4]    p3
+        intin+10   intin[5]    p4
+        intout     intout[0]   Return value (1 = OK, 0 = error)
+
+      XaAES uses the following extra output elements if control[2]
+      indicates the application wants it:
+
+        intout+2   intout[1]
+        intout+4   intout[2]
+        intout+6   intout[3]
+        intout+8   intout[4]
+
+
+
+ XaAES wind_set() extensions;
+
+...............................................................................
+ wind_xget(handle, WF_FIRSTAREAXYWH, x, y, w, h);
+
+    This function will generate a rectangle list of a window portion, whose
+   coordinates are found in x, y, w and h. If, for example, one have an
+   animated icon that is updated reqularly, this function will generate a
+   rectangle list only for the area in which the icon resides.
+   wind_get(WF_NEXTXYWH) will get the next rectangle of the desired area
+   (if any).
+
+ Usage:
+  wind_xget(handle, WF_FIRSTAREAXYWH, x, y, w, h); Get first rectangle of area
+  wind_get(handle, WF_NEXTXYWH);                   Get next  rectangle of area
+
+...............................................................................
+ wind_xget(handle, WF_CALCW2F, x, y, w, h);
+ wind_xget(handle, WF_CALCF2W, x, y, w, h);
+
+   The intention of these two wind_xget() modes is to replace wind_calc() for
+   existing windows. wind_calc() does not have a window context, and thus its
+   calculations is based on current theme. The current theme may change, which
+   renders wind_calc() output useless for applications that need access to
+   window geometrics of windows not created by itself, like virtual desktop
+   managers, window cascaders, etc. For applications that want to support
+   dynamic theme changes, wind_calc() should be depreciated. Discussion is
+   going on wheter or not this is "needed", but a combination of XaAES's
+   WCOWORK mode (see wind_set(WF_WCOWORK) above) and these functions lift
+   any restrictions.
+ 
+  WF_CALCW2F: This mode will take an arbitrary WORK area, and return the
+              resulting FULL area of the window in question.
+  
+  WF_CALCF2W: This mode will take an arbitrary FULL area, and return the
+              corresponding WORK area.
+
+-------------------------------------------------------------------------------
+===============================================================================
+                       XaAES and wheel mouse handling.
+
+  This has changed a little compared to the original documentation and
+ implementation. When the wheel is on a window whose owner dont know about
+ mouse wheels at all, normal WM_ARROWED messages are sent, regardless wether
+ the window has ARROW gadgets or not.
+  There is no extra info added to these messages in this case, as it were in
+ the original implementation.
+
+  Currently mouse wheel events are sent to the owner of the window underneath
+ the mouse pointer in all cases except when owner of mouse_lock() is waiting
+ for MU_WHEEL.
+
+  For programmers who want to take advantage of mouse wheels in a better way,
+ here's an overview;
+
+  wind_set(handle, WF_WHEEL, mode, wheel_mode, 0, 0);
+
+  handle      Window handle, or -1 if one wants settings to apply to all windows
+              created hereafter by the application.
+  
+  mode        0 = Turn extended wheel awareness off, 1 = Turn on.
+  
+  wheel_mode
+           WHL_REALWHEEL ( 0 )
+              When wheel_mode is set to 0 (XWHL_REALWHEEL), XaAES will send
+              real wheel messages, constructed as follows;
+
+              msg[0] = WM_WHEEL ( 345 )
+              msg[1] = ID of sender
+              msg[2] = ...
+              msg[3] = window handle
+              msg[4] = Mouse X
+              msg[5] = Mouse Y
+              msg[6] = keyboard shift status
+              msg[7] = Wheel info
+  
+              'wheel info' consists of the following data;
+              bits 0-7    - Wheel amount
+              bits 8-11   - orient
+              bits 12-15  - Wheel ID
+ 
+              'orient' is a bitmask where bit 0 indicates direction, and
+              bit 1 indicates orientation;
+
+               bit 0  -  0 = up or left
+                         1 = down or right
+               bit 1  -  0 = vertical (bit 0 indicates UP/DOWN)
+                         1 = horizontal (bit 0 indicates LEFT/RIGHT)
+
+              'wheel ID' contains the wheel number. 0 is wheel #1, etc..
+              'wheel amount' holds the number of wheel-turns.
+      
+           WHL_AROWWHEEL ( 1 ) This is the default wheel_mode set if the
+              value passed is outside the available range. When this mode is
+              selected, extended WM_ARROWED messages are sent upon each wheel
+              turn. With this mode, only one WM_ARROWED message is send if
+              configured to scroll more than one line per wheel turn. This
+              means the application must check, and scroll the appropriate
+              number of lines indicated by bits 8-15 in msg[4];
+              
+              msg[0] = WM_ARROWED
+              ...
+              msg[4] = Extended, see below.
+              msg[5] = Mouse X
+              msg[6] = Mouse Y
+              msg[7] = keyboard shift status
+
+              There is extended info in msg[4] with this mode, layed out as
+              follows;
+                       bits 0-3 -  WA_xxx (same as in the original WM_ARROWED
+                                   messages, a value between 0 and 7, extended
+                                   modes up to 15)
+                                   bits 4-7 -  unused.
+                       bits 8-15 - Number of lines to scroll (unsigned byte)
+     
+                     This makes it possible for wheel aware applications to
+                     scroll the required amount instantly, wihtout receiveing
+                     more than this one extended WM_ARROWED.
+
+           WHL_SLDRWHEEL ( 2 )
+              When wheel_mode is set to 2 (XHWL_SLDRWHEEL), XaAES converts
+              wheel turns into slider movements. XaAES sends standard
+              WM_VSLID/WM_HSLID messages reflecting the wheel turns.
+              For this to work, WF_VSLIDE/WF_HSLIDE wind_get/set() modes have
+              been extended. When the application gets the WM_xSLIDE message,
+              it must pass back the position from the message unmodified
+              together with your modified position;
+
+              wind_set(handle, WF_[V,H]SLIDE, postion, unmodified, 0, 0);
+
+              Even if the application snaps slider movements and finds that
+              the slider does not move, it has to pass back the unmodified
+              slider position via wind_set(). In cases where the original
+              slider position match the prevsiously set position, XaAES does
+              not set or redraw the slider. But it needs to collect the 'real'
+              position of the slider for wheel -> slider calculations to work.
+
+
+ >>>>>> UNFINISHED UNFINISHED <<<<<<<<<
+===============================================================================
+=                        XaAES and Keyboard navigation;                       =
+=               the importance of form_keybd() and form_button()              =
+=                            usage in your apps!                              =
+-------------------------------------------------------------------------------
+
+
+ Arrow up          Go to object above current focus
+ Arrow down        Go to object below current focus
+ Arrow left        Go to object to the left of current focus
+ Arrow right       Go to object to the right of current focus
+
+ Home              Go to topmost editable field
+ shift + Home      Go to bottommost editable field.
+ 
+ 
+ XaAES now implements good keyboard navigation in dialogs when applications
+correctly use the form_keybd() and form_button() functions to implement their
+own non-modal form_do() function.
+
+ It is strongly adviced that application authors follow the gudelines that
+follow here!
+
+ XaAES's keyboard navigation depends on correct usage of the following
+functions;
+
+ form_keybd();
+ form_button();
+ objc_edit();
+
+ form_keybd()   - processes keys application receives via evnt_multi() or
+                  evnt_keybd().
+ form_button()  - processes mouse clicks on objects.
+ objc_edit()    - XaAES needs to know where the cursor is, so it is vital
+                  that objc_edit() is used correct. If XaAES doesnt have
+                  correct info about where the cursor is, you will get redraw
+                  problems regarding the cursor.
+
+ cont = form_keybd(tree, editfocus, keycode, nextobj, newobj, keyout);
+ {
+        intin[0] = editfocus;
+        intin[1] = keycode;
+        intin[2] = nextobj;
+	
+        addrin[0] = tree;
+ }
+
+ GEM arrays as follows:
+
+	Address     Element    meaning 
+        ------------------------------------------------------
+        control    control[0]   55        # Opcode
+        control+2  control[1]   3          # Entries in intin
+        control+4  control[2]   3          # Entries in intout
+        control+6  control[3]   1          # Entries in addrin 
+        control+8  control[4]   0          # entries in addrout 
+        
+	intin      intin[0]    editfocus
+        intin+2    intin[1]    keycode
+        intin+4    intin[2]    nextobj
+
+        addrin     addrin[0]   tree
+
+        intout     intout[0]   cont
+	intout+2   intout[1]   newobj
+	intout+4   intout[2]   keyout
+
+INPUT:
+ editfocus:  This is the object which currently has editfocus. If editfocus is
+             set to 0, or if the object passed is not editable, XaAES will try
+             look for the first instance of an editable in the given tree. If
+             one is found, it is returned in 'newobj' unless 'keycode'
+             triggered selection of an 'exit' object.
+ 
+ keycode:    The keycode one received from evnt_multi() or evnt_keybd().
+             See above for an overview of the keys XaAES uses for keyboard
+             navigation.
+ 
+ nextobj:    A lot of confusion around this parameter, it seems.
+             In some documentation this is said to be reserved, or unused, yet
+             other say you should put the same value here as you do in
+             'editfocus'. Some documentation tells you it should contain 0, yet
+             other say it should contain 1. What a mess this is!
+             
+             Here is what I think is correct;
+             
+             If a 1 is returned in 'cont', and the key is passed back in
+             'keyout', the value passed to the function in 'nextobj' is
+             returned in 'newobj'. In original Atari documentation it is said
+             that one should place the same value (current edit focus) in both
+             'editfocus' and 'nextobj'. This is infact recommended, because
+             then it becomes very easy to check for a change of editfocus.
+             This because form_keybd() returns a new editfocus when changed
+             or the value in 'editfocus' when 'keyout' is 0.
+             If 'keyout' is nonzero to indicate key wasnt used, the
+             value in 'nextobj' is returned in 'newobj' if no new editfocus.
+             In both cases one will get the same return in 'newobj' if edit-
+             focus didnt change when giving identical values to 'editfocus'
+             and 'nextobj'.
+             
+             This means that 'nextobj' is NOT a reserved value. It has a
+             purpose, and that the Atari documentation is found to be correct
+             where all others were wrong!
+
+ tree:       'tree' contains the address of the object tree on which
+             form_keybd() should act.
+OUTPUT:
+ cont:   0 - is returned if the key triggered a selection of an object
+             that is 'exitable'. That is, if object has OF_EXIT or
+             OF_TOUCHEXIT set. When this happens, 'newobj' contains the object
+             index of the selected object. A 0 is also returned in 'keyout'
+             to indicate that the key was used by form_keybd().
+             
+             NOTE:
+                If you use objects that has both OF_EDITABLE and OF_EXIT or
+                OF_TOUCHEXIT flag bits set, you need to manually check if the
+                object returned in 'newobj' is an editable one, and change
+                editfocus accordingly. See example code below.
+
+         1 - is returned if the key triggered a selection of an object that
+             is not 'exitable', or if the key was not used by form_keybd().
+             If there was a selection done, a 0 is returned in 'keyout' to
+             indicate the key was used and 'newobj' contains the index of the
+             object which should get editfocus. If editfocus did not change,
+             then the value passed in 'editfocus' is returned in 'newobj'.
+             
+             If a nonzero value is returned in 'keyout', the key was not used
+             by form_keybd() and 'newobj' normally contains the value passed
+             in 'nextobj' if editfocus didnt change or, at least under XaAES,
+             the index of the new object which should gain editfocus.
+	     
+             NOTE: Under XaAES it is possible that editfocus changes AND the
+             key is returned! This means that when the key passed to
+	     form_keybd() is returned in 'keyout', one should always check
+	     'newobj', and if not equal to 'nextobj', set editfocus to
+	     'newobj' BEFORE passing the key to objc_edit().
+	     
+ newobj:    If an object was selected by the function and it has OF_EXIT or
+            OF_TOUCHEXIT obflags set, 'newobj' contains the index of the
+            'exit' object and return value is 0 to indicate this.
+	    
+            If form_keybd() returns 1, 'newobj' contain the object index of the
+            editable object which should get editfocus if it changed. If edit-
+            focus didn not change, the value passed in 'nextobj' is returned
+            in 'nextobj' to indicate this. If the tree does not have any editable
+            objects, 'newobj' will contain -1 upon function return.
+
+ keyout:    If the key was used by the function, 'keyout' will contain 0 upon
+            function return. Else the key is returned in 'keyout', and can be
+            passed to objc_edit().
+
+ Comments:  The value returned in 'newobj' changes according to these different
+            situations;
+            
+            cont = form_keybd(tree, editfocus, keycode, nextobj, &newobj, &keyout);
+            
+            If cont == 0 - object with OF_EXIT or OF_TOUCHEXIT selected;
+               'newobj' contains the object index of the object selected.
+               'keyout' contains 0 to indicate key was used.
+            
+            If cont == 1 - non-exit object selected.
+               if 'keyout' == 0 - key used
+                  'newobj' contains the new editfocus, or the value passed in
+                           'editfocus' if editfocus didnt change.
+               
+               if 'keyout' != 0 - key not used.
+                  'newobj' contains the value passed to function in 'nextobj'.
+                           Under XaAES: contains the value passed to function
+                                        in 'nextobj' or new editfocus if this
+                                        changed. Typically happens if the value
+                                        passed in 'editfocus' is not a valid
+                                        editable object, in which case XaAES
+                                        searches for the first visible editable
+                                        in the tree and suggests this to be the
+                                        new editfocus.
+                           
+             >> example code to correctly handle output form form_keybd() <<
+             ----------------------------------------------------------------
+             /*
+              * Ozk: This code is based on always passing the current
+              *      editfocus in both 'editfocus' and 'nextobj', as this lets
+              *      us check for a change by using "if (newobj != editfocus)"
+              *      which is simple :) Read the section about 'nextobj' above
+              *      for more info!
+              */
+             short newobj;
+             short keyout;
+	     short idx;
+     
+             if (form_keybd(tree, editfocus, keycode, editfocus, &newobj, &keyout))
+             {
+             	/* Ozk: We dont check if a key is returned first. We know
+             	 *      that "if (newobj != editfocus)", the editfocus did infact
+             	 *      change.
+             	 */
+               if (newobj != editfocus)
+               {
+                 objc_edit(tree, editfocus, 0, 0, ED_END);
+                 objc_edit(tree, newobj, 0, &idx, ED_INIT);
+                 editfocus = newobj;
+               }
+               if (keyout)
+               {
+                 objc_edit(tree, editfocus, keyout, &idx, ED_CHAR);
+               }
+             }
+	     else
+             {
+               /*
+                * Since object is exit, we need to manually check if
+                * it is also an editable object. This can be skipped if
+                * you dont use objects where you have both OF_EDITABLE and
+                * OF_EXIT or OF_TOUCHEXIT set.
+                */
+               if (newobj != editfocus && (tree[newobj].ob_flags & OF_EDITABLE))
+               {
+                 objc_edit(tree, editfocus, 0, 0, ED_END);
+                 objc_edit(tree, newobj, 0, &idx, ED_INIT);
+                 editfocus = newobj;
+               }
+               
+               .... continue processing exit object ....
+                 
+             }
+   
+             -----------------------------------------------------------------
+             -----------------------------------------------------------------
+-------------------------------------------------------------------------------
+             >> example code to correctly handle output form form_button() <<
+             ----------------------------------------------------------------
+             short newobj;
+	     short idx;
+     
+             if (form_button(tree, obj, clicks, &newobj))
+             {
+               if (newobj > 0)
+               {
+                 objc_edit(tree, editfocus, 0, 0, ED_END);
+                 objc_edit(tree, newobj, 0, &idx, ED_INIT);
+                 editfocus = newobj;
+               }
+             }
+	     else
+             {
+             	short new_object = newobj & ~0x8000;
+             	bool doubleclick = (newobj & 0x8000);
+               /*
+                * Since if object is exit, we need to manually check if
+                * it is also an editable object. This can be skipped if
+                * you dont use objects where you have both OF_EDITABLE and
+                * OF_EXIT or OF_TOUCHEXIT set.
+                */
+               if (new_object != editfocus && (tree[new_object].ob_flags & OF_EDITABLE))
+               {
+                 objc_edit(tree, editfocus, 0, 0, ED_END);
+                 objc_edit(tree, new_object, 0, &idx, ED_INIT);
+                 editfocus = new_object;
+               }
+               
+               .... continue processing exit object ....
+                 
+             }
+   
+             -----------------------------------------------------------------
+===============================================================================
+ 
+ **** Nothing below this point is implementet!!!! ****      
+-------------------------------------------------------------------------------
+===============================================================================
+                  New event/poll functions - One entry point!
+
+
+ xevnt_multi(short mode,
+             struct xevnt_mask *in_events,
+             struct xevnt_mask *out_events,
+             struct xevents *inevents,
+             struct xevents *outevents);
+
+ GEM arrays as follows:
+
+	Address     Element    meaning 
+        ------------------------------------------------------
+        control    control[0]   Yes.. what? # Opcode
+        control+2  control[1]   1           # Entries in intin
+        control+4  control[2]   4           # Entries in intout (XaAES only)
+        control+6  control[3]   4           # Entries in addrin 
+        control+8  control[4]   0           # entries in addrout 
+
+        intin      intin[0]    mode (0 = block, 1 = setup for poll, 2 = read)
+        addrin     addrin[0]   Address of struct xevent_mask, conaining a
+                               bit mask denoting events to use.
+        addrin     addrin[1]   Address of struct xevnt_mask into which XaAES
+                               writes events that occured.
+        addrin+4   addrin[2]   Address of a struct xevents containing event
+                               criterias.
+        addrin+8   addrin[3]   Address of a struct xevents that XaAES will
+                               modify according to events happening when in
+                               block-mode.
+
+        intout     intout[0]   Return value (1 = OK, 0 = error)
+        intout+2   intout[1]   Mouse X coordinate
+        intout+4   intout[2]   Mouse Y coordinate
+        intout+6   intout[3]   Keyboard shift status
+
+
+ xevnt_poll(struct xevent_mask *events);
+
+ GEM arrays as follows:
+
+	Address     Element    meaning 
+        ------------------------------------------------------
+        control    control[0]   Yes.. what? # Opcode
+        control+2  control[1]   0           # Entries in intin
+        control+4  control[2]   4           # Entries in intout (XaAES only)
+        control+6  control[3]   1           # Entries in addrin 
+        control+8  control[4]   0           # entries in addrout 
+
+        addrin     addrin[0]   Address of struct xevent_mask, conaining a
+                               bit mask denoting events to use.
+
+        intout     intout[0]   Return value (1 = OK, 0 = error)
+        intout+2   intout[1]   Mouse X coordinate
+        intout+4   intout[2]   Mouse Y coordinate
+        intout+6   intout[3]   Keyboard shift status
+
+struct xevent_mask
+{
+  unsigned long events3;
+  unsigned long events2;
+  unsigned long events1;
+  unsigned long events0;
+};
+
+struct xevnts
+{
+  struct evnt_mu_keyboard  *e_kbd;
+  struct evnt_mu_button    *e_but;
+  struct evnt_mu_m1        *e_mu1;
+  struct evnt_mu_m1        *e_mu2;
+  struct evnt_mu_mx        *e_mx;
+  struct evnt_mu_mesag     *e_mesag;
+  struct evnt_mu_timer     *e_timer;
+  struct evnt_mu_fselect   *e_fselect;
+  struct envt_mu_pmsg      *e_pmsg;
+  long reserved[64-8];
+};
+
+struct evnt_mu_keyboard
+{
+  unsigned short scan;
+  unsigned short ascii;
+  unsigned short aes;
+  unsigned short norm;
+  unsigned short kstate;
+};
+
+struct evnt_mu_button
+{
+  short clicks;
+  short mask;
+  short state;
+  short kstate;
+  short x, y;
+};
+
+struct evnt_mu_mr
+{
+  short x, y, w, h;
+  short flag;
+};
+
+struct evnt_mu_mx
+{
+  short reserved;
+};
+
+struct evnt_mu_mesag
+{
+  short type;
+  short id_sender;
+  short len;
+  short data[16-3];
+};
+
+struct evnt_mu_timer
+{
+  long delta;
+};
+
+struct evnt_mu_pmsg
+{
+  long userlong1;
+  long userlong2;
+  short pid;
+  short reserved[16-5];
+};
+
+struct evnt_mu_fselect
+{
+  long timeout;
+  unsigned long rfds;
+  unsigned long wfds;
+  short reserved[16-6];
+};
