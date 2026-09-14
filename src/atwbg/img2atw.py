@@ -3,7 +3,10 @@
 
 Layout measured on the real card (2026-09-13): standard RGB565 stored LITTLE-endian (Intel byte order).
 A first reading from four solid test bars (blue/red/green/white) suggested a BRG layout; a gradient chart
-showed each ramp wrapping into its neighbour's colour, which is exactly RGB565 with the bytes swapped. Usage: img2atw.py IN.(jpg|png|...) OUT.raw  |  img2atw.py --chart OUT.raw
+showed each ramp wrapping into its neighbour's colour, which is exactly RGB565 with the bytes swapped.
+
+Usage: img2atw.py [--fit] IN.(jpg|png|webp|...) OUT.raw  |  img2atw.py --chart OUT.raw
+  default: fill the screen and crop the overflow; --fit: show all of it, padded with its corner colour
 """
 import sys
 from PIL import Image
@@ -28,9 +31,19 @@ def chart():
 
 
 def main():
-    if len(sys.argv) != 3:
+    args = sys.argv[1:]
+    fit = args[:1] == ["--fit"]
+    args = args[1:] if fit else args
+    if len(args) != 2:
         sys.exit(__doc__)
+    sys.argv[1:] = args
     im = chart() if sys.argv[1] == "--chart" else Image.open(sys.argv[1]).convert("RGB")
+    if fit and im.size != (W, H):  # whole picture visible, centred, padded with its corner colour
+        s = min(W / im.width, H / im.height)
+        im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+        bg = Image.new("RGB", (W, H), im.getpixel((0, 0)))
+        bg.paste(im, ((W - im.width) // 2, (H - im.height) // 2))
+        im = bg
     if im.size != (W, H):  # cover the screen, keep the aspect ratio, crop the overflow
         s = max(W / im.width, H / im.height)
         im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
