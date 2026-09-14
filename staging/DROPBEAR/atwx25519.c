@@ -124,29 +124,50 @@ static int atw_boot(const char **why)
     }
 }
 
-/* q = X25519(n, p) on the T425. Returns 0 on success, -1 if the caller must compute it itself. */
+/* One request/reply to a server we believe is already running. 0 = got 32 bytes, -1 = no/short reply. */
+static int atw_request(unsigned char *out, const unsigned char *n, const unsigned char *p)
+{
+    unsigned char req[64];
+    memcpy(req, n, 32);
+    memcpy(req + 32, p, 32);
+    return (atw_write(req, 64) == 64 && atw_read(out, 32, 10000) == 32) ? 0 : -1;
+}
+
+/* q = X25519(n, p) on the T425. Returns 0 on success, -1 if the caller must compute it itself.
+ *
+ * A server may already be running from boot (atwxserv.ttp in mint.cnf), so the first call TRIES the
+ * link before booting: if a running server answers, no reset happens (the reset is what disturbs the
+ * ATW display, and it costs ~0.9 s). Only silence triggers a boot, then a retry. */
 static int atw_x25519(unsigned char *q, const unsigned char *n, const unsigned char *p)
 {
-    unsigned char req[64], out[32];
+    unsigned char out[32];
     const char *why = NULL;
 
     if (atw_state == 0) {
         if (getenv("DROPBEAR_NO_ATW"))
-            why = "disabled by DROPBEAR_NO_ATW";
-        atw_state = why || atw_boot(&why) ? -1 : 1;
-        if (atw_state > 0)
-            dropbear_log(LOG_INFO, "atw: X25519 offload to the ATW800/2 T425 active");
-        else
-            dropbear_log(LOG_INFO, "atw: X25519 offload unavailable (%s), using the 68030", why);
+            atw_state = (why = "disabled by DROPBEAR_NO_ATW", -1);
+        else if ((short)trap_1_ww(ATW_OP_CHECK, 0x17) != 0x17)
+            atw_state = (why = "fpgabios.tos not resident", -1);
+        else if (atw_request(out, n, p) == 0) {           /* a server was already up: use it as-is */
+            atw_state = 1;
+            dropbear_log(LOG_INFO, "atw: X25519 offload active (server already running)");
+            memcpy(q, out, 32);
+            return 0;
+        } else {                                          /* nothing answered: boot one ourselves */
+            atw_state = atw_boot(&why) ? -1 : 1;
+            dropbear_log(LOG_INFO, atw_state > 0
+                ? "atw: X25519 offload active (booted the server)"
+                : "atw: X25519 offload unavailable (%s), using the 68030", why);
+        }
     }
     if (atw_state < 0)
         return -1;
-    memcpy(req, n, 32);
-    memcpy(req + 32, p, 32);
-    if (atw_write(req, 64) != 64 || atw_read(out, 32, 10000) != 32) {
-        atw_state = -1;
-        dropbear_log(LOG_WARNING, "atw: T425 did not answer, falling back to the 68030");
-        return -1;
+    if (atw_request(out, n, p) != 0) {                     /* a live server just died: reboot once */
+        if (atw_boot(&why) != 0 || atw_request(out, n, p) != 0) {
+            atw_state = -1;
+            dropbear_log(LOG_WARNING, "atw: T425 stopped answering, falling back to the 68030");
+            return -1;
+        }
     }
     memcpy(q, out, 32);
     return 0;

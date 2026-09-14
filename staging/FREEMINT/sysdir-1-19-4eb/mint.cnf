@@ -490,6 +490,8 @@ exec u:/usr/sbin/inetd
 # ATW800/2 transputer link driver (fpgabios, GEMDOS ext.); must precede rc.dropbear: Dropbear
 # boots /etc/dropbear/xserv.btl on the T425 for X25519 (2026-09-13).
 exec u:/c/atw800_2/atwtools/fpgabios.tos
+# Boot the X25519 server onto the ATW800/2 T425 once, so no SSH login resets it (item 2, 2026-09-13).
+exec u:/usr/sbin/atwxserv
 exec u:/bin/bash /etc/rc.dropbear
 # FR-5: health telemetry to SAM over MQTT (sam/node/telemetry/atari-tt030)
 exec u:/bin/bash /etc/rc.ttmon
