@@ -487,6 +487,9 @@ exec u:/usr/sbin/inetd
 # SSH: Dropbear (Monocypher crypto), ed25519 key only; ~28 s per login on the TT (2026-09-12).
 # -F + shell "&": when Dropbear daemonises itself, each connection exits "setsid: Bad file descriptor".
 # (quoted bash -c lost its options in mint.cnf; the script keeps -F)
+# ATW800/2 transputer link driver (fpgabios, GEMDOS ext.); must precede rc.dropbear: Dropbear
+# boots /etc/dropbear/xserv.btl on the T425 for X25519 (2026-09-13).
+exec u:/c/atw800_2/atwtools/fpgabios.tos
 exec u:/bin/bash /etc/rc.dropbear
 # FR-5: health telemetry to SAM over MQTT (sam/node/telemetry/atari-tt030)
 exec u:/bin/bash /etc/rc.ttmon
