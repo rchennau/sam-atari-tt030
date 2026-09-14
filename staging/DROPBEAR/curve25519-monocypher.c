@@ -75,11 +75,17 @@ int dropbear_ed25519_verify(const unsigned char *m, unsigned long mlen,
 			    const unsigned char *pk)
 {
 	clock_t t0 = clock();
-	int r;
+	int a, r;
 
 	if (slen != 64)
 		return -1;
-	r = crypto_ed25519_check(s, pk, m, mlen);  /* 0 = valid, -1 = invalid, like Dropbear's */
+	a = atw_ed25519_verify(s, pk, m, mlen);    /* T425: 1 valid, 0 invalid, -1 offload unavailable */
+	if (a >= 0) {
+		dropbear_log(LOG_INFO, "atw: ed25519 verify on the T425 took %ld ms",
+			     (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
+		return a ? 0 : -1;                  /* Dropbear wants 0 = valid, -1 = invalid */
+	}
+	r = crypto_ed25519_check(s, pk, m, mlen);  /* fallback: 0 = valid, -1 = invalid */
 	dropbear_log(LOG_INFO, "atw: ed25519 verify on the 68030 took %ld ms",
 		     (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
 	return r;

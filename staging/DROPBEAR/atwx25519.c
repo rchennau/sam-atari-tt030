@@ -23,7 +23,7 @@
 #include <string.h>
 #include <time.h>
 
-#define ATW_IMAGE "/etc/dropbear/xserv.btl"
+#define ATW_IMAGE "/etc/dropbear/xserv.btl"   /* xserv2 build: X25519 + Ed25519 verify */
 #define ATW_OP_CHECK 100
 #define ATW_OP_WRITE 105
 #define ATW_OP_READ 106
@@ -124,58 +124,109 @@ static int atw_boot(const char **why)
     }
 }
 
-/* One request/reply to a server we believe is already running. 0 = got 32 bytes, -1 = no/short reply. */
+#define ATW_MSG_MAX 1024               /* must match xserv2.c MSG_MAX */
+
+/* One X25519 request/reply to a server we believe is already running (op 'X' + scalar + point ->
+ * 32 bytes). 0 = got 32 bytes, -1 = no/short reply. */
 static int atw_request(unsigned char *out, const unsigned char *n, const unsigned char *p)
 {
-    unsigned char req[64];
-    memcpy(req, n, 32);
-    memcpy(req + 32, p, 32);
-    return (atw_write(req, 64) == 64 && atw_read(out, 32, 10000) == 32) ? 0 : -1;
+    unsigned char req[65];
+    req[0] = 'X';
+    memcpy(req + 1, n, 32);
+    memcpy(req + 33, p, 32);
+    return (atw_write(req, 65) == 65 && atw_read(out, 32, 10000) == 32) ? 0 : -1;
 }
 
-/* q = X25519(n, p) on the T425. Returns 0 on success, -1 if the caller must compute it itself.
- *
- * A server may already be running from boot (atwxserv.ttp in mint.cnf), so the first call TRIES the
- * link before booting: if a running server answers, no reset happens (the reset is what disturbs the
- * ATW display, and it costs ~0.9 s). Only silence triggers a boot, then a retry. */
-static int atw_x25519(unsigned char *q, const unsigned char *n, const unsigned char *p)
+/* One Ed25519-verify request (op 'V' + 2-byte len + sig + pub + msg -> 1 byte). Returns 1 valid,
+ * 0 invalid, -1 if the transputer did not answer (caller then verifies on the 68030). */
+static int atw_verify_request(const unsigned char *sig, const unsigned char *pub,
+                              const unsigned char *msg, unsigned long mlen)
 {
-    unsigned char out[32];
-    const char *why = NULL;
+    unsigned char req[3 + 64 + 32 + ATW_MSG_MAX], reply[1];
+    unsigned long len = 3 + 64 + 32 + mlen;
+    if (mlen > ATW_MSG_MAX)
+        return -1;
+    req[0] = 'V';
+    req[1] = (unsigned char)(mlen >> 8);
+    req[2] = (unsigned char)mlen;
+    memcpy(req + 3, sig, 64);
+    memcpy(req + 67, pub, 32);
+    memcpy(req + 99, msg, mlen);
+    if (atw_write(req, len) != (long)len || atw_read(reply, 1, 20000) != 1)
+        return -1;
+    return reply[0] ? 1 : 0;
+}
 
+/* Fast pre-check: env override + fpgabios present. Sets atw_state to -1 (offload off) or leaves it 0
+ * (a server may already be running from boot — atwxserv in mint.cnf — so the first real request tries
+ * the link before any reset; the reset is what disturbs the ATW display and costs ~0.9 s). */
+static int atw_offline(void)
+{
+    static const char *why;
     if (atw_state == 0) {
         if (getenv("DROPBEAR_NO_ATW"))
             atw_state = (why = "disabled by DROPBEAR_NO_ATW", -1);
         else if ((short)trap_1_ww(ATW_OP_CHECK, 0x17) != 0x17)
             atw_state = (why = "fpgabios.tos not resident", -1);
-        else if (atw_request(out, n, p) == 0) {           /* a server was already up: use it as-is */
-            atw_state = 1;
-            dropbear_log(LOG_INFO, "atw: X25519 offload active (server already running)");
-            memcpy(q, out, 32);
-            return 0;
-        } else {                                          /* nothing answered: boot one ourselves */
-            atw_state = atw_boot(&why) ? -1 : 1;
-            dropbear_log(LOG_INFO, atw_state > 0
-                ? "atw: X25519 offload active (booted the server)"
-                : "atw: X25519 offload unavailable (%s), using the 68030", why);
-        }
+        if (atw_state < 0)
+            dropbear_log(LOG_INFO, "atw: offload unavailable (%s), using the 68030", why);
     }
-    if (atw_state < 0)
+    return atw_state < 0;
+}
+
+/* q = X25519(n, p) on the T425. 0 = done, -1 = compute it on the 68030. */
+static int atw_x25519(unsigned char *q, const unsigned char *n, const unsigned char *p)
+{
+    unsigned char out[32];
+    const char *why;
+
+    if (atw_offline())
         return -1;
-    if (atw_request(out, n, p) != 0) {                     /* a live server just died: reboot once */
+    if (atw_request(out, n, p) != 0) {                     /* no running server: boot one, retry once */
         if (atw_boot(&why) != 0 || atw_request(out, n, p) != 0) {
             atw_state = -1;
-            dropbear_log(LOG_WARNING, "atw: T425 stopped answering, falling back to the 68030");
+            dropbear_log(LOG_WARNING, "atw: T425 not answering, falling back to the 68030 (%s)", why);
+            return -1;
+        }
+        dropbear_log(LOG_INFO, "atw: offload active (booted the server)");
+    } else if (atw_state == 0) {
+        dropbear_log(LOG_INFO, "atw: offload active (server already running)");
+    }
+    atw_state = 1;
+    memcpy(q, out, 32);
+    return 0;
+}
+
+/* Ed25519 verify on the T425. Returns 1 valid, 0 invalid, -1 = verify on the 68030 instead. */
+static int atw_ed25519_verify(const unsigned char *sig, const unsigned char *pub,
+                              const unsigned char *msg, unsigned long mlen)
+{
+    const char *why;
+    int r;
+
+    if (atw_offline() || mlen > ATW_MSG_MAX)
+        return -1;
+    r = atw_verify_request(sig, pub, msg, mlen);
+    if (r < 0) {                                           /* no running server: boot one, retry once */
+        if (atw_boot(&why) != 0 || (r = atw_verify_request(sig, pub, msg, mlen)) < 0) {
+            atw_state = -1;
+            dropbear_log(LOG_WARNING, "atw: T425 not answering ed25519, verifying on the 68030");
             return -1;
         }
     }
-    memcpy(q, out, 32);
-    return 0;
+    atw_state = 1;
+    return r;
 }
 #else
 static int atw_x25519(unsigned char *q, const unsigned char *n, const unsigned char *p)
 {
     (void)q; (void)n; (void)p;
+    return -1;
+}
+static int atw_ed25519_verify(const unsigned char *sig, const unsigned char *pub,
+                              const unsigned char *msg, unsigned long mlen)
+{
+    (void)sig; (void)pub; (void)msg; (void)mlen;
     return -1;
 }
 #endif

@@ -275,6 +275,8 @@ void f25519_sqrt(uint8_t *r, const uint8_t *a)
     f25519_sub(ii, ii, y);
     f25519_mul__distinct(x, v, a);
     f25519_mul__distinct(r, x, ii);
+    f25519_normalize(r);   /* Ed25519 point decompression reads r's low-bit parity; p is odd, so an
+                            * unnormalized representative gives the wrong parity and picks the wrong root. */
 }
 
 void f25519_inv__distinct(uint8_t *r, const uint8_t *x)
