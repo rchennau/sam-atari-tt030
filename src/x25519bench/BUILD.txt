@@ -4,7 +4,7 @@
 #   m68k-atari-mint-gcc -m68020-60 -O2 -I../../staging/DROPBEAR -o monobench.ttp monobench.c ../../staging/DROPBEAR/monocypher.c
 # T425 (INMOS icc under t4, from a dir holding bench.c, c25519/*.[ch] and icc/stdint.h):
 #   . tools/d72uni-env.sh; ISEARCH="$PWD/ $D72UNI/libs/" icc X.c -t4 -o X.t4h   (bench, f25519, c25519)
-#   ilink -f bench.lnk -t4 -h -o bench.c4h   (single-entry ISEARCH: a two-entry one crashes ilink)
+#   ilink -f bench.lnk -t4 -h -o bench.c4h   (ilink needs a short ISEARCH: fine at 92 characters, failed at 112 — measured 2026-09-13; the earlier "two entries crash ilink" was really path length)
 #   icollect bench.c4h -t -o bench.b4h   -> upload as x25519.btl; on the TT: fpgabios.tos, then iserver.ttp -sb x25519.btl 3
 # fe32 (lmul) build for the T425: same steps, with fe32/f25519.c in place of c25519/f25519.c.
 # Check first on fractal: gcc -Ic25519 difftest.c + each f25519.c, diff the outputs (2824 lines, identical 2026-09-13).
