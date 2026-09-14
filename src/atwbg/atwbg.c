@@ -1,5 +1,6 @@
 /* atwbg — show a picture full-screen on the ATW800/2 so XaAES can keep it as the desktop background
- * (press Ctrl+Alt+; while it is on screen). Kanban 93379c23.
+ * (press Ctrl+Alt+: while it is on screen — Ctrl+Alt+Shift+; on UK/US keyboards; XaAES matches the
+ * character ':'). XaAES then writes <xaaes home>/1024768.16/xa_form.mfd at once. Kanban 93379c23.
  * Input: a raw 1024x768 16-bit file made by src/atwbg/img2atw.py in the ATW's layout, measured
  * 2026-09-13: standard RGB565 with the bytes in little-endian (Intel) order.
  * Framebuffer 0xFEC00000 (XVDI boot message, 2 MB mode), stride 2048 bytes.
@@ -40,6 +41,6 @@ int main(int argc, char **argv)
     }
     fclose(f);
     Supexec(blit);
-    printf("on screen: press Ctrl+Alt+; to keep it as the XaAES desktop background\n");
+    printf("on screen: press Ctrl+Alt+: (Ctrl+Alt+Shift+; on UK/US keys) to keep it as the XaAES background\n");
     return 0;
 }
