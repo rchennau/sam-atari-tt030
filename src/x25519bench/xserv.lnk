@@ -1,0 +1,4 @@
+xserv.t4h
+f25519.t4h
+c25519.t4h
+#include startup.lnk
