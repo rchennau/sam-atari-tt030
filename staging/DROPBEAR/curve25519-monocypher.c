@@ -59,9 +59,13 @@ void dropbear_ed25519_sign(const unsigned char *m, unsigned long mlen,
 {
 	uint8_t sk64[64];
 
+	clock_t t0 = clock();
+
 	memcpy(sk64, sk, 32);
 	memcpy(sk64 + 32, pk, 32);
 	crypto_ed25519_sign(s, sk64, m, mlen);
+	dropbear_log(LOG_INFO, "atw: ed25519 sign on the 68030 took %ld ms",
+		     (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
 	crypto_wipe(sk64, sizeof sk64);
 	*slen = 64;
 }
@@ -70,7 +74,13 @@ int dropbear_ed25519_verify(const unsigned char *m, unsigned long mlen,
 			    const unsigned char *s, unsigned long slen,
 			    const unsigned char *pk)
 {
+	clock_t t0 = clock();
+	int r;
+
 	if (slen != 64)
 		return -1;
-	return crypto_ed25519_check(s, pk, m, mlen);  /* 0 = valid, -1 = invalid, like Dropbear's */
+	r = crypto_ed25519_check(s, pk, m, mlen);  /* 0 = valid, -1 = invalid, like Dropbear's */
+	dropbear_log(LOG_INFO, "atw: ed25519 verify on the 68030 took %ld ms",
+		     (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
+	return r;
 }
