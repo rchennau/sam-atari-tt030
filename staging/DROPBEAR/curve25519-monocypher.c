@@ -11,6 +11,7 @@
 #include "includes.h"
 #include "dbrandom.h"
 #include "curve25519.h"
+#include <time.h>
 
 #include "monocypher.c"
 /* One translation unit for both files: they share the static helper hash_reduce and some macros. */
@@ -23,9 +24,22 @@
 #include "monocypher-ed25519.c"
 #undef hash_reduce
 
+/* X25519 on the ATW800/2's T425 when it is there (2.25 s vs 4.1 s on the 68030), else Monocypher. */
+#include "atwx25519.c"
+
 void dropbear_curve25519_scalarmult(unsigned char *q, const unsigned char *n, const unsigned char *p)
 {
-	crypto_x25519(q, n, p);
+	/* Per-call timing in the log: login wall time over the TT's WiFi is too noisy to compare paths
+	 * (40% ping loss while measuring, 2026-09-13). The first T425 call includes the boot. */
+	clock_t t0 = clock();
+	const char *path = "T425";
+
+	if (atw_x25519(q, n, p) != 0) {
+		crypto_x25519(q, n, p);
+		path = "68030";
+	}
+	dropbear_log(LOG_INFO, "atw: x25519 on the %s took %ld ms", path,
+		     (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
 }
 
 /* sk is Dropbear's 32-byte seed; Monocypher's secret key is seed || public key (64 bytes). */
