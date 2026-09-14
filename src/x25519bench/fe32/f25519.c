@@ -224,6 +224,59 @@ void f25519_normalize(uint8_t *x)
     store(x, w);
 }
 
+void f25519_neg(uint8_t *r, const uint8_t *a)   /* Ed25519 only: r = -a mod p */
+{
+    f25519_sub(r, f25519_zero, a);
+}
+
+/* Needed by Ed25519 (point compare and decompression), not by X25519. Public values only. */
+uint8_t f25519_eq(const uint8_t *x, const uint8_t *y)
+{
+    uint8_t nx[F25519_SIZE], ny[F25519_SIZE], sum = 0;
+    int i;
+
+    for (i = 0; i < F25519_SIZE; i++) {
+        nx[i] = x[i];
+        ny[i] = y[i];
+    }
+    f25519_normalize(nx);
+    f25519_normalize(ny);
+    for (i = 0; i < F25519_SIZE; i++)
+        sum |= nx[i] ^ ny[i];
+    sum |= (sum >> 4);
+    sum |= (sum >> 2);
+    sum |= (sum >> 1);
+    return (sum ^ 1) & 1;
+}
+
+static void exp2523(uint8_t *r, const uint8_t *x, uint8_t *s)
+{
+    int i;
+    f25519_mul__distinct(r, x, x);
+    f25519_mul__distinct(s, r, x);
+    for (i = 0; i < 248; i++) {
+        f25519_mul__distinct(r, s, s);
+        f25519_mul__distinct(s, r, x);
+    }
+    f25519_mul__distinct(r, s, s);
+    f25519_mul__distinct(s, r, r);
+    f25519_mul__distinct(r, s, x);
+}
+
+void f25519_sqrt(uint8_t *r, const uint8_t *a)
+{
+    uint8_t v[F25519_SIZE], ii[F25519_SIZE], x[F25519_SIZE], y[F25519_SIZE];
+
+    f25519_mul_c(x, a, 2);
+    exp2523(v, x, y);
+    f25519_mul__distinct(y, v, v);
+    f25519_mul__distinct(ii, x, y);
+    f25519_load(y, 1);
+    f25519_sub(ii, ii, y);
+    f25519_mul__distinct(x, v, a);
+    f25519_mul__distinct(r, x, ii);
+}
+
 void f25519_inv__distinct(uint8_t *r, const uint8_t *x)
 {
     /* Fermat: x^(p-2), p-2 = 2^255-21 = 11111111...01011 in binary. Same chain as the original. */
