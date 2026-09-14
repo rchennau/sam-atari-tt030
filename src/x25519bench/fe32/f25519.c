@@ -7,8 +7,11 @@
  * is folded with 2^256 = 38 (mod p).
  * ponytail: bytes are converted to words inside every call; keep words across the ladder if the
  * conversion shows up in the timing.
- * ponytail: the carry folds loop until no carry (at most twice in practice), which is a data-dependent
- * branch. Fine for a benchmark; a production offload needs constant-time folds.
+ * Constant-time (kanban 37a7a860, 2026-09-13): no branch or loop count depends on the data. Carry folds run
+ * a fixed 3 passes, borrow folds a fixed 2, add_small always walks all 8 words, and normalize selects with a
+ * mask. Bounds: after one fold the carry is 0 or 1; after two the value can only have wrapped if it was
+ * below 38, so a third pass can't carry again. lmul's cycle count on the T425 is taken as data-independent
+ * (INMOS instruction timing) — not measured here.
  */
 #include "f25519.h"
 
@@ -55,11 +58,11 @@ static void store(uint8_t *b, const w8 w)
     }
 }
 
-/* w += k (k small); returns the carry out of 2^256 (0 or 1). */
+/* w += k (k small); returns the carry out of 2^256 (0 or 1). Always touches all 8 words. */
 static uint32_t add_small(w8 w, uint32_t k)
 {
     int i;
-    for (i = 0; i < 8 && k; i++) {
+    for (i = 0; i < 8; i++) {
         uint32_t s = w[i] + k;
         k = s < w[i];
         w[i] = s;
@@ -67,10 +70,23 @@ static uint32_t add_small(w8 w, uint32_t k)
     return k;
 }
 
-/* Fold a carry c (value c * 2^256) back in as c * 38, until nothing is left over. */
+/* w -= k (k small); returns the borrow out (0 or 1). Always touches all 8 words. */
+static uint32_t sub_small(w8 w, uint32_t k)
+{
+    int i;
+    for (i = 0; i < 8; i++) {
+        uint32_t d = w[i] - k;
+        k = w[i] < k;
+        w[i] = d;
+    }
+    return k;
+}
+
+/* Fold a carry c (value c * 2^256) back in as c * 38: a fixed three passes (see header). */
 static void fold(w8 w, uint32_t c)
 {
-    while (c) {
+    int pass;
+    for (pass = 0; pass < 3; pass++) {
         uint32_t lo, hi;
         mac(c, 38, 0, &lo, &hi);
         c = hi + add_small(w, lo);
@@ -126,17 +142,9 @@ void f25519_sub(uint8_t *r, const uint8_t *a, const uint8_t *b)
         x[i] = d - borrow;
         borrow = b2 | (d < borrow);
     }
-    /* A borrow means the result is x - 2^256, and 2^256 = 38 mod p: subtract 38, again if it borrows. */
-    while (borrow) {
-        uint32_t k = 38;
-        borrow = 0;
-        for (i = 0; i < 8 && k; i++) {
-            uint32_t d = x[i] - k;
-            k = x[i] < k;
-            x[i] = d;
-        }
-        borrow = k;
-    }
+    /* A borrow means the result is x - 2^256, and 2^256 = 38 mod p: subtract 38 * borrow, twice. */
+    borrow = sub_small(x, 38 & (0 - borrow));
+    sub_small(x, 38 & (0 - borrow));
     store(r, x);
 }
 
@@ -207,10 +215,11 @@ void f25519_normalize(uint8_t *x)
     for (i = 0; i < 8; i++)                    /* w >= p  <=>  w + 19 >= 2^255 */
         t[i] = w[i];
     add_small(t, 19);
-    if (t[7] >> 31) {                          /* ponytail: data-dependent branch, benchmark only */
+    {
+        uint32_t m = 0 - (t[7] >> 31);         /* all ones when w >= p: take t - 2^255 */
         t[7] &= 0x7fffffffUL;
         for (i = 0; i < 8; i++)
-            w[i] = t[i];
+            w[i] = (t[i] & m) | (w[i] & ~m);
     }
     store(x, w);
 }
