@@ -1,6 +1,6 @@
 # Atari TT030 & ATW800/2 Transputer Enhancement Project
 
-Management, drivers, custom software, and hardware acceleration utilities for the **Atari TT030 retro-computing workstation** operating within the **SAM (Self-Healing Autonomous Mesh)** ecosystem.
+Management, drivers, custom software, and hardware acceleration utilities for the **Atari TT030 retro-computing workstation** operating within the **SAM (Sensible Agent Management)** ecosystem.
 
 ---
 
@@ -19,7 +19,8 @@ The primary purpose of this project is to adapt and modify legacy and modern Uni
 
 ## Role of SAM (Build, Test, & Deployment Pipeline)
 
-The **SAM (Self-Healing Autonomous Mesh)** platform orchestrated end-to-end development, verification, and live deployment to the Atari TT030:
+The **SAM (Sensible Agent Management)** platform orchestrated end-to-end development, verification, and live deployment to the Atari TT030:
+
 
 1. **Cross-Compilation & Build**:
    - Built Motorola 68030 host binaries using `m68k-atari-mint-gcc` (GCC 13+ cross-compiler) and INMOS ANSI C (`icc`/`ilink` under `t4`) for the T425 transputer server code.
