@@ -6,9 +6,10 @@
 
 ## Utility Demonstration
 
-![sam-ssh-tt Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/sam-ssh-tt-demo.gif)
+![sam-ssh-tt Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/sam-ssh-tt-demo.mp4)
 
 ---
+
 
 
 ## Hardware & Operating System Support

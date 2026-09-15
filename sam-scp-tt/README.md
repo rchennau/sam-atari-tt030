@@ -6,9 +6,10 @@
 
 ## Utility Demonstration
 
-![sam-scp-tt Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/sam-scp-tt-demo.gif)
+![sam-scp-tt Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/sam-scp-tt-demo.mp4)
 
 ---
+
 
 
 ## Hardware & Operating System Support

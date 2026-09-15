@@ -6,9 +6,10 @@ The **SAM TT-Bridge HTTP Client** is a lightweight M68K C application designed t
 
 ## Utility Demonstration
 
-![tt_bridge Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/tt_bridge-demo.gif)
+![tt_bridge Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/tt_bridge-demo.mp4)
 
 ---
+
 
 
 ## Features
