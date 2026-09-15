@@ -4,6 +4,13 @@
 
 ---
 
+## Utility Demonstration
+
+![sam-ssh-tt Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/sam-ssh-tt-demo.gif)
+
+---
+
+
 ## Hardware & Operating System Support
 - **Target Platform**: Atari TT030 (Motorola 68030 @ 32 MHz)
 - **Co-Processor**: ATW800/2 Transputer Card (T425 32-bit RISC Transputer @ 40 MHz)

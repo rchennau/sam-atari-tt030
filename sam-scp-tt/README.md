@@ -4,6 +4,13 @@
 
 ---
 
+## Utility Demonstration
+
+![sam-scp-tt Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/sam-scp-tt-demo.gif)
+
+---
+
+
 ## Hardware & Operating System Support
 - **Target Workstation**: Atari TT030 (MC68030 @ 32 MHz)
 - **Co-Processor**: ATW800/2 Transputer Board (T425 RISC Transputer @ 40 MHz)

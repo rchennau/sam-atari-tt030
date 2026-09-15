@@ -4,6 +4,13 @@ The **SAM TT-Bridge HTTP Client** is a lightweight M68K C application designed t
 
 ---
 
+## Utility Demonstration
+
+![tt_bridge Demo](file:///home/sam/Projects/atari-tt030-enhancement/docs/media/tt_bridge-demo.gif)
+
+---
+
+
 ## Features
 - **Dual Network Stack Support**: Compatible with MiNT socket layer (`sys/socket.h`) and STiNG TCP/IP stack (`transprt.h`).
 - **Atari TT030 Native Optimizations**: Built with `-m68030 -m88881` CPU flags for fast execution in TT-RAM.
