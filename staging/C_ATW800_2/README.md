@@ -11,5 +11,6 @@ it is unlicensed for redistribution and lives in `staging/TRANSPUTER/` for the b
 - `ATWTOOLS/iserver.ttp`    INMOS host server (manual transputer runs)
 - `ATWTOOLS/resetatw.tos`   restore the display after a raw transputer program
 - `ATWTOOLS/linkalia.tos`   AliaBios link driver (alternative to fpgabios)
-- `TRANS_DEV/xserv.btl`     sam-ssh-tt X25519 server (constant-time build)
+- `TRANS_DEV/xserv.btl`     sam-ssh-tt / sam-scp-tt X25519 & Ed25519 server (constant-time build)
 - `TRANS_DEV/atwinfo.btl`   read the card's FPGA/VDI info
+- `TRANS_DEV/sam-scp-tt`    sam-scp-tt transputer SCP acceleration bridge (m68k binary)
