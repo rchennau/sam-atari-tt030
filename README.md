@@ -1,6 +1,6 @@
 # Atari TT030 Enhancement Project
 
-Management, drivers, and custom hardware acceleration for the Atari TT 030 retro-computing workstation in the SAM ecosystem.
+Management, drivers, custom software, and hardware acceleration for the Atari TT 030 retro-computing workstation in the SAM ecosystem.
 
 ---
 
@@ -21,14 +21,45 @@ Management, drivers, and custom hardware acceleration for the Atari TT 030 retro
 
 ---
 
-## Transputer Hardware Acceleration (`sam-ssh-tt` & `sam-scp-tt`)
+## Repository Structure & Subsystems
 
+```
+.
+├── docs/                      # Technical runbooks, BlueSCSI setup, XBOOT manual & inventory
+├── emulator/                  # Hatari workstation emulation configs and HDD image staging
+├── scripts/                   # Floppy staging, backup, and emulator integration test harnesses
+├── staging/                   # Atari TT formatted floppy & drive C: installation packages
+│   ├── AUTO/                  # Driver auto-executables (XBOOT, HDDRIVER, ICD, STiNG)
+│   ├── DRIVERS/               # SCSI utility software and disk tools
+│   ├── C_ATW800_2/            # ATW800/2 transputer tools, drivers, and runtime server binaries
+│   └── TRANSPUTER/            # INMOS T800 Transputer SDK & Helios OS distribution packages
+├── src/                       # Custom source code for Atari TT030 co-processing & tooling
+│   └── x25519bench/           # Transputer server source, Dropbear offload, and host bridges
+└── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase (TOS/MiNT)
+```
+
+---
+
+## Project Phases & Key Accomplishments
+
+### Phase 0: System Staging & Storage Baseline
+- 1.44 MB FAT12 staging floppies and sector-level SCSI backup utilities.
+- Dual BlueSCSI v2 disk mapping with HDDRIVER / CBHD / ICD Pro driver suites.
+
+### Phase 1: Native TT-Bridge HTTP Communication
+- Cross-compiled HTTP/1.1 client (`tt_bridge/`) targeting M68030 / FreeMiNT & TOS STiNG stack.
+
+### Phase 2: Workstation Emulation & SLIP Networking
+- Hatari integration test automation and PPP/SLIP serial bridge.
+
+### Phase 3 & Transputer Hardware Acceleration (`sam-ssh-tt` & `sam-scp-tt`)
 The ATW800/2 T425 transputer accelerates cryptographic session setup and transfer framing for SSH and SCP:
 
 1. **`sam-ssh-tt`**: Offloads X25519 key exchange and Ed25519 signature verification to the T425 transputer, reducing login handshake latency from ~9.4 s down to ~6.4 s.
 2. **`sam-scp-tt`**: Transputer-assisted SCP acceleration bridge operating alongside `fpgabios.tos` and `atwxserv` (`xserv2.btl` combined server).
 
-### Architecture & Build Patterns
+#### Architecture & Build Patterns
 - **Host Bridge**: `src/x25519bench/sam_scp_tt.c` (built with `m68k-atari-mint-gcc -m68020-60 -O2`)
 - **Transputer Server**: `src/x25519bench/ed25519/xserv2.c` (built with INMOS ANSI C `icc`/`ilink` under `t4`)
 - **Runtime Staging**: `staging/C_ATW800_2/` and `tools/dropbear-native/`
+
