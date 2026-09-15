@@ -1,6 +1,33 @@
-# Atari TT030 Enhancement Project
+# Atari TT030 & ATW800/2 Transputer Enhancement Project
 
-Management, drivers, custom software, and hardware acceleration for the Atari TT 030 retro-computing workstation in the SAM ecosystem.
+Management, drivers, custom software, and hardware acceleration utilities for the **Atari TT030 retro-computing workstation** operating within the **SAM (Self-Healing Autonomous Mesh)** ecosystem.
+
+---
+
+## Hardware & System Overview
+
+### Atari TT030 Workstation
+The Atari TT030 is a 32-bit Motorola 68030-based workstation running at 32 MHz with an MC68882 FPU, 4 MB ST-RAM, and 64 MB TT-RAM. Equipped with BlueSCSI v2 (Pico 2) storage and BlueSCSI DaynaPORT WiFi networking (`192.168.0.30`), the machine serves as a live node within the SAM architecture running TOS 3.06 and FreeMiNT 1.19.
+
+### ATW800/2 Transputer Co-Processor
+The ATW800/2 is an expansion board housing an INMOS T425 32-bit RISC Transputer running at 40 MHz (implemented via FPGA). The transputer features parallel hardware links, hardware process scheduling, and dedicated SRAM.
+
+### Project Purpose
+The primary purpose of this project is to adapt and modify legacy and modern Unix/C software to run in tandem with the ATW800/2 Transputer. By offloading computationally intensive operations (such as Elliptic-Curve Cryptography X25519 key exchange, Ed25519 signature verification, and payload stream framing) to the T425 transputer, the host 68030 CPU is freed from heavy mathematical bottlenecks during secure remote management sessions.
+
+---
+
+## Role of SAM (Build, Test, & Deployment Pipeline)
+
+The **SAM (Self-Healing Autonomous Mesh)** platform orchestrated end-to-end development, verification, and live deployment to the Atari TT030:
+
+1. **Cross-Compilation & Build**:
+   - Built Motorola 68030 host binaries using `m68k-atari-mint-gcc` (GCC 13+ cross-compiler) and INMOS ANSI C (`icc`/`ilink` under `t4`) for the T425 transputer server code.
+2. **Automated Emulation & Integration Testing**:
+   - Validated binaries using Hatari emulator automation suites (`scripts/test_sting_hatari.py`), checking network stack behavior and raw sector disk safety before touching real hardware.
+3. **Over-the-Air Live Staging & Deployment**:
+   - Bootstrapped real hardware via DaynaPORT WiFi (`192.168.0.30`) and Dropbear SSH/SCP.
+   - Live-tested `atwxserv` persistent server initialization, verifying handshake acceleration directly on the ATW800/2 hardware co-processor.
 
 ---
 
@@ -13,15 +40,7 @@ Management, drivers, custom software, and hardware acceleration for the Atari TT
 
 ---
 
-## Software Stack & Extensions
-- **Bootloader**: XBOOT III (TOS / FreeMiNT profile switcher)
-- **Disk Driver**: CBHD 5.02 (SCSIDRV cookie & XHDI partition mapping)
-- **Networking**: STiNG 1.26 (TOS) / MiNTnet `scsilink.xif` (FreeMiNT 1.19)
-- **Userland**: SpareMiNT 23-package base set (bash 2.05a, OpenSSH 5.6p1, Dropbear 2026.94)
-
----
-
-## Repository Structure & Subsystems
+## Software Stack & Subsystem Directory
 
 ```
 .
@@ -35,31 +54,17 @@ Management, drivers, custom software, and hardware acceleration for the Atari TT
 │   └── TRANSPUTER/            # INMOS T800 Transputer SDK & Helios OS distribution packages
 ├── src/                       # Custom source code for Atari TT030 co-processing & tooling
 │   └── x25519bench/           # Transputer server source, Dropbear offload, and host bridges
-└── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase (TOS/MiNT)
+├── sam-ssh-tt/                # Transputer-accelerated Dropbear SSH server project & docs
+├── sam-scp-tt/                # Transputer-assisted SCP acceleration bridge project & docs
+└── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
 ```
 
 ---
 
-## Project Phases & Key Accomplishments
+## Project Sub-Utilities & Independent Repositories
 
-### Phase 0: System Staging & Storage Baseline
-- 1.44 MB FAT12 staging floppies and sector-level SCSI backup utilities.
-- Dual BlueSCSI v2 disk mapping with HDDRIVER / CBHD / ICD Pro driver suites.
+Each custom software component contains its own dedicated project directory, README, build instructions, and execution documentation:
 
-### Phase 1: Native TT-Bridge HTTP Communication
-- Cross-compiled HTTP/1.1 client (`tt_bridge/`) targeting M68030 / FreeMiNT & TOS STiNG stack.
-
-### Phase 2: Workstation Emulation & SLIP Networking
-- Hatari integration test automation and PPP/SLIP serial bridge.
-
-### Phase 3 & Transputer Hardware Acceleration (`sam-ssh-tt` & `sam-scp-tt`)
-The ATW800/2 T425 transputer accelerates cryptographic session setup and transfer framing for SSH and SCP:
-
-1. **`sam-ssh-tt`**: Offloads X25519 key exchange and Ed25519 signature verification to the T425 transputer, reducing login handshake latency from ~9.4 s down to ~6.4 s.
-2. **`sam-scp-tt`**: Transputer-assisted SCP acceleration bridge operating alongside `fpgabios.tos` and `atwxserv` (`xserv2.btl` combined server).
-
-#### Architecture & Build Patterns
-- **Host Bridge**: `src/x25519bench/sam_scp_tt.c` (built with `m68k-atari-mint-gcc -m68020-60 -O2`)
-- **Transputer Server**: `src/x25519bench/ed25519/xserv2.c` (built with INMOS ANSI C `icc`/`ilink` under `t4`)
-- **Runtime Staging**: `staging/C_ATW800_2/` and `tools/dropbear-native/`
-
+1. **[`sam-ssh-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (cuts handshake time from 22.4 s to 11.8 s).
+2. **[`sam-scp-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
+3. **[`tt_bridge`](file:///home/sam/Projects/atari-tt030-enhancement/tt_bridge/README.md)**: Native Atari TT030 HTTP/1.1 client for REST communication with SAM orchestrator services on port 8080.
