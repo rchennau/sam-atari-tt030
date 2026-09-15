@@ -15,6 +15,34 @@ The ATW800/2 is an expansion board housing an INMOS T425 32-bit RISC Transputer 
 ### Project Purpose
 The primary purpose of this project is to adapt and modify legacy and modern Unix/C software to run in tandem with the ATW800/2 Transputer. By offloading computationally intensive operations (such as Elliptic-Curve Cryptography X25519 key exchange, Ed25519 signature verification, and payload stream framing) to the T425 transputer, the host 68030 CPU is freed from heavy mathematical bottlenecks during secure remote management sessions.
 
+## Project Sub-Utilities & Independent Repositories
+
+Each custom software component contains its own dedicated project directory, README, build instructions, and execution documentation:
+
+1. **[`sam-ssh-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (cuts handshake time from 22.4 s to 11.8 s).
+2. **[`sam-scp-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
+3. **[`tt_bridge`](file:///home/sam/Projects/atari-tt030-enhancement/tt_bridge/README.md)**: Native Atari TT030 HTTP/1.1 client for REST communication with SAM orchestrator services on port 8080.
+---
+
+## Software Stack & Subsystem Directory
+
+```
+.
+├── docs/                      # Technical runbooks, BlueSCSI setup, XBOOT manual & inventory
+├── emulator/                  # Hatari workstation emulation configs and HDD image staging
+├── scripts/                   # Floppy staging, backup, and emulator integration test harnesses
+├── staging/                   # Atari TT formatted floppy & drive C: installation packages
+│   ├── AUTO/                  # Driver auto-executables (XBOOT, HDDRIVER, ICD, STiNG)
+│   ├── DRIVERS/               # SCSI utility software and disk tools
+│   ├── C_ATW800_2/            # ATW800/2 transputer tools, drivers, and runtime server binaries
+│   └── TRANSPUTER/            # INMOS T800 Transputer SDK & Helios OS distribution packages
+├── src/                       # Custom source code for Atari TT030 co-processing & tooling
+│   └── x25519bench/           # Transputer server source, Dropbear offload, and host bridges
+├── sam-ssh-tt/                # Transputer-accelerated Dropbear SSH server project & docs
+├── sam-scp-tt/                # Transputer-assisted SCP acceleration bridge project & docs
+└── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
+```
+
 ---
 
 ## Role of SAM (Build, Test, & Deployment Pipeline)
@@ -41,31 +69,4 @@ The **SAM (Sensible Agent Management)** platform orchestrated end-to-end develop
 
 ---
 
-## Software Stack & Subsystem Directory
 
-```
-.
-├── docs/                      # Technical runbooks, BlueSCSI setup, XBOOT manual & inventory
-├── emulator/                  # Hatari workstation emulation configs and HDD image staging
-├── scripts/                   # Floppy staging, backup, and emulator integration test harnesses
-├── staging/                   # Atari TT formatted floppy & drive C: installation packages
-│   ├── AUTO/                  # Driver auto-executables (XBOOT, HDDRIVER, ICD, STiNG)
-│   ├── DRIVERS/               # SCSI utility software and disk tools
-│   ├── C_ATW800_2/            # ATW800/2 transputer tools, drivers, and runtime server binaries
-│   └── TRANSPUTER/            # INMOS T800 Transputer SDK & Helios OS distribution packages
-├── src/                       # Custom source code for Atari TT030 co-processing & tooling
-│   └── x25519bench/           # Transputer server source, Dropbear offload, and host bridges
-├── sam-ssh-tt/                # Transputer-accelerated Dropbear SSH server project & docs
-├── sam-scp-tt/                # Transputer-assisted SCP acceleration bridge project & docs
-└── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
-```
-
----
-
-## Project Sub-Utilities & Independent Repositories
-
-Each custom software component contains its own dedicated project directory, README, build instructions, and execution documentation:
-
-1. **[`sam-ssh-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (cuts handshake time from 22.4 s to 11.8 s).
-2. **[`sam-scp-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
-3. **[`tt_bridge`](file:///home/sam/Projects/atari-tt030-enhancement/tt_bridge/README.md)**: Native Atari TT030 HTTP/1.1 client for REST communication with SAM orchestrator services on port 8080.
