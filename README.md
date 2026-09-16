@@ -60,6 +60,37 @@ The **SAM (Sensible Agent Management)** platform orchestrated end-to-end develop
 
 ---
 
+## E2E SpareMiNT RPM Build & Deployment Workflow (`ping`)
+
+The following Mermaid diagram outlines the end-to-end workflow executed by SAM to cross-compile, package, and deploy the `ping` package to the Atari TT030:
+
+```mermaid
+flowchart TD
+    subgraph Host ["Build Host (fractal - SAM Orchestration)"]
+        A["Source Code (src/ping_mini.c)"] -->|m68k-atari-mint-gcc -m68030 -O2| B["M68K Binary (build/bin/ping)"]
+        C["RPM Spec Template (staging/rpm/templates/ping.spec)"] --> D["sam_tt030_rpm_builder.py"]
+        B --> D
+        D -->|Generate \xed\xab\xee\xdb Lead & Headers| E["SpareMiNT RPM Package (ping-1.0.0-1.m68kmint.rpm)"]
+        E -->|Run Automated Harness| F["Integration Test Suite (scripts/test_e2e_ping_rpm.py)"]
+    end
+
+    subgraph Network ["WiFi / DaynaPORT Network (192.168.0.30)"]
+        E -->|SCP Transfer over SSH| G["Target Staging Area (/tmp/ping-1.0.0-1.m68kmint.rpm)"]
+    end
+
+    subgraph Target ["Atari TT030 (FreeMiNT 1.19 / SpareMiNT)"]
+        G --> H["RPM Database Init (rpm --initdb)"]
+        H --> I["Register Header Records (rpm -ivh --justdb)"]
+        I --> J["Populated /var/lib/rpm/Packages"]
+        J --> K["Verification (rpm -q ping -> ping-1.0.0-1)"]
+    end
+
+    style Host fill:#1e1e2e,stroke:#89b4fa,color:#cdd6f4
+    style Network fill:#181825,stroke:#f9e2af,color:#cdd6f4
+    style Target fill:#1e1e2e,stroke:#a6e3a1,color:#cdd6f4
+```
+
+
 ## Hardware Profile
 - **CPU / FPU**: Motorola MC68030 @ 32 MHz · MC68882 FPU
 - **Memory**: 4 MB ST-RAM · 64 MB TT-RAM
