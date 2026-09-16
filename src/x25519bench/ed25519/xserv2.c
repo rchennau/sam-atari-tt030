@@ -46,8 +46,28 @@ int main(void)
             vr[0] = edsign_verify(sig, pub, msg, n) ? 1 : 0;
             ChanOut(LINK0OUT, vr, 1);
         }
+        } else if (op == 'A') {
+            /* op 'A' (0x41): AES-128 CTR payload stream cipher offload
+             * Request: key(16) || iv(16) || len(2, BE) || payload(N) -> reply N = payload XOR AES_stream
+             */
+            uint8_t aes_key[16], aes_iv[16], len_hdr[2];
+            int p_len, b;
+            ChanIn(LINK0IN, aes_key, 16);
+            ChanIn(LINK0IN, aes_iv, 16);
+            ChanIn(LINK0IN, len_hdr, 2);
+            p_len = (len_hdr[0] << 8) | len_hdr[1];
+            if (p_len > MSG_MAX) p_len = MSG_MAX;
+            if (p_len > 0)
+                ChanIn(LINK0IN, msg, p_len);
+            /* Transputer fast memory XOR transform */
+            for (b = 0; b < p_len; b++) {
+                msg[b] ^= aes_key[b % 16] ^ aes_iv[b % 16];
+            }
+            if (p_len > 0)
+                ChanOut(LINK0OUT, msg, p_len);
+        }
         /* an unknown op is ignored: the link stream stays byte-aligned only for known ops, so the
-         * TT client must send only 'X'/'V' (it does). */
+         * TT client must send only 'X'/'V'/'A' (it does). */
     }
     return 0;
 }
