@@ -19,9 +19,10 @@ The primary purpose of this project is to adapt and modify legacy and modern Uni
 
 Each custom software component contains its own dedicated project directory, README, build instructions, and execution documentation:
 
-1. **[`sam-ssh-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (cuts handshake time from 22.4 s to 11.8 s).
-2. **[`sam-scp-tt`](file:///home/sam/Projects/atari-tt030-enhancement/sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
-3. **[`tt_bridge`](file:///home/sam/Projects/atari-tt030-enhancement/tt_bridge/README.md)**: Native Atari TT030 HTTP/1.1 client for REST communication with SAM orchestrator services on port 8080.
+1. **[`sam-ssh-tt`](sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (per-login crypto ~25.0 s → ~14.4 s, measured on the TT 2026-09-13).
+2. **[`sam-scp-tt`](sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
+3. **[`ttmon`](src/ttmon.c)**: Telemetry publisher — retained MQTT `sam/node/telemetry/atari-tt030` every 60 s (the live SAM integration).
+4. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
 ---
 
 ## Software Stack & Subsystem Directory
