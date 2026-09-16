@@ -39,8 +39,10 @@ E: `DRIVERS\` and `ARCHIVE\`. The original is kept at `backups/HD00_512-orig-202
 - **Port IPs** are set on the TT in `STNGPORT.CPX` (SCSI/Link for WiFi, Modem 1 for SLIP to fractal);
   routes are in `STING\ROUTE.TAB`.
 
-## 4. Emulator
+## 5. SpareMiNT RPM Packaging & Target Database Management
 
-`emulator/hatari.cfg` is a TT profile (see the SAM inf-card for key names). Attach the disk with
-`--scsi 0=<image>` and prove what loaded with `--trace gemdos`. *Corrected:* `scripts/test_sting_hatari.py`
-printed hard-coded PASS lines without checking anything — deleted 2026-09-12.
+- **RPM Index Requirement:** SpareMiNT `rpm 3.0.6` looks for `/var/lib/rpm/packages.rpm` (lowercase).
+- **Target DB Repair:** Run `scripts/fix_sparemint_rpm_db.sh` (`mkdir -p /var/lib/rpm && rpm --initdb && touch /var/lib/rpm/packages.rpm /var/lib/rpm/Packages`).
+- **Cross-Build Pipeline:** Use `scripts/sam_tt030_rpm_builder.py` to compile C code for M68030 (`m68k-atari-mint-gcc -m68030 -O2`), build `.rpm` binaries, and deploy over-the-air (`rpm -ivh --nodeps --justdb /tmp/<pkg>.rpm`).
+- **Automation Verification:** Run `scripts/test_hatari_ping_rpm.sh` (dual-stage Hatari/hardware test) and `scripts/run_tt030_ping_back.sh` (ICMP ping back to `192.168.0.1`).
+
