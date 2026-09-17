@@ -3,7 +3,7 @@
 Scope: EmuTOS 1.4 vs stock TOS 3.06 (+ FreeMiNT, pending). MultiTOS not evaluated (operator
 decision 2026-09-16: no licensed source). Real-TT column still to do (TT was off).
 
-Rig: `emulator/fr8/boot.sh <name> <rom> [hatari args]` (git-ignored work dir) — Xvfb + Hatari
+Rig: `scripts/fr8_boot.sh <name> <rom> [hatari args]` (work dir `emulator/fr8/` is git-ignored: ROMs, AUTO\EMUTOS.PRG, shots) — Xvfb + Hatari
 flatpak, TT, 68030/68882, 4 MB ST + 64 MB TT RAM, `--fast-forward off`, a screenshot every 2 s
 for 150 s. EmuTOS files: SourceForge `emutos-prg-1.4.zip`, `emutos-512k-1.4.zip` (GPL).
 
