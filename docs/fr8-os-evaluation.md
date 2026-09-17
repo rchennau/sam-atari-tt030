@@ -36,6 +36,31 @@ line (`NEWDESK.INF` for TOS 3.06, `EMUDESK.INF` for EmuTOS).
 Same behaviour on all three, so no compatibility difference. The alert is the app's own config:
 `WORDPLUS.INF` points at `D:\WORDPLUS`, and the test drive is C:. Not run under XaAES.
 
+## VDI drawing rate — `src/vdibench.c`
+
+Own benchmark (gemlib, cross-built): 4000 lines, 1000 filled 100×100 bars, 2000 × 25-char
+`v_gtext`, 200 × 256×256 `vro_cpyfm` screen blits; ops/s from `clock()` (200 Hz). Autostarted
+by `#Z`; results appended to `C:\VDIBENCH.TXT`. TT medium, 640×480, 16 colours. Two runs per
+config gave **identical** numbers (Hatari's emulated clock), so these compare the OS code
+paths, not host noise.
+
+| Config | lines/s | bars/s | text/s | blits/s |
+|---|---|---|---|---|
+| J. TOS 3.06 | **985** | **552** | 172 | **192.3** |
+| K. EmuTOS 1.4 ROM | 463 | 357 | **180** | 110.8 |
+| L. TOS 3.06 + `EMUTOS.PRG` | 426 | 363 | 161 | 110.5 |
+
+EmuTOS's VDI draws lines at ~0.45×, bars at ~0.65× and blits at ~0.57× of TOS 3.06; text is
+level. XaAES uses the VDI underneath it, so FreeMiNT inherits these differences.
+
+## Verdict (emulator column)
+
+**Keep TOS 3.06 + FreeMiNT.** RAM-loaded EmuTOS works (64 MB Alt-RAM seen, FreeMiNT/XaAES boot,
+1st Word Plus identical) but gives nothing back on the TT: it cannot skip TOS's memory test, it
+adds ~8 s to the FreeMiNT boot, and its VDI is 35–55 % slower on three of four primitives.
+MultiTOS not evaluated (no licensed source). **Open: the real-TT column** — same binaries, same
+steps, plus the ATW800/2 (xVDI) sets that Hatari cannot run.
+
 Caveats: wall-clock under Xvfb, not a stopwatch on hardware; includes ~1–2 s emulator start.
-Not yet measured: GEM apps beyond the one above, VDI drawing rate, the ATW800/2 (xVDI) sets on
+Not yet measured: GEM apps beyond the one above, the ATW800/2 (xVDI) sets on
 EmuTOS (hardware only), and the whole real-TT column.
