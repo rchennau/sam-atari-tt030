@@ -22,7 +22,8 @@ Each custom software component contains its own dedicated project directory, REA
 1. **[`sam-ssh-tt`](sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (per-login crypto ~25.0 s → ~14.4 s, measured on the TT 2026-09-13).
 2. **[`sam-scp-tt`](sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
 3. **[`ttmon`](src/ttmon.c)**: Telemetry publisher — retained MQTT `sam/node/telemetry/atari-tt030` every 60 s (the live SAM integration).
-4. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
+4. **[`sam-yum-tt`](sam-yum-tt/README.md)** — *alpha, proof of technology*: `yum install` for the TT from a LAN mirror. Currently the probe that measures whether the T425 should hash packages; no client yet.
+5. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
 ---
 
 ## Software Stack & Subsystem Directory

@@ -5,6 +5,9 @@
 *.PRG
 backups/
 .venv-floppy/
-build/
+/build/
 tools/
 emulator/fr8/
+!/sam-yum-tt/build/
+/sam-yum-tt/build/*
+!/sam-yum-tt/build/.gitkeep

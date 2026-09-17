@@ -6,8 +6,8 @@
  * Resets the T425: the Dropbear offload server is re-booted by the next SSH login.
  *
  * Usage: shabench [SHASERV.btl] [KB]     (no server -> 68030 only; fpgabios.tos must be resident otherwise)
- * Build: m68k-atari-mint-gcc -m68020-60 -O2 -o shabench.ttp src/shabench/shabench.c src/shabench/sha256.c
- * Link + boot code below is copied from ../x25519bench/xclient.c (ponytail: extract atwboot.c if a third
+ * Build: m68k-atari-mint-gcc -m68020-60 -O2 -o shabench.ttp sam-yum-tt/src/shabench.c sam-yum-tt/src/sha256.c
+ * Link + boot code below is copied from ../../src/x25519bench/xclient.c (ponytail: extract atwboot.c if a third
  * client needs it).
  */
 #include "sha256.h"
