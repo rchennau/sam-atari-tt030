@@ -1,0 +1,3 @@
+; Atari TT 030 Internal HDD to BlueSCSI Migration Script
+; Copies C:\ (Maxtor 80MB) to G:\ (BlueSCSI Target 1)
+; Preserves TOS AUTO folder structure, desktop.inf, and custom system tools

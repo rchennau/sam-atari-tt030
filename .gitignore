@@ -13,11 +13,16 @@ emulator/fr8/
 !/sam-yum-tt/build/.gitkeep
 
 # Emulator working state, not sources (2026-09-17)
-emulator/roms/            # TOS ROM images (Atari copyright) + saved 404 pages
-emulator/hd00_512.hda     # symlink into the SD card, fractal-only
+# TOS ROM images (Atari copyright) + saved 404 pages
+emulator/roms/
+# symlink into the SD card, fractal-only
+emulator/hd00_512.hda
 emulator/staging_floppy.st
 emulator/hd0/TMP/
 emulator/hd0/**/*.SET
 emulator/hd0/XBOOT/XBOOT.SYS
 emulator/hd0/AUTO/XBOOT.DIS
 __pycache__/
+
+# Unlicensed ATW800/2 vendor pack (85 MB) — build host only, never published
+staging/TRANSPUTER/
