@@ -42,6 +42,7 @@ Each custom software component contains its own dedicated project directory, REA
 │   └── x25519bench/           # Transputer server source, Dropbear offload, and host bridges
 ├── sam-ssh-tt/                # Transputer-accelerated Dropbear SSH server project & docs
 ├── sam-scp-tt/                # Transputer-assisted SCP acceleration bridge project & docs
+├── sam-yum-tt/                # ALPHA proof of technology: yum for the TT (T425 SHA-256 probe), src/ docs/ build/
 └── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
 ```
 
