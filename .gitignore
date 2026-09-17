@@ -7,3 +7,4 @@ backups/
 .venv-floppy/
 build/
 tools/
+emulator/fr8/
