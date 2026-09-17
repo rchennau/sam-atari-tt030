@@ -22,6 +22,20 @@ originals in `build/` and on the SD card were not touched. E's `C:\AUTO` edits a
 (plan: put, then move every existing AUTO entry to keep it after EmuTOS). Capture length via
 `FR8_SECONDS` (default 150).
 
+## GEM app check — 1st Word Plus (`D:\APPS\WORDPLUS\WORDPLUS.PRG`, 166 KB)
+
+Copied (without dictionaries) to a Hatari GEMDOS drive C: and autostarted by the desktop `#Z`
+line (`NEWDESK.INF` for TOS 3.06, `EMUDESK.INF` for EmuTOS).
+
+| Config | App on screen (wall s, ±2) | Result |
+|---|---|---|
+| G. TOS 3.06 | ~94 | Starts; German UI, file selector, then alert "cannot find the folder" |
+| H. EmuTOS 1.4 ROM | ~12 | Same, in EmuTOS's item selector |
+| I. TOS 3.06 + `AUTO\EMUTOS.PRG` | ~96 | Same as H |
+
+Same behaviour on all three, so no compatibility difference. The alert is the app's own config:
+`WORDPLUS.INF` points at `D:\WORDPLUS`, and the test drive is C:. Not run under XaAES.
+
 Caveats: wall-clock under Xvfb, not a stopwatch on hardware; includes ~1–2 s emulator start.
-Not yet measured: GEM application compatibility, VDI drawing rate, the ATW800/2 (xVDI) sets on
+Not yet measured: GEM apps beyond the one above, VDI drawing rate, the ATW800/2 (xVDI) sets on
 EmuTOS (hardware only), and the whole real-TT column.
