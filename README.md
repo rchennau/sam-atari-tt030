@@ -23,7 +23,8 @@ Each custom software component contains its own dedicated project directory, REA
 2. **[`sam-scp-tt`](sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
 3. **[`ttmon`](src/ttmon.c)**: Telemetry publisher — retained MQTT `sam/node/telemetry/atari-tt030` every 60 s (the live SAM integration).
 4. **[`sam-yum-tt`](sam-yum-tt/README.md)** — *alpha, proof of technology*: `yum install` for the TT from a LAN mirror. Currently the probe that measures whether the T425 should hash packages; no client yet.
-5. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
+5. **[`sam-rom-tt`](sam-rom-tt/README.md)** — *alpha skeleton, unproven*: custom (no-TOS) 512 KB firmware for the four ROM sockets, plus the byte-lane interleave tool. Nothing here is proven to run; do not burn from it.
+6. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
 ---
 
 ## Software Stack & Subsystem Directory
@@ -42,6 +43,7 @@ Each custom software component contains its own dedicated project directory, REA
 │   └── x25519bench/           # Transputer server source, Dropbear offload, and host bridges
 ├── sam-ssh-tt/                # Transputer-accelerated Dropbear SSH server project & docs
 ├── sam-scp-tt/                # Transputer-assisted SCP acceleration bridge project & docs
+├── sam-rom-tt/                # ALPHA skeleton: custom no-TOS TT030 firmware (512 KB, 4 byte-lane chips)
 ├── sam-yum-tt/                # ALPHA proof of technology: yum for the TT (T425 SHA-256 probe), src/ docs/ build/
 └── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
 ```
