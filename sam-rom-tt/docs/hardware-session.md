@@ -78,6 +78,14 @@ TT RAM  64 MB       <- must match the machine's real fit
 A mismatch on `memctrl` or `ST RAM` is a stop sign: it means the firmware's assumptions about this
 machine are wrong, and the next firmware step (programming the controller) would be guesswork.
 
+## Not in this session
+
+`rom0`–`rom4` cannot run on the TT until a chip is burned, and step 4 must pass first. They are
+emulator-only for now; the hardware questions they raise are listed in step 5 (`memctrl`, CACR's
+instruction-cache bit) plus one more: `rom4`'s partition and FAT16 numbers come from a *copy* of the
+card image, so on hardware they should match what the live card reports — a mismatch means the
+work copies have drifted from the card, which matters to every other TT task too.
+
 ## Afterwards
 
 Record the numbers in `maestro/tracks/atari-tt030-enhancement/progress.md` (NFR-1, FR-8) and
