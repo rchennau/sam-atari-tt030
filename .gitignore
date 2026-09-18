@@ -26,3 +26,6 @@ __pycache__/
 
 # Unlicensed ATW800/2 vendor pack (85 MB) — build host only, never published
 staging/TRANSPUTER/
+
+/sam-rom-tt/build/*
+!/sam-rom-tt/build/.gitkeep
