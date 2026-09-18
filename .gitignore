@@ -6,7 +6,7 @@
 backups/
 .venv-floppy/
 /build/
-tools/
+/tools/
 emulator/fr8/
 !/sam-yum-tt/build/
 /sam-yum-tt/build/*
