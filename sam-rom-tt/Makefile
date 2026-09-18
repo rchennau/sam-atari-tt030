@@ -34,4 +34,20 @@ debug: build/rom0.img
 clean:
 	rm -f build/rom0.elf build/rom0.raw build/rom0.img build/rom0.chip? build/rejoined.img
 
-.PHONY: rom split join hatari debug clean
+.PHONY: rom rom1 split join hatari hatari1 debug clean
+
+rom1: build/rom1.img
+build/rom1.img: src/rom1.S
+	$(CC) -m68030 -nostdlib -Wl,-Ttext=0xE00000 -o build/rom1.elf $<
+	$(OC) -O binary build/rom1.elf build/rom1.raw
+	python3 -c "d=open('build/rom1.raw','rb').read(); assert len(d) <= $(SIZE), len(d); \
+	  open('$@','wb').write(d + b'\xff' * ($(SIZE) - len(d)))"
+
+# Use the repo's TT profile rather than --ttram on the command line: --ttram makes Hatari print
+# "Automatically enabling 32-bit addressing" and then block before it reads anything (headless hang).
+hatari1: build/rom1.img
+	rm -f build/serial1.out
+	xvfb-run -a flatpak run --user org.tuxfamily.hatari --configfile $(ROOT)/emulator/hatari.cfg \
+	  --tos $(abspath build/rom1.img) --sound off \
+	  --rs232-in /dev/zero --rs232-out $(abspath build/serial1.out) --run-vbls 200
+	@echo "--- serial output:"; cat -v build/serial1.out

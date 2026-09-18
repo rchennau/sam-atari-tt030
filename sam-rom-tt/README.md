@@ -34,7 +34,8 @@ different order — try the permutations. Nothing gets burned before this passes
 ## Build
 
 ```bash
-make rom      # build/rom0.img, 512 KB, 0xFF padded
+make rom      # build/rom0.img, 512 KB, 0xFF padded — serial hello
+make rom1     # build/rom1.img — RAM sizing over serial (make hatari1 to run it)
 make split    # build/rom0.chip0 .. chip3  (one per socket)
 make hatari   # boot in the emulator and print the serial output
 make debug    # prove execution via breakpoints (no emulated UART needed)
@@ -49,9 +50,13 @@ make debug    # prove execution via breakpoints (no emulated UART needed)
 | `split` → `join` round-trips byte-identically | proven |
 | The code executes on reset | proven 2026-09-18 — breakpoints hit `tx` 30 times (29 chars + terminator) and reach the halt |
 | MFP USART serial output works | proven — 29 bytes captured: `SAM-TT custom ROM 0.1 alive\r\n` |
+| `rom1` sizes RAM over serial | proven 2026-09-18 — `ST RAM 4 MB` / `TT RAM 64 MB` on the repo's TT profile, in well under a second (TOS spends ~80 s) |
+| Bus-error recovery from absent memory | proven — vectors in ROM via VBR; faults at `0x400800` and `0x5000000` caught, probe returns the count |
 | Anything on real hardware | **untried** |
 
-**Hatari trap:** serial capture needs `--rs232-in` as well as `--rs232-out`. Without an input
+**Hatari traps:** `--ttram` on the command line prints "Automatically enabling 32-bit addressing"
+and then blocks before reading its input, which looks like a firmware hang — use a config file with
+the TT profile instead (`make hatari1` does). And serial capture needs `--rs232-in` as well as `--rs232-out`. Without an input
 device Hatari fails to open its default `/dev/modem`, disables RS232 and writes an empty file with
 no error on stdout — which looks exactly like firmware that never ran. `make hatari` passes both;
 `make debug` proves execution with breakpoints and no UART at all.
@@ -61,8 +66,9 @@ Next step: RAM sizing (skipping TOS's slow test), then SCSI + FAT16 — roadmap 
 ## Roadmap (nothing started)
 
 1. ROM monitor: serial console, memory peek/poke, SCSI read, load-and-run from the BlueSCSI.
-2. Bring-up order: reset vectors → RAM sizing (skipping the slow test) → caches/FPU → console →
-   NCR 5380 SCSI + FAT16.
+2. Bring-up order: reset vectors ✅ → RAM sizing ✅ (`rom1`) → caches/FPU → console → NCR 5380 SCSI
+   + FAT16. Note `rom1` only *sizes* RAM; it does not configure the memory controller, which a real
+   TT needs before ST RAM answers at all.
 3. ATW800/2 **at boot and display level only**: carry the T425 image in ROM (`xserv2.btl` is 22 KB),
    boot it early, use its framebuffer (`0xFEC00000`, RGB565, 1024×768) as the console. Hatari does
    not emulate the ATW, so those paths are hardware-only. Firmware crypto on the T425 waits for
