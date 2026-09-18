@@ -34,7 +34,7 @@ debug: build/rom0.img
 clean:
 	rm -f build/rom0.elf build/rom0.raw build/rom0.img build/rom0.chip? build/rejoined.img
 
-.PHONY: rom rom1 rom2 split join hatari hatari1 hatari2 debug clean
+.PHONY: rom rom1 rom2 rom3 split join hatari hatari1 hatari2 hatari3 debug clean
 
 rom1: build/rom1.img
 build/rom1.img: src/rom1.S
@@ -65,3 +65,18 @@ hatari2: build/rom2.img
 	  --tos $(abspath build/rom2.img) --sound off \
 	  --rs232-in /dev/zero --rs232-out $(abspath build/serial2.out) --run-vbls 200
 	@echo "--- serial output:"; cat -v build/serial2.out
+
+rom3: build/rom3.img
+build/rom3.img: src/start3.S src/rom3.c
+	$(CC) -m68030 -nostdlib -fno-builtin -O2 -Wall -Wl,-Ttext=0xE00000 -o build/rom3.elf src/start3.S src/rom3.c
+	$(OC) -O binary build/rom3.elf build/rom3.raw
+	python3 -c "d=open('build/rom3.raw','rb').read(); assert len(d) <= $(SIZE), len(d); \
+	  open('$@','wb').write(d + b'\xff' * ($(SIZE) - len(d)))"
+
+# Needs a SCSI image to find: uses the work copy of the card image if present.
+hatari3: build/rom3.img
+	rm -f build/serial3.out
+	xvfb-run -a flatpak run --user org.tuxfamily.hatari --configfile $(ROOT)/emulator/hatari.cfg \
+	  --tos $(abspath build/rom3.img) --sound off --scsi 0=$(ROOT)/emulator/fr8/hd00.hda \
+	  --rs232-in /dev/zero --rs232-out $(abspath build/serial3.out) --run-vbls 300
+	@echo "--- serial output:"; cat -v build/serial3.out
