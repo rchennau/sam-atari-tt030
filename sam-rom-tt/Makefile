@@ -34,7 +34,7 @@ debug: build/rom0.img
 clean:
 	rm -f build/rom0.elf build/rom0.raw build/rom0.img build/rom0.chip? build/rejoined.img
 
-.PHONY: rom rom1 rom2 rom3 split join hatari hatari1 hatari2 hatari3 debug clean
+.PHONY: rom rom1 rom2 rom3 rom4 split join hatari hatari1 hatari2 hatari3 hatari4 debug clean
 
 rom1: build/rom1.img
 build/rom1.img: src/rom1.S
@@ -67,8 +67,8 @@ hatari2: build/rom2.img
 	@echo "--- serial output:"; cat -v build/serial2.out
 
 rom3: build/rom3.img
-build/rom3.img: src/start3.S src/rom3.c
-	$(CC) -m68030 -nostdlib -fno-builtin -O2 -Wall -Wl,-Ttext=0xE00000 -o build/rom3.elf src/start3.S src/rom3.c
+build/rom3.img: src/start3.S src/rom3.c src/tt.c src/tt.h
+	$(CC) -m68030 -nostdlib -fno-builtin -O2 -Wall -Wl,-Ttext=0xE00000 -o build/rom3.elf src/start3.S src/rom3.c src/tt.c
 	$(OC) -O binary build/rom3.elf build/rom3.raw
 	python3 -c "d=open('build/rom3.raw','rb').read(); assert len(d) <= $(SIZE), len(d); \
 	  open('$@','wb').write(d + b'\xff' * ($(SIZE) - len(d)))"
@@ -80,3 +80,17 @@ hatari3: build/rom3.img
 	  --tos $(abspath build/rom3.img) --sound off --scsi 0=$(ROOT)/emulator/fr8/hd00.hda \
 	  --rs232-in /dev/zero --rs232-out $(abspath build/serial3.out) --run-vbls 300
 	@echo "--- serial output:"; cat -v build/serial3.out
+
+rom4: build/rom4.img
+build/rom4.img: src/start3.S src/rom4.c src/tt.c src/tt.h
+	$(CC) -m68030 -nostdlib -fno-builtin -O2 -Wall -Wl,-Ttext=0xE00000 -o build/rom4.elf src/start3.S src/rom4.c src/tt.c
+	$(OC) -O binary build/rom4.elf build/rom4.raw
+	python3 -c "d=open('build/rom4.raw','rb').read(); assert len(d) <= $(SIZE), len(d); \
+	  open('$@','wb').write(d + b'\xff' * ($(SIZE) - len(d)))"
+
+hatari4: build/rom4.img
+	rm -f build/serial4.out
+	xvfb-run -a flatpak run --user org.tuxfamily.hatari --configfile $(ROOT)/emulator/hatari.cfg \
+	  --tos $(abspath build/rom4.img) --sound off --scsi 0=$(ROOT)/emulator/fr8/hd00.hda \
+	  --rs232-in /dev/zero --rs232-out $(abspath build/serial4.out) --run-vbls 600
+	@echo "--- serial output:"; cat -v build/serial4.out
