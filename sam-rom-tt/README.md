@@ -1,7 +1,8 @@
 # SAM ROM TT (`sam-rom-tt`) — custom TT030 firmware
 
-> **Status: ALPHA SKELETON — nothing here is proven to run.** It assembles, and Hatari loads it
-> without rejecting it. Whether the code executes is **unverified**. Do not burn a chip from this.
+> **Status: ALPHA — runs in the emulator, untried on hardware.** `rom0` boots in Hatari as a TT
+> ROM, executes, and prints over the MFP serial port. No chip has been burned; the roadmap below
+> is unstarted.
 
 A bare-metal firmware for the Atari TT030's four socketed ROM chips: no TOS, no EmuTOS, no GEMDOS,
 BIOS, VDI or AES. Operator goal (2026-09-17): a completely custom ROM, chiefly to escape the RAM
@@ -35,7 +36,8 @@ different order — try the permutations. Nothing gets burned before this passes
 ```bash
 make rom      # build/rom0.img, 512 KB, 0xFF padded
 make split    # build/rom0.chip0 .. chip3  (one per socket)
-make hatari   # boot it in the emulator
+make hatari   # boot in the emulator and print the serial output
+make debug    # prove execution via breakpoints (no emulated UART needed)
 ```
 
 ## What is proven, and what is not
@@ -45,12 +47,16 @@ make hatari   # boot it in the emulator
 | Assembles with the repo's `m68k-atari-mint-gcc` | proven 2026-09-17 |
 | Hatari loads a non-TOS ROM (so emulator development is possible) | proven — no version rejection |
 | `split` → `join` round-trips byte-identically | proven |
-| The code executes on reset | **unproven** |
-| MFP USART serial output works | **unproven** — `--rs232-out` captured nothing, twice |
+| The code executes on reset | proven 2026-09-18 — breakpoints hit `tx` 30 times (29 chars + terminator) and reach the halt |
+| MFP USART serial output works | proven — 29 bytes captured: `SAM-TT custom ROM 0.1 alive\r\n` |
 | Anything on real hardware | **untried** |
 
-Next step: Hatari's debugger (`--parse`, breakpoint at `0xE00030`) to see whether the entry is
-reached, then Hatari native features as a print channel that needs no emulated UART.
+**Hatari trap:** serial capture needs `--rs232-in` as well as `--rs232-out`. Without an input
+device Hatari fails to open its default `/dev/modem`, disables RS232 and writes an empty file with
+no error on stdout — which looks exactly like firmware that never ran. `make hatari` passes both;
+`make debug` proves execution with breakpoints and no UART at all.
+
+Next step: RAM sizing (skipping TOS's slow test), then SCSI + FAT16 — roadmap below.
 
 ## Roadmap (nothing started)
 
