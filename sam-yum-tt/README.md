@@ -1,8 +1,8 @@
 # SAM YUM TT (`sam-yum-tt`) — package installs for the Atari TT030
 
-> **Status: ALPHA — proof of technology.** There is no `yum` client yet. This directory holds the
-> measurement that decides how the client will be built: whether the ATW800/2's T425 transputer is
-> worth using for package hashing. Nothing here installs software.
+> **Status: ALPHA — proof of technology, question answered.** There is no `yum` client yet. This
+> directory holds the measurement that decided how the client will be built: **the T425 is not
+> worth using for package hashing** (real-TT numbers below). Nothing here installs software.
 
 `sam-yum-tt` is the TT-side half of the SAM package pipeline: `yum install <package>` at the TT's
 own shell, pulling SpareMiNT RPMs from a LAN mirror on fractal (plan: SAM monorepo
@@ -31,10 +31,17 @@ is clearly faster than the 68030. Otherwise the planned `sh` + `awk` client stay
 | SHA-256 core vs `sha256sum` (11 files, padding edges, 1 MiB, 3 MiB) | all match (2026-09-17) |
 | Core on the T425 emulator `t4` | matches (2026-09-17) |
 | 68030 build in Hatari | digest correct; **137 KB/s** (emulated timing) |
-| Real TT: 68030, link, T425 | **not run yet** |
+| **Real TT (2026-09-19)** | 68030 **70 KB/s** (7,225 ms); link one way **459 KB/s**; T425 incl. transfer **69 KB/s** (7,335 ms); digests agree |
 
-The emulated 68030 rate is close to the ~115 KB/s WiFi download, so hashing could roughly double
-the time to fetch a package — the reason the real-TT numbers matter.
+**Verdict (measured 2026-09-19): do NOT offload hashing to the T425.** Net of the 1,115 ms
+transfer, the T425 hashes ~512 KB in ~6,220 ms (~82 KB/s) against the 68030's 70 KB/s — about
+1.2×, and shipping the data there costs more than that gain. The planned POSIX `sh` + `awk` client
+stands; no native C client is justified by hashing.
+
+Hatari had estimated the 68030 at 137 KB/s — **the real machine is half that**, and below the
+~115 KB/s WiFi download, so SHA-256 is the slowest step of an install either way. The remaining
+offload candidate is unaffected: an Ed25519 *signature* check is a tiny payload, where the T425's
+measured 1.44× still applies.
 
 ## Layout
 
