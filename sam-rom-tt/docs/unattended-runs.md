@@ -7,7 +7,10 @@
 > disarmed on the card; `ttrun` and `ttreboot` remain for manual use, and `ttreboot` is genuinely
 > useful because FreeMiNT here has no `reboot` binary.
 >
-> What would actually close the gap is **out-of-band control**: a smart plug (also the only way to
+> **Software reset is solved** (2026-09-20): `scripts/tt_reboot.sh` runs `C:\TTREBOOT.PRG` and waits
+> — measured down-and-back in **45 s**, unattended, because XBOOT's menu timeout auto-boots the last
+> set. So a restart needs no hands *as long as the network is up and the same set is wanted*.
+> What remains is **out-of-band control for when it is not**: a smart plug (also the only way to
 > automate NFR-1's cold boot) or a working serial console. The Modem 2 console gave no bytes at
 > 38400/9600/19200 on 2026-09-20 with SLIP stopped and DTR asserted — unresolved.
 
