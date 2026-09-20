@@ -31,6 +31,20 @@ until ssh atari-tt 'test -f /c/TTRUN.LOG'; do sleep 20; done
 ssh atari-tt 'cat /c/TTRUN.LOG /c/VDIBENCH.TXT'
 ```
 
+## Live findings from the first run (2026-09-19)
+
+- **FreeMiNT on this machine has no `reboot`/`halt`/`shutdown` binary** (`/sbin` holds only
+  `tzinit`). `ssh atari-tt reboot` therefore does nothing at all, silently — the machine sat up for
+  1 h 47 m while a poller waited for it. Use `C:\TTREBOOT.PRG` (`src/ttreboot.c`).
+- **An SSH login takes ~17 s** (longer while Dropbear re-boots the T425 server), so automation needs
+  `ConnectTimeout` of 60 s or more. A 10 s timeout reads as "machine down".
+- **The `DEFAULT` boot set has no usable network.** It loads STiNG but none of the port-config
+  panels, so plain TOS answers neither ping nor SSH — an unattended run in that set is blind until
+  it returns to `MINT_ATW`. Plan the run so the machine restores itself; do not expect to watch it.
+- The TOS pass did run: the screen carried `vdibench`'s own output (diagonal lines, filled boxes,
+  "The quick brown fox jumps", screen copies). Where it stopped after that is in `C:\TTRUN.LOG`,
+  unread at power-off.
+
 ## What it cannot do
 
 - **A cold power cycle.** The reset path clears the memory-valid markers, so the restart does run
