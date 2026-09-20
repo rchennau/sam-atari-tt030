@@ -32,6 +32,23 @@ TOS. Design discussion and trade-offs: A-Mem note `a822618e`, board card `56a25f
 - Header, read from the real `tos306uk.img`: longword 0 = `BRA` + OS version, longword 1 = reset PC
   (`0x00E00030`), longword 2 = ROM base, longword 3 = end of OS. EmuTOS 1.4 uses the same layout.
 
+## The blanks: Atmel AT29C010A-15PC (flash, not EPROM)
+
+Operator's blanks, photographed 2026-09-20: **AT29C010A-15PC**, 128 K × 8 **flash EEPROM**, 32-pin
+DIP, 5 V, 150 ns, date code 9729. Same capacity and package as the 27C010 the TT expects.
+
+- **Electrically erasable — no UV eraser, no 20-minute cycle.** A firmware iteration costs seconds,
+  which is what makes this roadmap practical at all.
+- **Pin 1:** 27C010 = VPP, 29C010 = NC. Harmless either way.
+- **Pin 31:** 27C010 = `/PGM`, 29C010 = `/WE`. **Must be held high** in the machine, or the chip is
+  writable in situ. The socket already holds `/PGM` high for a 27C010, so this is expected to be
+  fine — **verify before trusting it**.
+- The programmer must support AT29C010A specifically: 128-byte page writes plus software data
+  protection (TL866/T48-class units handle it).
+
+**Cheapest first test:** read an original chip, then write one blank with that same image and boot
+it. A wrong assumption about pins 1/31 means the machine does not boot — not damage.
+
 ## Burn safely
 
 The lane order is **documented, not guessed** (table above), so it no longer has to be discovered by

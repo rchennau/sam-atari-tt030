@@ -62,9 +62,10 @@ plus whether the two digests agree.
 
 **The lane order no longer needs proving:** the TT's four sockets are **U601–U604** carrying
 D31..24, D23..16, D15..8 and D7..0 — documented Atari layout, confirmed 2026-09-20, and
-`tools/interleave.py` now names its output files by socket. The chips are **27C010** (128 KB), which
-is also what the blanks must be. The dump is now a check on the *burner and the chips*, not on our
-understanding of the wiring.
+`tools/interleave.py` now names its output files by socket. The machine's chips are **27C010** (128 KB); the operator's blanks are
+**AT29C010A-15PC flash** — same size and package, electrically erasable (**no UV eraser needed**),
+with `/WE` on pin 31 which must stay high in the socket. The dump is now a check on the *burner and
+the chips*, not on our understanding of the wiring.
 
 1. Read all four chips with the burner. Keep the dumps **and** label the chips by socket.
 2. `python3 sam-rom-tt/tools/interleave.py join <prefix> rejoined.img`
