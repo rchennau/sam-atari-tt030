@@ -94,6 +94,25 @@ TT RAM  64 MB       <- must match the machine's real fit
 A mismatch on `memctrl` or `ST RAM` is a stop sign: it means the firmware's assumptions about this
 machine are wrong, and the next firmware step (programming the controller) would be guesswork.
 
+## Burned set #1 — `rom4`, written 2026-09-20
+
+Four AT29C010A flash chips written from `sam-rom-tt/build/burn.U601 … .U604` on the XGecu TL866II+
+(`minipro 0.7.4`, chip ID `0x1FD5` checked on each). Every chip verified by minipro and then by an
+independent read-back; the four read-backs rejoined **byte-identical to `rom4.img`**, which checks
+the writes and the byte-lane split together.
+
+Fitting them: originals out **labelled by socket**, flash in the matching sockets, originals kept.
+Expected on serial (9600 baud, MFP): firmware banner, `memctrl`, `cacr`, `fpu`, `ST RAM`, `TT RAM`,
+then the card's partition table and root directory. **Expected on screen: nothing** — `rom4` has no
+video code, so a blank display is not a failure.
+
+Notes from the session, in case the next burn behaves oddly:
+- These chips ship with **software data protection**; every write needs `minipro -u`. Without it the
+  write fails cleanly at address 0 rather than writing garbage.
+- A **bent leg** made one chip report ID `0x1FDD` instead of `0x1FD5` — a single bit wrong. The ID
+  check caught what would otherwise have been a silent bad write. Reseat before forcing anything.
+- One "blank" turned out to hold 118,578 bytes of unrelated data; a copy was taken before erasing.
+
 ## Not in this session
 
 `rom0`–`rom4` cannot run on the TT until a chip is burned, and step 4 must pass first. They are
