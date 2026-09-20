@@ -53,13 +53,30 @@ paths, not host noise.
 EmuTOS's VDI draws lines at ~0.45×, bars at ~0.65× and blits at ~0.57× of TOS 3.06; text is
 level. XaAES uses the VDI underneath it, so FreeMiNT inherits these differences.
 
-## Verdict (emulator column)
+## Real hardware (2026-09-20) — the column that decides it
 
-**Keep TOS 3.06 + FreeMiNT.** RAM-loaded EmuTOS works (64 MB Alt-RAM seen, FreeMiNT/XaAES boot,
+`vdibench` run on the TT under each boot set, 640×480×16:
+
+| Config | lines/s | bars/s | text/s | blits/s |
+|---|---|---|---|---|
+| TOS 3.06 | **383** | **239** | 68 | **86.8** |
+| RAM-loaded EmuTOS 1.4 | 198 | 160 | **72** | 48.7 |
+| FreeMiNT/XaAES on the ATW800/2 xVDI (1024×768×256, for reference) | 1090 | 1905 | 481 | 714 |
+
+EmuTOS runs at ~0.5× TOS on lines and blits, ~0.67× on boxes, level on text. It boots the FreeMiNT
+stack, and **it does see the SCSI disk** (it ran the benchmark from C: and wrote the result), but it
+cannot skip TOS's memory test.
+
+**Hatari was ~2.5× optimistic in absolute terms and right on the ratios** — emulator TOS
+985/552/172/192 vs measured 383/239/68/86.8. The same pattern appeared in `shabench` (137 KB/s
+emulated vs 70 measured). Treat emulator figures as a ranking, never as a measurement.
+
+## Verdict (emulator column, confirmed on hardware)
+
+**Keep TOS 3.06 + FreeMiNT** — confirmed on the real machine 2026-09-20. RAM-loaded EmuTOS works (64 MB Alt-RAM seen, FreeMiNT/XaAES boot,
 1st Word Plus identical) but gives nothing back on the TT: it cannot skip TOS's memory test, it
 adds ~8 s to the FreeMiNT boot, and its VDI is 35–55 % slower on three of four primitives.
-MultiTOS not evaluated (no licensed source). **Open: the real-TT column** — same binaries, same
-steps, plus the ATW800/2 (xVDI) sets that Hatari cannot run.
+MultiTOS not evaluated (no licensed source). The real-TT column is above. Remaining open item for the track is NFR-1's stopwatch boot time.
 
 Caveats: wall-clock under Xvfb, not a stopwatch on hardware; includes ~1–2 s emulator start.
 Not yet measured: GEM apps beyond the one above, the ATW800/2 (xVDI) sets on
