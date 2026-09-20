@@ -58,7 +58,13 @@ plus whether the two digests agree.
   included, clearly beats the 68030. Otherwise the planned `sh` + `awk` client stands.
 - This resets the T425, so the `sam-ssh-tt` offload server stops; the next SSH login re-boots it.
 
-## 4. ROM chips — dump and prove the interleave (~20 min, no burning) — **THE REMAINING STEP**
+## 4. ROM chips — dump (~20 min, no burning) — **THE REMAINING STEP**
+
+**The lane order no longer needs proving:** the TT's four sockets are **U601–U604** carrying
+D31..24, D23..16, D15..8 and D7..0 — documented Atari layout, confirmed 2026-09-20, and
+`tools/interleave.py` now names its output files by socket. The chips are **27C010** (128 KB), which
+is also what the blanks must be. The dump is now a check on the *burner and the chips*, not on our
+understanding of the wiring.
 
 1. Read all four chips with the burner. Keep the dumps **and** label the chips by socket.
 2. `python3 sam-rom-tt/tools/interleave.py join <prefix> rejoined.img`

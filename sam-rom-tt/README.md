@@ -13,8 +13,18 @@ TOS. Design discussion and trade-offs: A-Mem note `a822618e`, board card `56a25f
 
 ## ROM budget and layout
 
-- 512 KB = 4 × 128 KB, **one chip per byte lane** of the 68030's 32-bit bus: chip N holds bytes
-  N, N+4, N+8 … Use `tools/interleave.py` to split and join.
+- 512 KB = 4 × **27C010** (128 KB), one chip per byte lane of the 68030's 32-bit bus. Documented
+  Atari layout (confirmed 2026-09-20):
+
+  | Socket | Bus lane | Holds |
+  |---|---|---|
+  | U601 | D31..24 (most significant) | bytes 0, 4, 8 … |
+  | U602 | D23..16 | bytes 1, 5, 9 … |
+  | U603 | D15..8 | bytes 2, 6, 10 … |
+  | U604 | D7..0 | bytes 3, 7, 11 … |
+
+  `tools/interleave.py split` writes `<prefix>.U601 … .U604` so a file cannot end up in the wrong
+  socket by accident.
 - The limit is the TT's decode window `0xE00000`–`0xE7FFFF`, **not** the chips. Larger 32-pin
   EPROMs fit physically but the TT holds their top address lines fixed (and they must not float).
   More space: the cartridge port at `0xFA0000` (+128 KB, no soldering), a jumper bank select (keeps
@@ -22,14 +32,23 @@ TOS. Design discussion and trade-offs: A-Mem note `a822618e`, board card `56a25f
 - Header, read from the real `tos306uk.img`: longword 0 = `BRA` + OS version, longword 1 = reset PC
   (`0x00E00030`), longword 2 = ROM base, longword 3 = end of OS. EmuTOS 1.4 uses the same layout.
 
-## Burn safely — the interleave must be proven first
+## Burn safely
 
-1. Dump all four original chips. **Keep the dumps and the chips.**
-2. `python3 tools/interleave.py join <prefix> rejoined.img`
-3. `cmp rejoined.img ../emulator/roms/tos306uk.img`
+The lane order is **documented, not guessed** (table above), so it no longer has to be discovered by
+experiment. Dumping the original chips is still worth doing once, for different reasons:
 
-A byte-exact match proves both the lane order and the reads. If it fails, the lanes are in a
-different order — try the permutations. Nothing gets burned before this passes.
+- it proves the **burner** reads this chip type correctly before it ever writes;
+- it confirms this machine's ROMs really are the 512 KB TOS 3.06 UK used as the reference;
+- a marginal chip shows up as a bad read rather than a mystery after a burn.
+
+```bash
+# after reading each original to a file named for its socket
+python3 tools/interleave.py join <prefix> rejoined.img
+cmp rejoined.img ../emulator/roms/tos306uk.img
+```
+
+A byte-exact match means reads, sockets and reference image all agree. **Keep the original chips** —
+they are the way back, and blanks are cheap.
 
 ## Two traps this firmware has already hit
 
