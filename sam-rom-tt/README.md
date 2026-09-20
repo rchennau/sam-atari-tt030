@@ -47,6 +47,14 @@ Hatari's TT emulation "emulates their presence but does not emulate the actual S
 was true of Hatari 2.1 and is **not** true of 2.5, where `rom3` completes a real INQUIRY and
 FreeMiNT boots from `--scsi` images.
 
+## Helpers on fractal
+
+| Script (side repo `scripts/`) | Purpose |
+|---|---|
+| `tt_reboot.sh [--wait-back]` | restart the TT (~45 s); FreeMiNT here has no `reboot` binary |
+| `tt_put.sh <local> <remote>` | copy to the card and verify by reading back |
+| `tt_get.sh <remote> <local>` | fetch from the card, refusing an empty read |
+
 ## Build
 
 ```bash
