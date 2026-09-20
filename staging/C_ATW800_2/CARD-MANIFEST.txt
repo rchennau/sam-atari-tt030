@@ -1,0 +1,35 @@
+# C:\ATW800_2 — what the card should carry (measured on the live TT, 2026-09-20)
+#
+# Why this file exists: part of this directory is unlicensed vendor software that must stay out of
+# the repo, so the repo alone cannot tell you whether a rebuilt card is complete. A rebuild that
+# looks fine but drops these silently disables the T425 offload used by sam-ssh-tt, XPtr, NetHack
+# and shabench (defect 177dd952, RCA docs/rca/2026-09-20-tt030-unattended-run-failures.md).
+#
+# source=repo   -> staging/C_ATW800_2/ in this repository
+# source=vendor -> staging/TRANSPUTER/ (git-ignored, build host only, do NOT publish)
+#
+# dir            file            bytes    source
+atwtools       afserver.ttp    34698    vendor
+atwtools       fpgabios.tos    12155    repo
+atwtools       iserver.ttp     31725    repo
+atwtools       ispy.ttp        55509    vendor
+atwtools       linkalia.tos    9688     repo
+atwtools       resetatw.tos    4721     repo
+atwtools       rspy.tos        91065    vendor
+atwtools       tbios.tos       12173    vendor
+atwtools       tmon.ttp        11622    vendor
+atwtools       trombios.tos    1106     vendor
+trans.dev      atwinfo.btl     26049    repo
+trans.dev      fhello.btl      24525    vendor
+trans.dev      hello.btl       20629    vendor
+trans.dev      x25519.btl      26058    vendor
+trans.dev      x25519l.btl     25907    vendor
+trans.dev      xserv.btl       15073    repo
+trans.dev      xserv0.btl      11480    vendor
+trans.dev      xservf.btl      15452    vendor
+trans.dev      xservm.btl      11826    vendor
+
+# Note: the card carries more than the repo stages — the repo's 6 licensed files are a subset.
+# The live Dropbear offload server is xserv2.btl on the ext2 root, not the copies here.
+# Regenerate this manifest from the live machine after any card change:
+#   ssh atari-tt 'cd /c/ATW800_2 && ls -l atwtools trans.dev'

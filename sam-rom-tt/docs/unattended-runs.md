@@ -1,4 +1,15 @@
-# Unattended TT runs (`ttrun`)
+# Unattended TT runs (`ttrun`) — **does not work; kept for the record**
+
+> **Verdict 2026-09-20: unattended runs across boot sets are impossible on this machine.** The boot
+> set is chosen only at XBOOT's interactive menu. The set name in `XBOOT.CFG` at offset `0x10B` is
+> the **last used** set — XBOOT rewrites it every boot, so patching it selects nothing. Two runs
+> were lost to this (RCA `docs/rca/2026-09-20-tt030-unattended-run-failures.md`). The autostart is
+> disarmed on the card; `ttrun` and `ttreboot` remain for manual use, and `ttreboot` is genuinely
+> useful because FreeMiNT here has no `reboot` binary.
+>
+> What would actually close the gap is **out-of-band control**: a smart plug (also the only way to
+> automate NFR-1's cold boot) or a working serial console. The Modem 2 console gave no bytes at
+> 38400/9600/19200 on 2026-09-20 with SLIP stopped and DTR asserted — unresolved.
 
 The TT only has SSH under FreeMiNT. Boot it into plain TOS or EmuTOS and it goes dark, so an
 experiment that needs those boot sets normally needs someone at the keyboard. `ttrun` closes that
@@ -20,6 +31,12 @@ Under TOS 3.06 (OS version `0x0306` from `_sysbase`) it runs `VDIBENCH.PRG` and 
 `EMUTOS.PRG`, which restarts the machine into RAM-loaded EmuTOS. Under EmuTOS it runs the benchmark
 again, restores `XBOOT.CFG` and `NEWDESK.INF` from the saved copies, and resets through the ROM's
 reset vector with the memory-valid markers cleared, so the restart takes the full power-on path.
+
+## Transfers to the card: use the verified helpers
+
+`scripts/tt_put.sh <local> <remote>` and `scripts/tt_get.sh <remote> <local>` refuse empty reads and
+verify a write by reading it back. A timed-out SSH login returns zero bytes, which once overwrote
+the live `XBOOT.CFG` with a 9-byte file. Never `ssh … 'cat > …'` by hand.
 
 ## Running one
 
