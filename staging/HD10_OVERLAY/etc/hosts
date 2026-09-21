@@ -1,0 +1,5 @@
+# /etc/hosts — curated name floor (tt030-rpm-pipeline FR-1). The router answers sam.int names
+# with tailnet addresses the TT cannot reach, so the names the TT needs are pinned here to LAN
+# addresses: 192.168.0.20 is CT104 (gateway: mirror.sam.int; broker: mqtt.sam.int).
+127.0.0.1	localhost
+192.168.0.20	mirror.sam.int mqtt.sam.int
