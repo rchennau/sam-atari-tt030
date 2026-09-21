@@ -3,4 +3,7 @@
 # itself on MiNT, every connection exits "setsid: Bad file descriptor". The shell backgrounds it.
 # A script, not a quoted bash -c in mint.cnf: the mint.cnf parser dropped the quoted options
 # (TT 2026-09-12: boot-started dropbear logged "Running in background").
-/usr/sbin/dropbear -F -p 22 -r /etc/dropbear/dropbear_ed25519_host_key < /dev/null > /dev/null 2>&1 &
+# -e passes this boot environment to sessions: without it Dropbear clears it, ssh sessions lose the
+# kernel's UNIXMODE=/brUs, mintlib opens files in text mode and CRLF becomes LF (wrong openssl
+# SHA-256, rpm -V false MD5 flags; tt030-rpm-pipeline progress.md, 2026-09-21).
+/usr/sbin/dropbear -e -F -p 22 -r /etc/dropbear/dropbear_ed25519_host_key < /dev/null > /dev/null 2>&1 &
