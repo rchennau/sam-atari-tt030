@@ -62,8 +62,10 @@ ilink xserv2.t4 -o xserv2.btl
    - On boot, `fpgabios.tos` initializes link adapter registers at `$FFFF8001`.
    - Start `atwxserv` or launch Dropbear via network daemon:
      ```bash
-     /usr/sbin/dropbear -E -p 22
+     /usr/sbin/dropbear -e -F -p 22 -r /etc/dropbear/dropbear_ed25519_host_key &
      ```
+     (the live line is `staging/HD10_OVERLAY/etc/rc.dropbear`: `-F` because a self-daemonised Dropbear
+     fails `setsid` on MiNT; `-e` so sessions keep `UNIXMODE`, without which files are read in text mode.)
 3. **Verify Offload**:
    - Connect via SSH: `ssh -i ~/.ssh/id_ed25519 sam@192.168.0.30`
    - Check `/var/log/messages` or debug console output for `[T425] X25519 hardware offload active` and `[T425] Ed25519 verify complete`.
