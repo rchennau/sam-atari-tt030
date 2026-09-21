@@ -76,6 +76,7 @@ def test_writer_roundtrip():
     data = tt_rpm.synth_gate_rpm()
     _, m, off = R.rpm_header(data)
     assert (m[R.NAME], m[R.ARCH]) == ("samgate", "m68kmint")
+    assert m[R.RPMVERSION] == "3.0.6"                          # else rpm -V uses broken MD5
     assert data[4:10] == b"\x03\x00\x00\x00\x00\x0d"          # SpareMiNT lead: v3, arch 13
     modes = dict(zip(R.file_paths(m), m[R.FILEMODES]))
     assert modes["/usr/share/samgate/run.sh"] == 0o100750

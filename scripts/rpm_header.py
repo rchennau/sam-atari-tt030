@@ -20,7 +20,7 @@ PROVIDENAME, REQUIREFLAGS, REQUIRENAME, REQUIREVERSION = 1047, 1048, 1049, 1050
 DIRINDEXES, BASENAMES, DIRNAMES = 1116, 1117, 1118
 SUMMARY, DESCRIPTION, GROUP = 1004, 1005, 1016
 SIG_SIZE, SIG_MD5 = 1000, 1004
-I18NTABLE = 100
+I18NTABLE, RPMVERSION = 100, 1064
 
 T_INT16, T_INT32, T_STRING, T_BIN, T_STRING_ARRAY, T_I18N = 3, 4, 6, 7, 8, 9
 
@@ -152,6 +152,9 @@ def write_rpm(name, version, release, files, summary="", requires_=(), provides=
         (FILEFLAGS, T_INT32, [0] * len(files)),
         (FILEUSERNAME, T_STRING_ARRAY, ["root"] * len(files)),
         (FILEGROUPNAME, T_STRING_ARRAY, ["root"] * len(files)),
+        # without RPMVERSION, rpm 3.0.6 on big-endian verifies with its "broken MD5" and
+        # `rpm -V` flags every file (lib/verify.c; TT 2026-09-21)
+        (RPMVERSION, T_STRING, "3.0.6"),
     ]
     if provides:
         main.append((PROVIDENAME, T_STRING_ARRAY, list(provides)))
