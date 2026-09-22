@@ -3,6 +3,7 @@
 
   tt_rpm.py keygen          make the index signing key (prints the public key)
   tt_rpm.py sync MIRROR      mirror freemint/sparemint RPMS/{m68kmint,noarch}, then index
+  tt_rpm.py add MIRROR RPM  publish RPM into MIRROR/built/ and re-index
   tt_rpm.py index MIRROR     rebuild MIRROR/index.tsv from MIRROR/{m68kmint,noarch,built}/*.rpm
   tt_rpm.py synth OUT.rpm    write the Phase-1 format-gate test RPM (symlink + mode-0750 file)
 
@@ -204,6 +205,22 @@ def cmd_sync(mirror):
     return cmd_index(mirror) or (1 if bad else 0)
 
 
+def cmd_add(mirror, rpm):
+    """Publish a built/obtained RPM into built/ (never pruned by sync) and re-index."""
+    import shutil
+    data = open(rpm, "rb").read()
+    try:
+        R.rpm_header(data)
+    except R.BadRpm as e:
+        print(f"add: {rpm}: {e}", file=sys.stderr)
+        return 1
+    os.makedirs(os.path.join(mirror, "built"), exist_ok=True)
+    dest = os.path.join(mirror, "built", os.path.basename(rpm))
+    shutil.copyfile(rpm, dest + ".tmp")
+    os.replace(dest + ".tmp", dest)
+    return cmd_index(mirror)
+
+
 def synth_gate_rpm():
     """Phase-1 format gate: the cases a hand-rolled v3 cpio writer typically breaks on."""
     return R.write_rpm("samgate", "1.0", "1", [
@@ -220,6 +237,8 @@ def main(argv):
         return cmd_keygen()
     if len(argv) == 3 and argv[1] == "sync":
         return cmd_sync(argv[2])
+    if len(argv) == 4 and argv[1] == "add":
+        return cmd_add(argv[2], argv[3])
     if len(argv) == 3 and argv[1] == "synth":
         open(argv[2], "wb").write(synth_gate_rpm())
         return 0

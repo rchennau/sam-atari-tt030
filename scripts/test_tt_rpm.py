@@ -84,6 +84,20 @@ def test_index_fields_and_file_provides(tmp_path, monkeypatch):
     assert "/usr/bin/gzip" not in rows["gzip"][8]       # nobody requires it: bounded out
 
 
+def test_add_rejects_malformed_and_publishes_good(tmp_path, monkeypatch):
+    import subprocess
+    key = tmp_path / "k.pem"
+    subprocess.run(["openssl", "genrsa", "-out", str(key), "2048"], check=True, capture_output=True)
+    monkeypatch.setattr(tt_rpm, "SIGN_KEY", str(key))
+    bad = tmp_path / "bad.rpm"
+    bad.write_bytes(b"not an rpm")
+    assert tt_rpm.cmd_add(str(tmp_path / "m"), str(bad)) == 1
+    good = tmp_path / "samgate-1.0-1.m68kmint.rpm"
+    good.write_bytes(tt_rpm.synth_gate_rpm())
+    assert tt_rpm.cmd_add(str(tmp_path / "m"), str(good)) == 0
+    assert "\tbuilt/samgate-1.0-1.m68kmint.rpm\t" in (tmp_path / "m" / "index.tsv").read_text()
+
+
 def test_rpmvercmp_and_tiebreak():
     assert tt_rpm.rpmvercmp("2.05a", "2.05") == 1
     assert tt_rpm.rpmvercmp("1.10", "1.9") == 1
