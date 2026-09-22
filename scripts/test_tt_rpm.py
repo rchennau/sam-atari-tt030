@@ -1,5 +1,6 @@
 """NFR-2 + Phase-1 host checks for rpm_header.py / tt_rpm.py.  Run: pytest scripts/test_tt_rpm.py"""
 import gzip
+import hashlib
 import os
 import shutil
 import sys
@@ -197,3 +198,27 @@ def test_rpm_va_classify_expected_real_and_depgaps():
     verdicts = [(v, r) for v, r, _, _ in rows]
     assert verdicts == [("EXPECTED", "group-wheel"), ("EXPECTED", "overlay-config"), ("EXPECTED", "mtime-only"),
                         ("REAL", "missing"), ("REAL", ".M.....T"), ("DEPGAP", "gzip-1.3-1"), ("REAL", "unparsed")]
+
+
+def test_push_verifies_sha_on_the_tt_before_rpm_i(tmp_path):
+    (tmp_path / "built").mkdir()
+    rpm = tmp_path / "built" / "x-1-1.m68kmint.rpm"
+    rpm.write_bytes(b"payload")
+    good = hashlib.sha256(b"payload").hexdigest()
+    (tmp_path / "index.tsv").write_text(f"#serial\t1\nx\t1\t1\tm68kmint\tbuilt/x-1-1.m68kmint.rpm\t7\t{good}\t\tx\n")
+    calls = []
+
+    def tt(corrupt=False):
+        def run(host, cmd, stdin=None):
+            calls.append(cmd)
+            if cmd.startswith("cat >"):
+                d = hashlib.sha256(stdin + (b"!" if corrupt else b"")).hexdigest()
+                return 0, f"SHA256(/tmp/push-x-1-1.m68kmint.rpm)= {d}\n"
+            return 0, ""
+        return run
+    assert tt_rpm.cmd_push(str(tmp_path), ["x"], "h", run=tt()) == 0
+    assert "rpm -i /tmp/push-x-1-1.m68kmint.rpm" in calls[-1]
+    calls.clear()
+    assert tt_rpm.cmd_push(str(tmp_path), ["x"], "h", run=tt(corrupt=True)) == 1       # bad transfer
+    assert not any("rpm -i" in c for c in calls)                                      # never installed
+    assert tt_rpm.cmd_push(str(tmp_path), ["nope"], "h", run=tt()) == 1                # not on mirror

@@ -5,6 +5,7 @@
   tt_rpm.py sync MIRROR      mirror freemint/sparemint RPMS/{m68kmint,noarch}, then index
   tt_rpm.py add MIRROR RPM  publish RPM into MIRROR/built/ and re-index
   tt_rpm.py index MIRROR     rebuild MIRROR/index.tsv from MIRROR/{m68kmint,noarch,built}/*.rpm
+  tt_rpm.py push MIRROR PKG... --host H [--nodeps]   install on a TT that cannot reach the mirror
   tt_rpm.py synth OUT.rpm    write the Phase-1 format-gate test RPM (symlink + mode-0750 file)
 
 index.tsv: name version release arch path size sha256 requires(csv) provides(csv), one package
@@ -248,6 +249,51 @@ def cmd_add(mirror, rpm):
     return cmd_index(mirror)
 
 
+def read_index(mirror):
+    with open(os.path.join(mirror, "index.tsv")) as fh:
+        return {r[0]: r for r in (line.rstrip("\n").split("\t") for line in fh if not line.startswith("#"))}
+
+
+def ssh_run(host, cmd, stdin=None):
+    import subprocess
+    p = subprocess.run(["ssh", host, cmd], input=stdin, capture_output=True, timeout=600)
+    return p.returncode, p.stdout.decode(errors="replace") + p.stderr.decode(errors="replace")
+
+
+def cmd_push(mirror, pkgs, host, nodeps=False, run=ssh_run):
+    """FR-7: install PKGS on a TT that cannot reach the mirror. Each RPM goes over ssh (binary-safe,
+    unlike the FTP path this replaced), its SHA-256 is re-checked ON THE TT against the signed index,
+    and only then does one plain `rpm -i` run. No dependency walk: name what to push; rpm reports
+    anything missing. UNIXMODE is set explicitly (mintlib text mode would corrupt the digest)."""
+    index = read_index(mirror)
+    missing = [p for p in pkgs if p not in index]
+    if missing:
+        print(f"push: not on the mirror: {' '.join(missing)}", file=sys.stderr)
+        return 1
+    remote = []
+    for p in pkgs:
+        path, sha = index[p][4], index[p][6]
+        dest = "/tmp/push-" + os.path.basename(path)
+        data = open(os.path.join(mirror, path), "rb").read()
+        rc, out = run(host, f"cat > {dest} && UNIXMODE=/brUs openssl dgst -sha256 {dest}", stdin=data)
+        got = out.strip().rsplit("= ", 1)[-1] if rc == 0 else ""
+        if got != sha:
+            print(f"push: {p}: SHA-256 on the TT is {got or '(transfer failed)'}, index says {sha}; not installed",
+                  file=sys.stderr)
+            run(host, f"rm -f {' '.join(remote + [dest])}")
+            return 1
+        print(f"push: {p} transferred, SHA-256 verified on the TT")
+        remote.append(dest)
+    rc, out = run(host, f"UNIXMODE=/brUs rpm -i {'--nodeps ' if nodeps else ''}{' '.join(remote)}; r=$?; "
+                        f"rm -f {' '.join(remote)}; exit $r")
+    print(out.strip())
+    if rc:
+        print(f"push: rpm -i failed (rc {rc})", file=sys.stderr)
+        return 1
+    print(f"push: installed {' '.join(pkgs)}")
+    return 0
+
+
 def synth_gate_rpm():
     """Phase-1 format gate: the cases a hand-rolled v3 cpio writer typically breaks on."""
     return R.write_rpm("samgate", "1.0", "1", [
@@ -266,6 +312,11 @@ def main(argv):
         return cmd_sync(argv[2])
     if len(argv) == 4 and argv[1] == "add":
         return cmd_add(argv[2], argv[3])
+    if len(argv) >= 5 and argv[1] == "push" and "--host" in argv:
+        a = argv[3:]
+        host = a[a.index("--host") + 1]
+        pkgs = [x for i, x in enumerate(a) if x not in ("--host", "--nodeps") and a[i - 1] != "--host"]
+        return cmd_push(argv[2], pkgs, host, nodeps="--nodeps" in a)
     if len(argv) == 3 and argv[1] == "synth":
         open(argv[2], "wb").write(synth_gate_rpm())
         return 0
