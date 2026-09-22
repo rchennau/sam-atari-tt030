@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ttbuildd — build-on-miss for the TT (tt030-rpm-pipeline FR-4). Runs on fractal as sam.
 
-Subscribes sam/tt030/build/request ({"request_id": ..., "pkg": ...}) and answers on
+Subscribes sam/tt030/build/request and answers on
 sam/tt030/build/{progress,done,failed,queued}/<request_id> with a short plain-text payload, so the
 TT never parses JSON:
   progress  accepted | waiting | configure | make | package | publish
@@ -11,6 +11,12 @@ TT never parses JSON:
 One build at a time (fractal is the operator's desktop); BUILD_TIMEOUT is under the client's 15-min
 wait, so a slow build answers `failed`, never a silent client timeout. Every RPM it writes is
 recorded in tt030/built/provenance.jsonl.
+
+A request is `<json>|<ed25519 signature, hex>`, json = {"request_id","pkg","ts"}, signed on the TT by
+`ttsign` with a key only the card holds (NFR-4: the estate broker is anonymous, and classic
+mosquitto ACLs cannot deny one topic, so authorization lives here). Unsigned, bad-signature,
+older than MAX_AGE, or replayed ids are refused with `failed unauthorized`. No public key on disk
+means every request is refused (fail closed).
 """
 import json
 import os
@@ -25,10 +31,41 @@ import build_recipe  # noqa: E402
 import tt_rpm  # noqa: E402
 
 MIRROR = os.environ.get("TT030_MIRROR", "/mnt/vault/tt030")
+REQUEST_PUB = os.path.expanduser("~/.config/tt030-mirror/tt-request.pub")   # 64 hex digits
+MAX_AGE = 600
 BUILD_TIMEOUT = 600
 ID_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 PKG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._-]{0,63}$")
 REQUEST = "sam/tt030/build/request"
+
+
+def authorize(payload, seen, now=None, pub_hex=None):
+    """Return (request_id, pkg) for a validly signed, fresh, unseen request; else raise ValueError."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    text = payload.decode("ascii", errors="strict") if isinstance(payload, bytes) else payload
+    body, sep, sig = text.rpartition("|")
+    if not sep or len(sig) != 128:
+        raise ValueError("unsigned")
+    if pub_hex is None:
+        try:
+            pub_hex = open(REQUEST_PUB).read().strip()
+        except OSError:
+            raise ValueError("no TT public key on this host") from None
+    try:
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(pub_hex)).verify(bytes.fromhex(sig), body.encode())
+    except (InvalidSignature, ValueError):
+        raise ValueError("bad signature") from None
+    req = json.loads(body)
+    rid, pkg, ts = str(req["request_id"]), str(req["pkg"]), int(req["ts"])
+    if abs((now or time.time()) - ts) > MAX_AGE:
+        raise ValueError("stale")
+    if rid in seen:
+        raise ValueError("replayed")
+    if not ID_RE.match(rid) or not PKG_RE.match(pkg):
+        raise ValueError("invalid id/pkg")
+    seen.add(rid)
+    return rid, pkg
 
 
 def on_mirror(pkg):
@@ -102,15 +139,17 @@ def main():
     def on_connect(client, *_):
         client.subscribe(REQUEST, qos=1)
 
+    seen = set()   # ponytail: in memory; a restart forgets ids, but MAX_AGE still bounds replay
+
     def on_message(_c, _u, msg):
         try:
-            req = json.loads(msg.payload)
-            rid, pkg = str(req["request_id"]), str(req["pkg"])
-        except (ValueError, KeyError, TypeError):
-            print(f"ttbuildd: dropped malformed request {msg.payload[:120]!r}", file=sys.stderr, flush=True)
-            return
-        if not ID_RE.match(rid) or not PKG_RE.match(pkg):
-            print(f"ttbuildd: dropped invalid request id/pkg {rid!r} {pkg!r}", file=sys.stderr, flush=True)
+            rid, pkg = authorize(msg.payload, seen)
+        except (ValueError, KeyError, TypeError) as e:
+            print(f"ttbuildd: refused request ({e}): {msg.payload[:120]!r}", file=sys.stderr, flush=True)
+            # answer the id if one can be read, so a legitimate but misconfigured TT is told why
+            m = re.search(r'"request_id"\s*:\s*"([A-Za-z0-9-]{1,64})"', msg.payload.decode("ascii", "replace"))
+            if m:
+                say("failed", m.group(1), "unauthorized")
             return
         say("progress", rid, "waiting" if work.qsize() or busy.is_set() else "accepted")
         work.put((pkg, rid))

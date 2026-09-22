@@ -21,6 +21,13 @@ import rpm_header as R
 POOLS = ("m68kmint", "noarch", "built")
 
 
+def publish(tmp, dest):
+    """Atomic replace with an explicit world-readable mode: Caddy serves these files, and a
+    caller's umask 077 once left index.signed 0600 and the mirror unreadable (2026-09-21)."""
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, dest)
+
+
 def rpmvercmp(a, b):
     """rpm's segment compare: digits vs digits numerically, alpha vs alpha lexically, digit > alpha."""
     if a == b:
@@ -43,11 +50,26 @@ def newer(p, q):
 
 
 def scan(mirror):
-    pkgs, bad = [], []
+    """Parse every pool RPM. Records are cached in .scan-cache.json keyed on (size, mtime_ns): a cold
+    re-read of the 426 MB mirror over the NAS link took minutes on every reindex (2026-09-21)."""
+    import json
+    cache_path = os.path.join(mirror, ".scan-cache.json")
+    try:
+        cache = json.load(open(cache_path))
+    except (OSError, ValueError):
+        cache = {}
+    pkgs, bad, fresh = [], [], {}
     for pool in POOLS:
         d = os.path.join(mirror, pool)
         for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
             if not f.endswith(".rpm"):
+                continue
+            st = os.stat(os.path.join(d, f))
+            key, stamp = f"{pool}/{f}", [st.st_size, st.st_mtime_ns]
+            hit = cache.get(key)
+            if hit and hit["stamp"] == stamp:
+                pkgs.append(hit["pkg"])
+                fresh[key] = hit
                 continue
             data = open(os.path.join(d, f), "rb").read()
             try:
@@ -55,11 +77,16 @@ def scan(mirror):
             except R.BadRpm as e:
                 bad.append(f"{pool}/{f}: {e}")
                 continue
-            pkgs.append(dict(name=m[R.NAME], version=m[R.VERSION], release=m[R.RELEASE],
-                             arch=m.get(R.ARCH) or "noarch", pool=pool, path=f"{pool}/{f}",
-                             size=len(data), sha256=hashlib.sha256(data).hexdigest(),
-                             requires=R.requires(m), provides=m.get(R.PROVIDENAME, []),
-                             files=R.file_paths(m)))
+            pkg = dict(name=m[R.NAME], version=m[R.VERSION], release=m[R.RELEASE],
+                       arch=m.get(R.ARCH) or "noarch", pool=pool, path=f"{pool}/{f}",
+                       size=len(data), sha256=hashlib.sha256(data).hexdigest(),
+                       requires=R.requires(m), provides=m.get(R.PROVIDENAME, []),
+                       files=R.file_paths(m))
+            pkgs.append(pkg)
+            fresh[key] = {"stamp": stamp, "pkg": pkg}
+    with open(cache_path + ".tmp", "w") as fh:
+        json.dump(fresh, fh)
+    publish(cache_path + ".tmp", cache_path)
     return pkgs, bad
 
 
@@ -135,7 +162,7 @@ def cmd_index(mirror):
     for name, data in (("index.signed", sig + body), ("index.tsv", body)):   # index.tsv: human copy
         with open(os.path.join(mirror, name + ".tmp"), "wb") as fh:
             fh.write(data)
-        os.replace(os.path.join(mirror, name + ".tmp"), os.path.join(mirror, name))
+        publish(os.path.join(mirror, name + ".tmp"), os.path.join(mirror, name))
     stale = os.path.join(mirror, "index.tsv.sig")
     if os.path.exists(stale):
         os.remove(stale)
@@ -174,7 +201,7 @@ def sync(mirror, entries, fetch, pinned):
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         with open(dest + ".tmp", "wb") as fh:
             fh.write(data)
-        os.replace(dest + ".tmp", dest)
+        publish(dest + ".tmp", dest)
         added += 1
     pruned = 0
     for pool in ("m68kmint", "noarch"):
@@ -217,7 +244,7 @@ def cmd_add(mirror, rpm):
     os.makedirs(os.path.join(mirror, "built"), exist_ok=True)
     dest = os.path.join(mirror, "built", os.path.basename(rpm))
     shutil.copyfile(rpm, dest + ".tmp")
-    os.replace(dest + ".tmp", dest)
+    publish(dest + ".tmp", dest)
     return cmd_index(mirror)
 
 

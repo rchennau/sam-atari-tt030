@@ -163,3 +163,20 @@ def test_resolve_awk_closure(tmp_path):
     assert plan("base") == []                                        # already installed: nothing to do
     assert plan("nope") == ["NOTFOUND nope"]
     assert "UNRESOLVED ghost orphan" in plan("orphan")
+
+
+def test_scan_cache_reuses_unchanged_and_rereads_changed(tmp_path, monkeypatch):
+    shutil.copytree(POOL, tmp_path / "m68kmint", ignore=shutil.ignore_patterns("bootstrap"))
+    first, _ = tt_rpm.scan(str(tmp_path))
+    reads = []
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: (reads.append(str(p)), real_open(p, *a, **k))[1])
+    again, _ = tt_rpm.scan(str(tmp_path))
+    assert again == first and not [r for r in reads if r.endswith(".rpm")]    # all from cache
+    victim = tmp_path / "m68kmint" / "gzip-1.3-1.m68kmint.rpm"
+    victim.write_bytes(victim.read_bytes() + b"\0")                         # size changes
+    reads.clear()
+    third, _ = tt_rpm.scan(str(tmp_path))
+    assert [r for r in reads if r.endswith(".rpm")] == [str(victim)]
+    assert [p["sha256"] for p in third if p["name"] == "gzip"] != [p["sha256"] for p in first if p["name"] == "gzip"]
+    assert oct(os.stat(tmp_path / ".scan-cache.json").st_mode & 0o777) == "0o644"

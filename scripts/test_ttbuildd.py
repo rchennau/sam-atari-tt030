@@ -51,3 +51,27 @@ def test_build_success_publishes_and_records_provenance(tmp_path, monkeypatch):
     assert added and not os.path.exists(added[0])                     # staged RPM cleaned up
     prov = json.loads((tmp_path / "built" / "provenance.jsonl").read_text())
     assert prov["request_id"] == "rid1" and prov["binaries"] == {"/usr/bin/pv": "abc"}
+
+
+def test_authorize_signed_fresh_unseen_only():
+    import pytest
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    k = Ed25519PrivateKey.generate()
+    pub = k.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+    now = 1_000_000
+
+    def req(rid="r1", pkg="pv", ts=now, key=k):
+        body = json.dumps({"request_id": rid, "pkg": pkg, "ts": ts})
+        return f"{body}|{key.sign(body.encode()).hex()}".encode()
+    seen = set()
+    assert ttbuildd.authorize(req(), seen, now=now, pub_hex=pub) == ("r1", "pv")
+    for bad, why in [(req(), "replayed"), (req("r2", ts=now - 601), "stale"),
+                     (req("r3", key=Ed25519PrivateKey.generate()), "bad signature"),
+                     (b'{"request_id":"r4","pkg":"pv","ts":1000000}', "unsigned"),
+                     (req("r5").replace(b'"pv"', b'"vi"'), "bad signature")]:
+        with pytest.raises(ValueError, match=why):
+            ttbuildd.authorize(bad, seen, now=now, pub_hex=pub)
+    with pytest.raises(ValueError, match="no TT public key"):
+        ttbuildd.REQUEST_PUB = "/nonexistent"
+        ttbuildd.authorize(req("r6"), seen, now=now)

@@ -73,8 +73,13 @@ build_on_miss() {
         n=$((n + 1)); [ $n -gt 60 ] && { kill $sp; rm -f "$out"; die "broker did not acknowledge the subscription"; }
         sleep 1
     done
+    # Signed request (NFR-4): ttbuildd refuses anything not signed by this card's key.
+    [ -r /etc/yum.tt/request.key ] || { kill $sp; rm -f "$out"; die "no /etc/yum.tt/request.key: this TT cannot request builds"; }
+    body="{\"request_id\":\"$rid\",\"pkg\":\"$pkg\",\"ts\":$(date +%s)}"
+    sig=$(printf '%s' "$body" | ttsign /etc/yum.tt/request.key) \
+        || { kill $sp; rm -f "$out"; die "cannot sign the build request"; }
     # shellcheck disable=SC2086
-    ttmqtt pub $auth sam/tt030/build/request "{\"request_id\":\"$rid\",\"pkg\":\"$pkg\"}" \
+    ttmqtt pub $auth sam/tt030/build/request "$body|$sig" \
         || { kill $sp; rm -f "$out"; die "cannot publish the build request (broker unreachable or refused)"; }
     shown=1
     while :; do
