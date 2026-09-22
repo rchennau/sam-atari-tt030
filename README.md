@@ -45,7 +45,7 @@ Each custom software component contains its own dedicated project directory, REA
 ├── sam-ssh-tt/                # Transputer-accelerated Dropbear SSH server project & docs
 ├── sam-scp-tt/                # Transputer-assisted SCP acceleration bridge project & docs
 ├── sam-rom-tt/                # ALPHA skeleton: custom no-TOS TT030 firmware (512 KB, 4 byte-lane chips)
-├── sam-yum-tt/                # ALPHA proof of technology: yum for the TT (T425 SHA-256 probe), src/ docs/ build/
+├── sam-yum-tt/                # the TT-side yum client (+ the T425 SHA-256 probe that ruled out offload)
 └── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
 ```
 
@@ -89,20 +89,46 @@ flowchart LR
     end
 ```
 
-| Piece | Where | State (2026-09-21) |
+| Piece | Where | State (2026-09-22) |
 | :--- | :--- | :--- |
-| RPM header parser + v3 writer | `scripts/rpm_header.py`, `scripts/tt_rpm.py` (`index`, `synth`), `scripts/test_tt_rpm.py` | ✅ host tests pass (18); the TT's `rpm -qpi` / `-i` / `-e` / `-V` accept its output |
-| First cross-built package | `scripts/build_mawk.sh` → `mawk-1.3.4` | ✅ installed on the TT (the TT had no awk) |
-| Mirror | NAS `/vault/tt030`, served at `http://mirror.sam.int/tt030/` | ✅ live; `tt_rpm.py sync`: 416 packages, fetched by name from the TT |
-| HTTP client | SpareMiNT `wget-1.9.1` | ✅ installed; 151 KB fetched in 4.85 s |
-| MQTT client | `src/ttmqtt.c` | ✅ installed from the mirror; both directions verified |
-| `yum` client | `sam-yum-tt/src/yum` + `resolve.awk`, packaged by `scripts/build_yum_tt.sh` as `yum-tt` | ✅ `yum install less` on the TT in 46.7 s; signed index (RSA; key on fractal only) |
-| `ttbuildd` build-on-miss + recipe engine | `scripts/ttbuildd.py` (fractal unit `sam-ttbuildd`), `scripts/build_recipe.py`, `recipes/source-map.json` | ✅ `yum install pv` with pv absent: built on fractal, installed, 1 m 47 s; no-recipe → queued + board card; build error → failed; broker down → exit 1 |
+| RPM header parser + v3 writer | `scripts/rpm_header.py` | ✅ no `rpm` binary needed; the TT's `rpm -qpi` / `-i` / `-e` / `-V` accept its output |
+| Host mirror CLI | `scripts/tt_rpm.py` — `sync`, `index`, `add`, `push`, `keygen`, `synth` | ✅ 420-package signed index; `push` installs to a TT that cannot reach the mirror (ssh, SHA re-checked on the TT) |
+| Mirror | NAS `/vault/tt030` → `http://mirror.sam.int/tt030/` (CT104 Caddy, LAN only) | ✅ tailnet source 403, LAN 200 |
+| `yum` client | `sam-yum-tt/src/yum` + `resolve.awk` + `update.awk`, packaged as `yum-tt` | ✅ `install` 47 s (`less`), `update` 35 s (upgraded itself 1.7→1.8), `remove`, `list`, `search`, `makecache` |
+| TT tools | `mawk` (cross-built), SpareMiNT `wget`, `src/ttmqtt.c`, `src/ttsign.c` | ✅ all installed as RPMs from the mirror |
+| Build-on-miss | `scripts/ttbuildd.py` (fractal unit `sam-ttbuildd`), `scripts/build_recipe.py`, `recipes/source-map.json` | ✅ `yum install pv` with pv absent → built + installed, 1 m 47 s; no recipe → queued + board card; build error → `failed`; broker down → exit 1 |
+| Recipes | `pv` 1.7.24, `xz` 5.8.4 | ✅ two clean builds give the same stripped binary (NFR-3) |
+| rpm DB backfill | `scripts/rpm_va_classify.py` | ✅ `rpm -Va` classified: 0 real drift |
+| Card image | `scripts/build_hd10_ext2.sh` + `staging/SAM_RPMS/` | ✅ rebuilt with the yum tools; **not boot-tested** (needs an SD flash) |
 
-**TT traps found on the way (2026-09-21):**
-- **`UNIXMODE`:** a process without it opens files in text mode, so CRLF becomes LF. `openssl` then gives wrong digests, `rpm -i` fails with `cpio: read`, and `rpm -V` shows false MD5 flags. The kernel sets `/brUs` at boot, but Dropbear wiped it from ssh sessions, so `staging/HD10_OVERLAY/etc/rc.dropbear` now starts `dropbear -e`.
-- **`rpm --root` is not a sandbox:** SpareMiNT's patch turns `chroot()` into `chdir()`, so only the database moves and files land at their real paths.
-- **`RPMVERSION`:** a header without it makes rpm 3.0.6 on big-endian use its "broken MD5" routine. `write_rpm` writes the tag.
+### FreeMiNT rpm / yum package management
+
+The TT runs SpareMiNT's **rpm 3.0.6** (2001) against a modern mirror. What that costs:
+
+- **`UNIXMODE` is load-bearing.** Without it mintlib opens files in text mode and turns CRLF into LF:
+  `openssl` prints wrong digests, `rpm -i` dies with `cpio: read`, and `rpm -V` reports false MD5
+  mismatches. The kernel sets `/brUs` at boot, but Dropbear cleared it for ssh sessions until
+  `rc.dropbear` gained `-e`. `yum` re-exports it defensively.
+- **`rpm --root` is not a sandbox.** SpareMiNT patches `chroot()` to `chdir()`, so only the database
+  moves and files land at their real paths.
+- **`RPMVERSION` must be in the header,** or rpm 3.0.6 on a big-endian host verifies with its "broken
+  MD5" routine and flags every file. `write_rpm` writes it.
+- **No `rpmbuild`.** Packages are written byte-wise by `rpm_header.write_rpm`: v3 lead (arch 13, OS 255),
+  flat `FILENAMES`, gzip cpio whose names carry no `./`, symlinks as MiNT's `S_IFLNK` **0160777**.
+- **`yum` runs under bash,** because the TT's `/bin/sh` is a minimal bash build with no `kill` builtin.
+- **Integrity:** the client reads one file, `index.signed` = RSA signature + index, so a GET can never
+  pair a new index with an old signature; its `#serial` line must not go backwards (replay), and every
+  package's SHA-256 is checked before a plain `rpm -i` (never `--force`). Build requests are Ed25519-signed
+  by the card (`ttsign`), since the estate broker is anonymous and classic mosquitto ACLs cannot deny one
+  topic.
+- **Speed, measured on the 68030:** `makecache` ~18 s · `yum install less` ~47 s · `rpm -Va` ~16 min ·
+  RSA-2048 signing 2 m 29 s (hence Ed25519 at ~2.7 s) · `xz -6` fails for want of ~94 MB RAM (use `-0`..`-3`).
+- **Housekeeping:** the card has no `wheel` group, so package files were `chgrp`'d to a new one; the two
+  `gzip` symlinks cannot follow (MiNT has no `lchown`). Providers such as `base`, `initscripts`,
+  `freemint-net` and `gawk` are deliberately not installed: they would overwrite `/etc`, replace the boot
+  scripts, pull the kernel package, or collide with mawk's `/usr/bin/awk`.
+
+Full operator guide: `docs/runbooks/tt030-packages.md` in the SAM monorepo.
 
 *Superseded:* `scripts/sam_tt030_rpm_builder.py` and the `ping` spec workflow (`rpmbuild`-based, pre-plan) were not used; the plan requires the dependency-free writer above.
 

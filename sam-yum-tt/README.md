@@ -1,17 +1,33 @@
 # SAM YUM TT (`sam-yum-tt`) — package installs for the Atari TT030
 
-> **Status: ALPHA.** `yum makecache | list | search | install [--nodeps] | remove` works on the TT (`yum install less` 46.7 s, 2026-09-21). The client is `src/yum` (sh) + `src/resolve.awk` (closure), shipped as the `yum-tt` RPM by `../scripts/build_yum_tt.sh` with the mirror's public key (`etc/index.pub`). Build-on-miss (FR-4) works: a package missing from the mirror but in `recipes/source-map.json` is cross-built by `ttbuildd` on fractal and installed in the same `yum install` (`pv`: 1 m 47 s). This
-> directory holds the measurement that decided how the client will be built: **the T425 is not
-> worth using for package hashing** (real-TT numbers below). Nothing here installs software.
+> **Status: working on the real TT.** `yum makecache | list [pat] | search pat | install [--nodeps] pkg… |
+> update [pkg…] | remove pkg…`, plus build-on-miss for packages the mirror lacks.
 
-`sam-yum-tt` is the TT-side half of the SAM package pipeline: `yum install <package>` at the TT's
-own shell, pulling SpareMiNT RPMs from a LAN mirror (plan: SAM monorepo
-`maestro/tracks/tt030-rpm-pipeline/`, locked 2026-09-14, revisions 1–2 on 2026-09-21). The mirror is
-live at `http://mirror.sam.int/tt030/` (NAS `/vault/tt030`, not fractal: plan Revision 1), with 416
-packages. The TT fetches with SpareMiNT `wget`, and `src/closure_probe.awk` prototypes the
-client's dependency walk (6.1–6.6 s on the 68030 with `mawk`).
+`sam-yum-tt` is the TT-side half of the SAM package pipeline: `yum install <package>` at the TT's own
+shell, pulling SpareMiNT RPMs from a LAN mirror (plan: SAM monorepo
+`maestro/tracks/tt030-rpm-pipeline/`, locked 2026-09-14, revisions 1–5). The mirror is
+`http://mirror.sam.int/tt030/` (NAS `/vault/tt030`, served by CT104's Caddy to LAN sources only), 420
+packages, index RSA-signed on fractal.
 
-## What the proof of technology tests
+| Part | What it does |
+| :--- | :--- |
+| `src/yum` (bash) | the client: fetch + verify the index, resolve, fetch + SHA-256 each package, one `rpm -i` |
+| `src/resolve.awk` | dependency closure over installed names, on-disk paths and mirror provides |
+| `src/update.awk` | rpmvercmp against the index: what has a newer version (never downgrades) |
+| `../src/ttmqtt.c` | MQTT 3.1.1 `pub` / `sub -W -E -S` for build-on-miss |
+| `../src/ttsign.c` | Ed25519 (Monocypher) signature on each build request — the card holds the key |
+| `etc/index.pub` | the mirror's public signing key, shipped in the `yum-tt` RPM |
+
+Built and packaged by `../scripts/build_yum_tt.sh`; installed on the TT like any other package.
+
+**Measured on the TT:** `makecache` 17.7 s · `install less` 46.7 s · `install pv` with pv absent (built
+on fractal first) 1 m 47 s · `update` of the client itself 35 s · dependency walk over a 415-row index
+6.1–6.6 s with `mawk`.
+
+**Limits:** versioned requirements are not resolved (the index keeps the newest entry per name); a
+package with no recipe is queued for a human; the TT must have `mawk`, `wget`, `ttmqtt` and bash.
+
+## Why the client is pure software (the T425 probe)
 
 A yum client spends its CPU on two things the 68030 does slowly: SHA-256 of every downloaded
 package and a signature check of the package index. The T425 already runs Ed25519 verify for
@@ -25,7 +41,7 @@ package and a signature check of the package index. The T425 already runs Ed2551
 | `src/sha256test.c` | build host | prints digests like `sha256sum`, for checking the core |
 
 **Decision rule:** build a T425-assisted native client only if the T425 hash, transfer included,
-is clearly faster than the 68030. Otherwise the planned `sh` + `awk` client stays.
+is clearly faster than the 68030. Otherwise the client stays pure software on the 68030.
 
 ## Results so far
 
@@ -38,7 +54,7 @@ is clearly faster than the 68030. Otherwise the planned `sh` + `awk` client stay
 
 **Verdict (measured 2026-09-19): do NOT offload hashing to the T425.** Net of the 1,115 ms
 transfer, the T425 hashes ~512 KB in ~6,220 ms (~82 KB/s) against the 68030's 70 KB/s — about
-1.2×, and shipping the data there costs more than that gain. The planned POSIX `sh` + `awk` client
+1.2×, and shipping the data there costs more than that gain. The `sh` + `awk` client
 stands; no native C client is justified by hashing.
 
 Hatari had estimated the 68030 at 137 KB/s — **the real machine is half that**, and below the
