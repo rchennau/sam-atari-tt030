@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """tt_rpm.py — host CLI for the TT030 package mirror (tt030-rpm-pipeline FR-7).
 
+  tt_rpm.py sync MIRROR      mirror freemint/sparemint RPMS/{m68kmint,noarch}, then index
   tt_rpm.py index MIRROR     rebuild MIRROR/index.tsv from MIRROR/{m68kmint,noarch,built}/*.rpm
   tt_rpm.py synth OUT.rpm    write the Phase-1 format-gate test RPM (symlink + mode-0750 file)
 
@@ -91,6 +92,68 @@ def cmd_index(mirror):
     return 0
 
 
+TREE_URL = "https://api.github.com/repos/freemint/sparemint/git/trees/master?recursive=1"
+RAW_URL = "https://raw.githubusercontent.com/freemint/sparemint/master/"
+# base-29 NVRs build_hd10_ext2.sh unpacked: sync never prunes them (FR-5 rpm -Va needs them)
+PINNED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "staging", "SPAREMINT")
+
+
+def git_blob_sha1(data):
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def sync(mirror, entries, fetch, pinned):
+    """Mirror upstream RPMs into m68kmint/ and noarch/. entries: git tree entries.
+    Verifies each download against its git blob sha; never touches built/; prunes an upstream
+    file only if upstream dropped it and it is not pinned. Returns (added, pruned, bad)."""
+    want, added, bad = {}, 0, []
+    for e in entries:
+        parts = e["path"].split("/")
+        if len(parts) == 4 and parts[:2] == ["sparemint", "RPMS"] and parts[2] in ("m68kmint", "noarch") \
+                and parts[3].endswith(".rpm"):
+            want[(parts[2], parts[3])] = e
+    for (pool, name), e in sorted(want.items()):
+        dest = os.path.join(mirror, pool, name)
+        if os.path.exists(dest) and git_blob_sha1(open(dest, "rb").read()) == e["sha"]:
+            continue
+        data = fetch(RAW_URL + e["path"])
+        if git_blob_sha1(data) != e["sha"]:
+            bad.append(f"{pool}/{name}: git blob sha mismatch")
+            continue
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest + ".tmp", "wb") as fh:
+            fh.write(data)
+        os.replace(dest + ".tmp", dest)
+        added += 1
+    pruned = 0
+    for pool in ("m68kmint", "noarch"):
+        d = os.path.join(mirror, pool)
+        for name in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+            if name.endswith(".rpm") and (pool, name) not in want and name not in pinned:
+                os.remove(os.path.join(d, name))
+                pruned += 1
+    return added, pruned, bad
+
+
+def cmd_sync(mirror):
+    import json
+    import urllib.request
+
+    def fetch(url):
+        with urllib.request.urlopen(url, timeout=120) as r:
+            return r.read()
+    tree = json.loads(fetch(TREE_URL))
+    if tree.get("truncated"):
+        print("sync: git tree listing truncated, refusing a partial sync", file=sys.stderr)
+        return 1
+    pinned = {f for f in os.listdir(PINNED_DIR) if f.endswith(".rpm")}
+    added, pruned, bad = sync(mirror, tree["tree"], fetch, pinned)
+    for b in bad:
+        print(f"REJECTED {b}", file=sys.stderr)
+    print(f"sync: {added} added, {pruned} pruned, {len(bad)} rejected")
+    return cmd_index(mirror) or (1 if bad else 0)
+
+
 def synth_gate_rpm():
     """Phase-1 format gate: the cases a hand-rolled v3 cpio writer typically breaks on."""
     return R.write_rpm("samgate", "1.0", "1", [
@@ -103,6 +166,8 @@ def synth_gate_rpm():
 def main(argv):
     if len(argv) == 3 and argv[1] == "index":
         return cmd_index(argv[2])
+    if len(argv) == 3 and argv[1] == "sync":
+        return cmd_sync(argv[2])
     if len(argv) == 3 and argv[1] == "synth":
         open(argv[2], "wb").write(synth_gate_rpm())
         return 0

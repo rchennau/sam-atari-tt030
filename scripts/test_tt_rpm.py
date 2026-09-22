@@ -83,3 +83,26 @@ def test_writer_roundtrip():
     assert modes["/usr/share/samgate/link"] == 0o160777
     cpio = gzip.decompress(data[off:])
     assert b"usr/share/samgate/link\0" in cpio and b"./usr" not in cpio
+
+
+def test_sync_verifies_prunes_and_spares(tmp_path):
+    good, other = b"rpm-a", b"rpm-b"
+    entries = [
+        {"path": "sparemint/RPMS/m68kmint/a-1-1.m68kmint.rpm", "sha": tt_rpm.git_blob_sha1(good)},
+        {"path": "sparemint/RPMS/noarch/b-1-1.noarch.rpm", "sha": "0" * 40},   # corrupt download
+        {"path": "sparemint/SRPMS/a-1-1.src.rpm", "sha": "x"},                   # not a binary pool
+    ]
+    for pool, name in [("m68kmint", "gone-1-1.m68kmint.rpm"), ("m68kmint", "bash-2.05a-3.m68kmint.rpm"),
+                       ("built", "mine-1-1.m68kmint.rpm")]:
+        (tmp_path / pool).mkdir(exist_ok=True)
+        (tmp_path / pool / name).write_bytes(b"old")
+    fetched = []
+    fetch = lambda url: fetched.append(url) or (good if "a-1-1" in url else other)  # noqa: E731
+    added, pruned, bad = tt_rpm.sync(str(tmp_path), entries, fetch, {"bash-2.05a-3.m68kmint.rpm"})
+    assert (added, pruned) == (1, 1) and bad == ["noarch/b-1-1.noarch.rpm: git blob sha mismatch"]
+    assert (tmp_path / "m68kmint" / "a-1-1.m68kmint.rpm").read_bytes() == good
+    assert not (tmp_path / "m68kmint" / "gone-1-1.m68kmint.rpm").exists()      # upstream dropped it
+    assert (tmp_path / "m68kmint" / "bash-2.05a-3.m68kmint.rpm").exists()      # pinned base-29
+    assert (tmp_path / "built" / "mine-1-1.m68kmint.rpm").exists()             # built/ untouched
+    assert not (tmp_path / "noarch" / "b-1-1.noarch.rpm").exists()
+    assert tt_rpm.sync(str(tmp_path), entries[:1], fetch, set())[0] == 0        # present + sha ok: no refetch
