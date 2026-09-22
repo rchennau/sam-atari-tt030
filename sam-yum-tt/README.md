@@ -1,6 +1,6 @@
 # SAM YUM TT (`sam-yum-tt`) — package installs for the Atari TT030
 
-> **Status: ALPHA.** `yum makecache | list | search | install [--nodeps] | remove` works on the TT (`yum install less` 46.7 s, 2026-09-21). The client is `src/yum` (sh) + `src/resolve.awk` (closure), shipped as the `yum-tt` RPM by `../scripts/build_yum_tt.sh` with the mirror's public key (`etc/index.pub`). Not yet: build-on-miss (FR-4). This
+> **Status: ALPHA.** `yum makecache | list | search | install [--nodeps] | remove` works on the TT (`yum install less` 46.7 s, 2026-09-21). The client is `src/yum` (sh) + `src/resolve.awk` (closure), shipped as the `yum-tt` RPM by `../scripts/build_yum_tt.sh` with the mirror's public key (`etc/index.pub`). Build-on-miss (FR-4) works: a package missing from the mirror but in `recipes/source-map.json` is cross-built by `ttbuildd` on fractal and installed in the same `yum install` (`pv`: 1 m 47 s). This
 > directory holds the measurement that decided how the client will be built: **the T425 is not
 > worth using for package hashing** (real-TT numbers below). Nothing here installs software.
 

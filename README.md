@@ -97,7 +97,7 @@ flowchart LR
 | HTTP client | SpareMiNT `wget-1.9.1` | ✅ installed; 151 KB fetched in 4.85 s |
 | MQTT client | `src/ttmqtt.c` | ✅ installed from the mirror; both directions verified |
 | `yum` client | `sam-yum-tt/src/yum` + `resolve.awk`, packaged by `scripts/build_yum_tt.sh` as `yum-tt` | ✅ `yum install less` on the TT in 46.7 s; signed index (RSA; key on fractal only) |
-| `ttbuildd` build-on-miss | — | not written |
+| `ttbuildd` build-on-miss + recipe engine | `scripts/ttbuildd.py` (fractal unit `sam-ttbuildd`), `scripts/build_recipe.py`, `recipes/source-map.json` | ✅ `yum install pv` with pv absent: built on fractal, installed, 1 m 47 s; no-recipe → queued + board card; build error → failed; broker down → exit 1 |
 
 **TT traps found on the way (2026-09-21):**
 - **`UNIXMODE`:** a process without it opens files in text mode, so CRLF becomes LF. `openssl` then gives wrong digests, `rpm -i` fails with `cpio: read`, and `rpm -V` shows false MD5 flags. The kernel sets `/brUs` at boot, but Dropbear wiped it from ssh sessions, so `staging/HD10_OVERLAY/etc/rc.dropbear` now starts `dropbear -e`.

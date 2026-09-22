@@ -60,8 +60,8 @@ fresh_cache() { [ -n "$(find "$CACHE/index.tsv" -mmin -10 2>/dev/null)" ] || mak
 build_on_miss() {
     pkg=$1
     rid=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')-$$
-    auth=
-    [ -r /etc/yum.tt/mqtt.cred ] && . /etc/yum.tt/mqtt.cred && auth="-u $MQTT_USER -P $MQTT_PASS"
+    auth="-h ${MQTT_HOST:-mqtt.sam.int}"   # MQTT_HOST: override for tests; normally the /etc/hosts name
+    [ -r /etc/yum.tt/mqtt.cred ] && . /etc/yum.tt/mqtt.cred && auth="$auth -u $MQTT_USER -P $MQTT_PASS"
     out=$CACHE/build.$rid
     echo "yum: $pkg not on the mirror — requesting a build from sam (request $rid)"
     # shellcheck disable=SC2086 # $auth is empty or two flags
