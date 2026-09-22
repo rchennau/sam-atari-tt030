@@ -180,3 +180,20 @@ def test_scan_cache_reuses_unchanged_and_rereads_changed(tmp_path, monkeypatch):
     assert [r for r in reads if r.endswith(".rpm")] == [str(victim)]
     assert [p["sha256"] for p in third if p["name"] == "gzip"] != [p["sha256"] for p in first if p["name"] == "gzip"]
     assert oct(os.stat(tmp_path / ".scan-cache.json").st_mode & 0o777) == "0o644"
+
+
+def test_rpm_va_classify_expected_real_and_depgaps():
+    import rpm_va_classify as C
+    rows = C.classify("\n".join([
+        "1790054354",                                               # start stamp is ignored
+        "......G.   /usr/bin/gzip",
+        "S.5....T c /etc/inetd.conf",                               # present in HD10_OVERLAY
+        ".......T   /usr/sbin/syslogd",
+        "missing    /usr/bin/rdate",
+        ".M.....T c /etc/syslog.conf",                              # not in the overlay: real
+        "Unsatisfied dependencies for gzip-1.3-1: /sbin/install-info  , mktemp",
+        "garbage line",
+    ]))
+    verdicts = [(v, r) for v, r, _, _ in rows]
+    assert verdicts == [("EXPECTED", "group-wheel"), ("EXPECTED", "overlay-config"), ("EXPECTED", "mtime-only"),
+                        ("REAL", "missing"), ("REAL", ".M.....T"), ("DEPGAP", "gzip-1.3-1"), ("REAL", "unparsed")]
