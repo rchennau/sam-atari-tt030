@@ -93,7 +93,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | RPM header parser + v3 writer | `scripts/rpm_header.py`, `scripts/tt_rpm.py` (`index`, `synth`), `scripts/test_tt_rpm.py` | ✅ host tests pass (18); the TT's `rpm -qpi` / `-i` / `-e` / `-V` accept its output |
 | First cross-built package | `scripts/build_mawk.sh` → `mawk-1.3.4` | ✅ installed on the TT (the TT had no awk) |
-| Mirror | NAS `/vault/tt030`, served at `http://mirror.sam.int/tt030/` | ✅ live; upstream sync not yet run |
+| Mirror | NAS `/vault/tt030`, served at `http://mirror.sam.int/tt030/` | ✅ live; `tt_rpm.py sync`: 416 packages, fetched by name from the TT |
 | HTTP client | SpareMiNT `wget-1.9.1` | ✅ installed; 151 KB fetched in 4.85 s |
 | MQTT client | `src/ttmqtt.c` | ✅ installed from the mirror; both directions verified |
 | `yum` client, `ttbuildd` build-on-miss | — | not written |

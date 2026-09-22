@@ -1,12 +1,15 @@
 # SAM YUM TT (`sam-yum-tt`) — package installs for the Atari TT030
 
-> **Status: ALPHA — proof of technology, question answered.** There is no `yum` client yet. This
+> **Status: ALPHA.** The mirror and the TT-side tools (`mawk`, `wget`, `ttmqtt`) work; the `yum` client itself is not written yet. This
 > directory holds the measurement that decided how the client will be built: **the T425 is not
 > worth using for package hashing** (real-TT numbers below). Nothing here installs software.
 
 `sam-yum-tt` is the TT-side half of the SAM package pipeline: `yum install <package>` at the TT's
-own shell, pulling SpareMiNT RPMs from a LAN mirror on fractal (plan: SAM monorepo
-`maestro/tracks/tt030-rpm-pipeline/`, locked 2026-09-14).
+own shell, pulling SpareMiNT RPMs from a LAN mirror (plan: SAM monorepo
+`maestro/tracks/tt030-rpm-pipeline/`, locked 2026-09-14, revisions 1–2 on 2026-09-21). The mirror is
+live at `http://mirror.sam.int/tt030/` (NAS `/vault/tt030`, not fractal: plan Revision 1), with 416
+packages. The TT fetches with SpareMiNT `wget`, and `src/closure_probe.awk` prototypes the
+client's dependency walk (6.1–6.6 s on the 68030 with `mawk`).
 
 ## What the proof of technology tests
 
