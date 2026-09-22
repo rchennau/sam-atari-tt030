@@ -18,6 +18,7 @@ open(out, "wb").write(R.write_rpm("yum-tt", v, "1", [
     ("/usr/bin/yum", 0o100755, open("sam-yum-tt/src/yum", "rb").read()),
     ("/usr/bin/ttsign", 0o100755, open("build/ttsign", "rb").read()),
     ("/usr/lib/yum.tt/resolve.awk", 0o100644, open("sam-yum-tt/src/resolve.awk", "rb").read()),
+    ("/usr/lib/yum.tt/update.awk", 0o100644, open("sam-yum-tt/src/update.awk", "rb").read()),
     ("/etc/yum.tt/index.pub", 0o100644, open("sam-yum-tt/etc/index.pub", "rb").read()),
 ], summary="yum for the Atari TT from the SAM mirror (sam)", requires_=["mawk", "wget", "openssl", "ttmqtt", "/bin/bash"]))
 print(out)

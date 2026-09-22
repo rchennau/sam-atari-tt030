@@ -5,6 +5,7 @@
 #   yum list [PATTERN]         name version-release of mirror packages (all, or matching)
 #   yum search PATTERN         like list, matching name or provides
 #   yum install [--nodeps] PKG...
+#   yum update [PKG...]       rpm -U whatever the mirror has newer (all installed, or just PKG)
 #   yum remove PKG...
 #
 # install fetches and SHA-256-verifies the WHOLE closure before the first rpm -i, so a network
@@ -104,6 +105,39 @@ build_on_miss() {
     esac
 }
 
+# Fetch + SHA-256-verify every GET in $CACHE/plan, then ONE `rpm OP` over the set.
+#   fetch_verify_install OP VERB [PKG...]   OP -i|-U; VERB is the yum verb to re-exec after a re-read
+fetch_verify_install() {
+    rpmop=$1 verb_self=$2
+    shift 2
+    files=
+    while read -r verb name path sum size; do
+        [ "$verb" = GET ] || continue
+        f="$CACHE/pkgs/${path##*/}"
+        mkdir -p "$CACHE/pkgs"
+        if [ -f "$f" ] && [ "$(sha256 "$f")" = "$sum" ]; then
+            echo "yum: $name cached"
+        else
+            echo "yum: fetching $name ($size bytes)"
+            if ! wget -q -T 120 -O "$f" "$MIRROR/$path"; then
+                rm -f "$f"
+                # the index may be stale: re-read it once and start over, then give up loudly
+                [ -n "$YUM_REFRESHED" ] && die "fetch failed: $name ($MIRROR/$path)"
+                echo "yum: fetch failed for $name; re-reading the index"
+                makecache
+                YUM_REFRESHED=1 exec "$0" "$verb_self" $nodeps "$@"
+            fi
+            [ "$(sha256 "$f")" = "$sum" ] || { rm -f "$f"; die "SHA-256 mismatch: $name — not installed"; }
+        fi
+        files="$files $f"
+    done < "$CACHE/plan"
+    echo "yum: all packages verified; installing"
+    # shellcheck disable=SC2086 # one word per package file, none contain spaces
+    rpm $rpmop $nodeps $files || die "rpm $rpmop failed (files kept in $CACHE/pkgs)"
+    rm -f $files
+    echo "yum: installed"
+}
+
 cmd=$1
 [ -n "$cmd" ] && shift
 case "$cmd" in
@@ -114,6 +148,16 @@ list|search)
     awk -F'\t' -v pat="$1" -v s="$cmd" \
         '/^#/ { next } (pat == "" || index($1, pat) || (s == "search" && index($9, pat))) { print $1 "\t" $2 "-" $3 }' \
         "$CACHE/index.tsv"
+    ;;
+update)
+    fresh_cache
+    rpm -qa --queryformat '%{NAME}\t%{VERSION}\t%{RELEASE}\n' > "$CACHE/installed.v" || die "rpm -qa failed"
+    awk -F'\t' -v ONLY="$*" -f "$LIB/update.awk" "$CACHE/installed.v" "$CACHE/index.tsv" > "$CACHE/plan" \
+        || die "update resolver failed"
+    grep -q '^GET ' "$CACHE/plan" || { echo "yum: everything is up to date"; exit 0; }
+    sed -n 's/^GET \([^ ]*\) .*/yum: update available: \1/p' "$CACHE/plan"
+    nodeps=
+    fetch_verify_install -U update "$@"
     ;;
 remove)
     [ $# -gt 0 ] || { echo "usage: yum remove PKG..." >&2; exit 2; }
@@ -140,32 +184,7 @@ install)
         [ -n "$nodeps" ] || die "unmet requirements above; re-run with --nodeps to install anyway"
     fi
     grep -q '^GET ' "$CACHE/plan" || { echo "yum: nothing to do (already installed)"; exit 0; }
-    files=
-    while read -r verb name path sum size; do
-        [ "$verb" = GET ] || continue
-        f="$CACHE/pkgs/${path##*/}"
-        mkdir -p "$CACHE/pkgs"
-        if [ -f "$f" ] && [ "$(sha256 "$f")" = "$sum" ]; then
-            echo "yum: $name cached"
-        else
-            echo "yum: fetching $name ($size bytes)"
-            if ! wget -q -T 120 -O "$f" "$MIRROR/$path"; then
-                rm -f "$f"
-                # the index may be stale: re-read it once and start over, then give up loudly
-                [ -n "$YUM_REFRESHED" ] && die "fetch failed: $name ($MIRROR/$path)"
-                echo "yum: fetch failed for $name; re-reading the index"
-                makecache
-                YUM_REFRESHED=1 exec "$0" install $nodeps "$@"
-            fi
-            [ "$(sha256 "$f")" = "$sum" ] || { rm -f "$f"; die "SHA-256 mismatch: $name — not installed"; }
-        fi
-        files="$files $f"
-    done < "$CACHE/plan"
-    echo "yum: all packages verified; installing"
-    # shellcheck disable=SC2086 # one word per package file, none contain spaces
-    rpm -i $nodeps $files || die "rpm -i failed (files kept in $CACHE/pkgs)"
-    rm -f $files
-    echo "yum: installed"
+    fetch_verify_install -i install "$@"
     ;;
 *) sed -n '3,8p' "$0" | sed 's/^# //' >&2; exit 2 ;;
 esac

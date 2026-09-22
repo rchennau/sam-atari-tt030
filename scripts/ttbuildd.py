@@ -68,6 +68,29 @@ def authorize(payload, seen, now=None, pub_hex=None):
     return rid, pkg
 
 
+class SeenIds(set):
+    """request_ids already accepted, persisted so a restart cannot re-open a replay window.
+    Entries older than MAX_AGE are dropped on load: past that, `authorize` rejects on age anyway."""
+
+    def __init__(self, path, now=None):
+        super().__init__()
+        self.path, now = path, now or time.time()
+        try:
+            for line in open(path):
+                rid, ts = line.split()
+                if now - float(ts) <= MAX_AGE:
+                    super().add(rid)
+        except (OSError, ValueError):
+            pass
+        with open(path, "w") as fh:                    # rewrite pruned
+            fh.writelines(f"{r} {now:.0f}\n" for r in self)
+
+    def add(self, rid):
+        super().add(rid)
+        with open(self.path, "a") as fh:
+            fh.write(f"{rid} {time.time():.0f}\n")
+
+
 def on_mirror(pkg):
     try:
         with open(os.path.join(MIRROR, "index.tsv")) as fh:
@@ -139,7 +162,7 @@ def main():
     def on_connect(client, *_):
         client.subscribe(REQUEST, qos=1)
 
-    seen = set()   # ponytail: in memory; a restart forgets ids, but MAX_AGE still bounds replay
+    seen = SeenIds(os.path.join(MIRROR, ".ttbuildd-seen"))
 
     def on_message(_c, _u, msg):
         try:

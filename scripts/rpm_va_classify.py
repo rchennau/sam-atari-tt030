@@ -16,8 +16,8 @@ OVERLAY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "stagin
 # (name, predicate(flags, is_config, path), reason). First match wins; anything unmatched is REAL.
 RULES = [
     ("group-wheel", lambda f, c, p: f == "......G.",
-     "SpareMiNT packages own files as group `wheel`, which this card has no entry for: rpm fell back to "
-     "root ('group wheel does not exist - using root' on every install). Group only, content intact."),
+     "group only, content intact. Since 2026-09-22 the card has `wheel` (gid 10) and package files were "
+     "chgrp'd to it; what remains is symlinks (MiNT has no lchown, e.g. /usr/bin/gzip, /usr/bin/gunzip)."),
     ("overlay-config", lambda f, c, p: c and os.path.isfile(OVERLAY + p),
      "config file the card build replaces from staging/HD10_OVERLAY (e.g. inetd.conf, byte-identical "
      "to the overlay copy, 2026-09-21)."),

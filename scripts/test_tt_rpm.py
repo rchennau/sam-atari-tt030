@@ -222,3 +222,17 @@ def test_push_verifies_sha_on_the_tt_before_rpm_i(tmp_path):
     assert tt_rpm.cmd_push(str(tmp_path), ["x"], "h", run=tt(corrupt=True)) == 1       # bad transfer
     assert not any("rpm -i" in c for c in calls)                                      # never installed
     assert tt_rpm.cmd_push(str(tmp_path), ["nope"], "h", run=tt()) == 1                # not on mirror
+
+
+def test_update_awk_offers_only_newer(tmp_path):
+    import subprocess
+    (tmp_path / "iv").write_text("less\t457\t1\npv\t1.7.24\t1\nmawk\t1.3.4\t20260302\n")
+    (tmp_path / "ix").write_text("#serial\t1\n" + "".join(
+        f"{n}\t{v}\t{r}\tm\t{p}\t9\t{s}\t\t{n}\n" for n, v, r, p, s in [
+            ("less", "458", "1", "m/less.rpm", "s1"), ("pv", "1.7.24", "1", "b/pv.rpm", "s2"),
+            ("mawk", "1.3.4", "20260301", "b/m.rpm", "s3"), ("vim", "6", "1", "m/v.rpm", "s4")]))
+    awk = os.path.join(os.path.dirname(__file__), "..", "sam-yum-tt", "src", "update.awk")
+    run = lambda only="": subprocess.run(["awk", "-F\t", "-v", f"ONLY={only}", "-f", awk, str(tmp_path / "iv"),  # noqa: E731
+                                          str(tmp_path / "ix")], capture_output=True, text=True, check=True).stdout
+    assert run() == "GET less m/less.rpm s1 9\n"     # newer only; equal, older and not-installed skipped
+    assert run("pv") == ""

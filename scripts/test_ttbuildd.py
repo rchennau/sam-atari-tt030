@@ -75,3 +75,11 @@ def test_authorize_signed_fresh_unseen_only():
     with pytest.raises(ValueError, match="no TT public key"):
         ttbuildd.REQUEST_PUB = "/nonexistent"
         ttbuildd.authorize(req("r6"), seen, now=now)
+
+
+def test_seen_ids_survive_a_restart_and_age_out(tmp_path):
+    p = str(tmp_path / "seen")
+    s = ttbuildd.SeenIds(p)
+    s.add("a")
+    assert "a" in ttbuildd.SeenIds(p)                                         # restart remembers
+    assert "a" not in ttbuildd.SeenIds(p, now=__import__("time").time() + 601)  # aged out

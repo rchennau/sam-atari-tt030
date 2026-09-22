@@ -1,5 +1,5 @@
 {
-  "_comment": "tt030-rpm-pipeline FR-6: packages ttbuildd may cross-build. Each entry pins a source tarball by SHA-256; configure_args extend the autotools template (--host=m68k-atari-mint --prefix=/usr). A package absent here is queued for a human recipe, never guessed. Tried and removed 2026-09-21: GNU hello 2.12.3 (gnulib's error.h wrapper vs mintlib error.h: __GNUC_PREREQ undefined) needs a hand recipe.",
+  "_comment": "tt030-rpm-pipeline FR-6: packages ttbuildd may cross-build. Each entry pins a source tarball by SHA-256; configure_args extend the autotools template (--host=m68k-atari-mint --prefix=/usr). A package absent here is queued for a human recipe, never guessed. gnulib packages: mintlib's error.h breaks gnulib's wrapper (__GNUC_PREREQ); pass ac_cv_header_error_h=no ac_cv_func_error=no so gnulib uses its own error() (found building hello, 2026-09-22). hello itself then printed every character NUL-prefixed (UTF-16BE-like, even with LC_ALL=C): a mintlib/gnulib wide-char mismatch. It was removed from the map and the mirror and needs a hand recipe; xz uses the same overrides and works.",
   "pv": {
     "version": "1.7.24",
     "url": "https://github.com/a-j-wood/pv/releases/download/v1.7.24/pv-1.7.24.tar.gz",
@@ -8,5 +8,20 @@
       "--disable-nls"
     ],
     "summary": "pv - monitor the progress of data through a pipe"
+  },
+  "xz": {
+    "version": "5.8.4",
+    "url": "https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5.8.4.tar.gz",
+    "sha256": "0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9",
+    "configure_args": [
+      "--disable-nls",
+      "--disable-shared",
+      "--disable-threads",
+      "--disable-doc",
+      "--disable-scripts",
+      "ac_cv_header_error_h=no",
+      "ac_cv_func_error=no"
+    ],
+    "summary": "XZ Utils (signature checked against Lasse Collin's key, 2026-09-22)"
   }
 }
