@@ -51,9 +51,20 @@ def test_malformed_rejected(damage, tmp_path):
     assert not (tmp_path / "index.tsv").exists()
 
 
-def test_index_fields_and_file_provides(tmp_path):
+def test_index_fields_and_file_provides(tmp_path, monkeypatch):
+    import subprocess
     shutil.copytree(POOL, tmp_path / "m68kmint", ignore=shutil.ignore_patterns("bootstrap"))
+    monkeypatch.setattr(tt_rpm, "SIGN_KEY", str(tmp_path / "none.key"))
+    assert tt_rpm.cmd_index(str(tmp_path)) == 1 and not (tmp_path / "index.tsv").exists()  # unsigned: refuse
+    key = tmp_path / "k.pem"
+    subprocess.run(["openssl", "genrsa", "-out", str(key), "2048"], check=True, capture_output=True)
+    monkeypatch.setattr(tt_rpm, "SIGN_KEY", str(key))
     assert tt_rpm.cmd_index(str(tmp_path)) == 0
+    pub = subprocess.run(["openssl", "rsa", "-in", str(key), "-pubout"], capture_output=True, check=True).stdout
+    (tmp_path / "k.pub").write_bytes(pub)
+    v = subprocess.run(["openssl", "dgst", "-sha256", "-verify", str(tmp_path / "k.pub"), "-signature",
+                        str(tmp_path / "index.tsv.sig"), str(tmp_path / "index.tsv")], capture_output=True)
+    assert v.returncode == 0                                   # the command the TT runs accepts it
     rows = {line.split("\t")[0]: line.split("\t")
             for line in (tmp_path / "index.tsv").read_text().splitlines()}
     assert all(len(r) == 9 for r in rows.values())
@@ -106,3 +117,24 @@ def test_sync_verifies_prunes_and_spares(tmp_path):
     assert (tmp_path / "built" / "mine-1-1.m68kmint.rpm").exists()             # built/ untouched
     assert not (tmp_path / "noarch" / "b-1-1.noarch.rpm").exists()
     assert tt_rpm.sync(str(tmp_path), entries[:1], fetch, set())[0] == 0        # present + sha ok: no refetch
+
+
+def test_resolve_awk_closure(tmp_path):
+    """sam-yum-tt/src/resolve.awk, run by the host awk exactly as the TT runs it."""
+    import subprocess
+    row = lambda n, req, prov="": "\t".join([n, "1", "1", "m68kmint", f"m68kmint/{n}.rpm", "10",  # noqa: E731
+                                             "s" + n, req, prov or n]) + "\n"
+    (tmp_path / "index.tsv").write_text(row("app", "libx,/bin/sh,base") + row("libx", "liby")
+                                         + row("liby", "") + row("base", "") + row("orphan", "ghost"))
+    (tmp_path / "inst").write_text("base\n")
+    awk = os.path.join(os.path.dirname(__file__), "..", "sam-yum-tt", "src", "resolve.awk")
+
+    def plan(want):
+        r = subprocess.run(["awk", "-F\t", "-v", f"WANT={want}", "-f", awk, str(tmp_path / "inst"),
+                            str(tmp_path / "index.tsv")], capture_output=True, text=True, check=True)
+        return sorted(r.stdout.split("\n")[:-1])
+    assert plan("app") == ["GET app m68kmint/app.rpm sapp 10", "GET libx m68kmint/libx.rpm slibx 10",
+                           "GET liby m68kmint/liby.rpm sliby 10"]   # transitive; base installed; /bin/sh on disk
+    assert plan("base") == []                                        # already installed: nothing to do
+    assert plan("nope") == ["NOTFOUND nope"]
+    assert "UNRESOLVED ghost orphan" in plan("orphan")

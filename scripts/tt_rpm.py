@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """tt_rpm.py — host CLI for the TT030 package mirror (tt030-rpm-pipeline FR-7).
 
+  tt_rpm.py keygen          make the index signing key (prints the public key)
   tt_rpm.py sync MIRROR      mirror freemint/sparemint RPMS/{m68kmint,noarch}, then index
   tt_rpm.py index MIRROR     rebuild MIRROR/index.tsv from MIRROR/{m68kmint,noarch,built}/*.rpm
   tt_rpm.py synth OUT.rpm    write the Phase-1 format-gate test RPM (symlink + mode-0750 file)
@@ -77,18 +78,48 @@ def build_index(pkgs):
     return "".join(line + "\n" for line in lines)
 
 
+# RSA, not Ed25519: the TT's openssl 1.0.0c has no Ed25519 (measured 2026-09-21). The private key
+# never leaves fractal; the public half ships in the yum-tt RPM as /etc/yum.tt/index.pub.
+SIGN_KEY = os.path.expanduser("~/.config/tt030-mirror/index-sign.key")
+
+
+def cmd_keygen():
+    import subprocess
+    if os.path.exists(SIGN_KEY):
+        print(f"keygen: {SIGN_KEY} exists, refusing to replace it", file=sys.stderr)
+        return 1
+    os.makedirs(os.path.dirname(SIGN_KEY), mode=0o700, exist_ok=True)
+    old = os.umask(0o077)
+    try:
+        subprocess.run(["openssl", "genrsa", "-out", SIGN_KEY, "2048"], check=True, capture_output=True)
+    finally:
+        os.umask(old)
+    pub = subprocess.run(["openssl", "rsa", "-in", SIGN_KEY, "-pubout"], check=True,
+                         capture_output=True, text=True).stdout
+    sys.stdout.write(pub)
+    return 0
+
+
 def cmd_index(mirror):
+    import subprocess
     pkgs, bad = scan(mirror)
     for b in bad:
         print(f"REJECTED {b}", file=sys.stderr)
     if bad:
         print(f"index NOT written: {len(bad)} malformed RPM(s)", file=sys.stderr)
         return 1
+    if not os.path.exists(SIGN_KEY):
+        print(f"index NOT written: no signing key {SIGN_KEY} (tt_rpm.py keygen)", file=sys.stderr)
+        return 1
     out = os.path.join(mirror, "index.tsv")
     with open(out + ".tmp", "w") as fh:
         fh.write(build_index(pkgs))
+    subprocess.run(["openssl", "dgst", "-sha256", "-sign", SIGN_KEY, "-out", out + ".sig.tmp", out + ".tmp"],
+                   check=True)
+    # ponytail: two renames, not atomic as a pair; a client racing them fails verify and re-runs.
+    os.replace(out + ".sig.tmp", out + ".sig")
     os.replace(out + ".tmp", out)
-    print(f"{out}: {len(pkgs)} RPMs scanned")
+    print(f"{out}: {len(pkgs)} RPMs scanned, signed")
     return 0
 
 
@@ -166,6 +197,8 @@ def synth_gate_rpm():
 def main(argv):
     if len(argv) == 3 and argv[1] == "index":
         return cmd_index(argv[2])
+    if len(argv) == 2 and argv[1] == "keygen":
+        return cmd_keygen()
     if len(argv) == 3 and argv[1] == "sync":
         return cmd_sync(argv[2])
     if len(argv) == 3 and argv[1] == "synth":

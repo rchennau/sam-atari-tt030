@@ -1,0 +1,93 @@
+#!/bin/sh
+# yum — package installs on the Atari TT from the SAM mirror (tt030-rpm-pipeline FR-3).
+#
+#   yum makecache              fetch index.tsv + index.tsv.sig, verify the signature
+#   yum list [PATTERN]         name version-release of mirror packages (all, or matching)
+#   yum search PATTERN         like list, matching name or provides
+#   yum install [--nodeps] PKG...
+#   yum remove PKG...
+#
+# install fetches and SHA-256-verifies the WHOLE closure before the first rpm -i, so a network
+# drop never leaves half a closure installed; a re-run refetches only what is missing or bad.
+# Then one plain `rpm -i` over the set (rpm orders it). An unmet requirement is reported and the
+# install stops; --nodeps is the operator saying "install anyway".
+# Exit: 0 done · 1 failure (message says which) · 2 usage.
+MIRROR=http://mirror.sam.int/tt030
+CACHE=/var/cache/yum.tt
+KEY=/etc/yum.tt/index.pub
+LIB=/usr/lib/yum.tt
+[ -f /etc/yum.tt.conf ] && . /etc/yum.tt.conf
+# Without UNIXMODE mintlib reads files in text mode (CRLF->LF): openssl mis-hashes, rpm -i fails
+# `cpio: read`. ssh sessions lacked it until rc.dropbear passed -e (2026-09-21); keep the guard.
+: "${UNIXMODE:=/brUs}"
+export UNIXMODE
+
+die() { echo "yum: $*" >&2; exit 1; }
+sha256() { openssl dgst -sha256 "$1" | sed 's/.*= //'; }
+
+makecache() {
+    mkdir -p "$CACHE" || die "cannot create $CACHE"
+    wget -q -T 60 -O "$CACHE/index.tsv.new" "$MIRROR/index.tsv" || die "cannot fetch $MIRROR/index.tsv"
+    wget -q -T 60 -O "$CACHE/index.tsv.sig.new" "$MIRROR/index.tsv.sig" || die "cannot fetch index.tsv.sig"
+    openssl dgst -sha256 -verify "$KEY" -signature "$CACHE/index.tsv.sig.new" "$CACHE/index.tsv.new" \
+        >/dev/null 2>&1 || { rm -f "$CACHE"/index.tsv*.new; die "index signature does NOT verify — refusing it"; }
+    mv "$CACHE/index.tsv.new" "$CACHE/index.tsv" && mv "$CACHE/index.tsv.sig.new" "$CACHE/index.tsv.sig"
+    echo "yum: index verified, $(wc -l < "$CACHE/index.tsv") packages"
+}
+
+need_cache() { [ -f "$CACHE/index.tsv" ] || makecache; }
+
+cmd=$1
+[ -n "$cmd" ] && shift
+case "$cmd" in
+makecache) makecache ;;
+list|search)
+    need_cache
+    [ "$cmd" = search ] && [ -z "$1" ] && { echo "usage: yum search PATTERN" >&2; exit 2; }
+    awk -F'\t' -v pat="$1" -v s="$cmd" \
+        '(pat == "" || index($1, pat) || (s == "search" && index($9, pat))) { print $1 "\t" $2 "-" $3 }' \
+        "$CACHE/index.tsv"
+    ;;
+remove)
+    [ $# -gt 0 ] || { echo "usage: yum remove PKG..." >&2; exit 2; }
+    rpm -e "$@"
+    ;;
+install)
+    nodeps=
+    [ "$1" = --nodeps ] && { nodeps=--nodeps; shift; }
+    [ $# -gt 0 ] || { echo "usage: yum install [--nodeps] PKG..." >&2; exit 2; }
+    need_cache
+    rpm -qa --queryformat '%{NAME}\n' > "$CACHE/installed" || die "rpm -qa failed"
+    awk -F'\t' -v WANT="$*" -f "$LIB/resolve.awk" "$CACHE/installed" "$CACHE/index.tsv" > "$CACHE/plan" \
+        || die "resolver failed"
+    if grep -q '^NOTFOUND ' "$CACHE/plan"; then
+        sed -n 's/^NOTFOUND /yum: not on the mirror: /p' "$CACHE/plan" >&2
+        exit 1
+    fi
+    if grep -q '^UNRESOLVED ' "$CACHE/plan"; then
+        sed -n 's/^UNRESOLVED \([^ ]*\) \(.*\)/yum: nothing provides \1 (needed by \2)/p' "$CACHE/plan" >&2
+        [ -n "$nodeps" ] || die "unmet requirements above; re-run with --nodeps to install anyway"
+    fi
+    grep -q '^GET ' "$CACHE/plan" || { echo "yum: nothing to do (already installed)"; exit 0; }
+    files=
+    while read -r verb name path sum size; do
+        [ "$verb" = GET ] || continue
+        f="$CACHE/pkgs/${path##*/}"
+        mkdir -p "$CACHE/pkgs"
+        if [ -f "$f" ] && [ "$(sha256 "$f")" = "$sum" ]; then
+            echo "yum: $name cached"
+        else
+            echo "yum: fetching $name ($size bytes)"
+            wget -q -T 120 -O "$f" "$MIRROR/$path" || { rm -f "$f"; die "fetch failed: $name"; }
+            [ "$(sha256 "$f")" = "$sum" ] || { rm -f "$f"; die "SHA-256 mismatch: $name — not installed"; }
+        fi
+        files="$files $f"
+    done < "$CACHE/plan"
+    echo "yum: all packages verified; installing"
+    # shellcheck disable=SC2086 # one word per package file, none contain spaces
+    rpm -i $nodeps $files || die "rpm -i failed (files kept in $CACHE/pkgs)"
+    rm -f $files
+    echo "yum: installed"
+    ;;
+*) sed -n '3,8p' "$0" | sed 's/^# //' >&2; exit 2 ;;
+esac

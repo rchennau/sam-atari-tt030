@@ -1,6 +1,6 @@
 # SAM YUM TT (`sam-yum-tt`) — package installs for the Atari TT030
 
-> **Status: ALPHA.** The mirror and the TT-side tools (`mawk`, `wget`, `ttmqtt`) work; the `yum` client itself is not written yet. This
+> **Status: ALPHA.** `yum makecache | list | search | install [--nodeps] | remove` works on the TT (`yum install less` 46.7 s, 2026-09-21). The client is `src/yum` (sh) + `src/resolve.awk` (closure), shipped as the `yum-tt` RPM by `../scripts/build_yum_tt.sh` with the mirror's public key (`etc/index.pub`). Not yet: build-on-miss (FR-4). This
 > directory holds the measurement that decided how the client will be built: **the T425 is not
 > worth using for package hashing** (real-TT numbers below). Nothing here installs software.
 
