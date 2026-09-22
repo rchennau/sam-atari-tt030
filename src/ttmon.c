@@ -18,6 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <net/if.h>
+#include <sockios.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -176,11 +179,31 @@ static double cpu_busy(void)
     return busy;
 }
 
+/* en0 packet/error counters via MiNTnet's SIOCGIFSTATS (what ifconfig prints). RCA
+ * 2026-09-21-tt030-inbound-outage D1/A1: telemetry said READY while nothing could reach the TT;
+ * a flat in_packets beside a rising out_packets is the signature of an inbound-only failure. */
+static int en0_stats(struct ifstat *st)
+{
+    struct ifreq r;
+    int s = socket(AF_INET, SOCK_DGRAM, 0), rc;
+    if (s < 0)
+        return -1;
+    memset(&r, 0, sizeof r);
+    strcpy(r.ifr_name, "en0");
+    rc = ioctl(s, SIOCGIFSTATS, &r);
+    close(s);
+    if (rc < 0)
+        return -1;
+    *st = r.ifr_stats;
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *ip = argc > 1 ? argv[1] : "192.168.0.20";
     int interval = argc > 2 ? atoi(argv[2]) : 60, s = -1;
-    char msg[512], load[32] = "0";
+    char msg[640], load[32] = "0", net[160];
+    struct ifstat st;
 
     cpu_busy();                        /* prime the delta */
     for (;;) {
@@ -190,12 +213,17 @@ int main(int argc, char **argv)
         }
         if (!slurp("/kern/loadavg", msg, sizeof msg) || sscanf(msg, "%31s", load) != 1)
             strcpy(load, "0");
+        if (en0_stats(&st) == 0)
+            snprintf(net, sizeof net, ",\"en0_in\":%lu,\"en0_in_err\":%lu,\"en0_out\":%lu,\"en0_out_err\":%lu",
+                     st.in_packets, st.in_errors, st.out_packets, st.out_errors);
+        else
+            strcpy(net, ",\"en0\":\"UNREADABLE\"");   /* say so, never omit silently */
         snprintf(msg, sizeof msg,
                  "{\"node_id\":\"" NODE "\",\"vram_free_mb\":0,\"cpu_load\":%.1f,\"status\":\"READY\","
                  "\"load1\":%s,\"uptime_s\":%ld,\"mem_free_kb\":%ld,\"tt_ram_free_kb\":%ld,"
-                 "\"st_ram_free_kb\":%ld,\"os\":\"FreeMiNT 1.19\",\"cpu\":\"68030\"}",
+                 "\"st_ram_free_kb\":%ld,\"os\":\"FreeMiNT 1.19\",\"cpu\":\"68030\"%s}",
                  cpu_busy(), load, kern_val("/kern/uptime", ""), kern_val("/kern/meminfo", "MemFree:"),
-                 kern_val("/kern/meminfo", "FastFree:"), kern_val("/kern/meminfo", "CoreFree:"));
+                 kern_val("/kern/meminfo", "FastFree:"), kern_val("/kern/meminfo", "CoreFree:"), net);
         if (mqtt_publish(s, msg) < 0) {  /* broker gone: reconnect next round */
             close(s);
             s = -1;
