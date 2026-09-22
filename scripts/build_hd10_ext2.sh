@@ -24,7 +24,9 @@ RPMS=$REPO/staging/SPAREMINT
 # base set here gives MiNT a working bash/ls without running rpm on the TT; the rpm database is
 # not updated, so `rpm -ivh --justdb` them on the TT later if package tracking matters.
 mkdir -p "$WORK/cpio"
-for r in "$RPMS"/*.m68kmint.rpm; do
+# staging/SAM_RPMS: sam's own packages (mawk, ttmqtt, yum-tt) so a fresh card can run yum (2026-09-22).
+for r in "$RPMS"/*.m68kmint.rpm "$REPO"/staging/SAM_RPMS/*.m68kmint.rpm; do
+  [ -e "$r" ] || continue
   7z e -y -o"$WORK/cpio" "$r" >/dev/null
 done
 # SSH for fractal -> TT (OpenSSH 5.6 predates ed25519/ecdsa-by-default, so RSA). Host keys are
