@@ -22,9 +22,10 @@ Each custom software component contains its own dedicated project directory, REA
 1. **[`sam-ssh-tt`](sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (per-login crypto ~25.0 s → ~14.4 s, measured on the TT 2026-09-13).
 2. **[`sam-scp-tt`](sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
 3. **[`ttmon`](src/ttmon.c)**: Telemetry publisher — retained MQTT `sam/node/telemetry/atari-tt030` every 60 s (the live SAM integration).
-4. **[`sam-yum-tt`](sam-yum-tt/README.md)** — *alpha, proof of technology*: `yum install` for the TT from a LAN mirror. Currently the probe that measures whether the T425 should hash packages; no client yet.
+4. **[`sam-yum-tt`](sam-yum-tt/README.md)** — *alpha*: `yum install` for the TT from a LAN mirror (track `tt030-rpm-pipeline`). The mirror is live at `http://mirror.sam.int/tt030/`, and the TT fetches from it with SpareMiNT `wget`. The `sh` + `awk` client is not written yet; its dependency walk is prototyped in `src/closure_probe.awk` (6.1–6.6 s over 415 packages on the 68030). The T425 was measured and not used: hashing at ~1.2× the 68030 does not pay for the link.
 5. **[`sam-rom-tt`](sam-rom-tt/README.md)** — *alpha skeleton, unproven*: custom (no-TOS) 512 KB firmware for the four ROM sockets, plus the byte-lane interleave tool. Nothing here is proven to run; do not burn from it.
-6. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
+6. **[`ttmqtt`](src/ttmqtt.c)**: Minimal MQTT 3.1.1 `pub` / `sub -W secs` for shell scripts (113 KB). `sub` prints the first message's topic and payload; exit 0 message, 1 timeout, 2 error. Broker by name (`mqtt.sam.int`, pinned in the TT's `/etc/hosts`). Carries build-on-miss requests and replies.
+7. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
 ---
 
 ## Software Stack & Subsystem Directory
@@ -56,7 +57,7 @@ The **SAM (Sensible Agent Management)** platform orchestrated end-to-end develop
 
 
 1. **Cross-Compilation & Build**:
-   - Built Motorola 68030 host binaries using `m68k-atari-mint-gcc` (GCC 13+ cross-compiler) and INMOS ANSI C (`icc`/`ilink` under `t4`) for the T425 transputer server code.
+   - Built Motorola 68030 host binaries using `m68k-atari-mint-gcc` (GCC 15.2 cross-compiler, `scripts/setup_cross_mint.sh`) and INMOS ANSI C (`icc`/`ilink` under `t4`) for the T425 transputer server code.
 2. **Automated Emulation & Integration Testing**:
    - Validated binaries using Hatari emulator automation suites (`scripts/test_sting_hatari.py`), checking network stack behavior and raw sector disk safety before touching real hardware.
 3. **Over-the-Air Live Staging & Deployment**:
@@ -65,36 +66,46 @@ The **SAM (Sensible Agent Management)** platform orchestrated end-to-end develop
 
 ---
 
-## E2E SpareMiNT RPM Build & Deployment Workflow (`ping`)
-
-The following Mermaid diagram outlines the end-to-end workflow executed by SAM to cross-compile, package, and deploy the `ping` package to the Atari TT030:
+## Package Pipeline (track `tt030-rpm-pipeline`)
 
 ```mermaid
-flowchart TD
-    subgraph Host ["Build Host (fractal - SAM Orchestration)"]
-        A["Source Code (src/ping_mini.c)"] -->|m68k-atari-mint-gcc -m68030 -O2| B["M68K Binary (build/bin/ping)"]
-        C["RPM Spec Template (staging/rpm/templates/ping.spec)"] --> D["sam_tt030_rpm_builder.py"]
-        B --> D
-        D -->|Generate \xed\xab\xee\xdb Lead & Headers| E["SpareMiNT RPM Package (ping-1.0.0-1.m68kmint.rpm)"]
-        E -->|Run Automated Harness| F["Integration Test Suite (scripts/test_e2e_ping_rpm.py)"]
+flowchart LR
+    subgraph fractal ["fractal (build host)"]
+        A["scripts/build_*.sh<br/>m68k-atari-mint-gcc"] --> B["scripts/rpm_header.py<br/>write_rpm (v3, no rpmbuild)"]
+        B --> C["/mnt/vault/tt030/built/*.rpm"]
+        U["SpareMiNT upstream RPMs"] --> M["/mnt/vault/tt030/m68kmint/*.rpm"]
+        C --> I["scripts/tt_rpm.py index<br/>index.tsv"]
+        M --> I
     end
-
-    subgraph Network ["WiFi / DaynaPORT Network (192.168.0.30)"]
-        E -->|SCP Transfer over SSH| G["Target Staging Area (/tmp/ping-1.0.0-1.m68kmint.rpm)"]
+    subgraph nas ["NAS /vault/tt030 (NFS from fractal)"]
+        I --> S["mirror files"]
     end
-
-    subgraph Target ["Atari TT030 (FreeMiNT 1.19 / SpareMiNT)"]
-        G --> H["RPM Database Init (rpm --initdb)"]
-        H --> I["Register Header Records (rpm -ivh --justdb)"]
-        I --> J["Populated /var/lib/rpm/Packages"]
-        J --> K["Verification (rpm -q ping -> ping-1.0.0-1)"]
+    subgraph ct104 ["CT104 Caddy"]
+        S --> H["http://mirror.sam.int/tt030/<br/>LAN sources only"]
     end
-
-    style Host fill:#1e1e2e,stroke:#89b4fa,color:#cdd6f4
-    style Network fill:#181825,stroke:#f9e2af,color:#cdd6f4
-    style Target fill:#1e1e2e,stroke:#a6e3a1,color:#cdd6f4
+    subgraph tt ["Atari TT030"]
+        H -->|wget| R["rpm -i<br/>(UNIXMODE=/brUs)"]
+        Q["ttmqtt pub/sub"] <-->|"sam/tt030/build/*"| BR["mqtt.sam.int broker"]
+    end
 ```
 
+| Piece | Where | State (2026-09-21) |
+| :--- | :--- | :--- |
+| RPM header parser + v3 writer | `scripts/rpm_header.py`, `scripts/tt_rpm.py` (`index`, `synth`), `scripts/test_tt_rpm.py` | ✅ host tests pass (18); the TT's `rpm -qpi` / `-i` / `-e` / `-V` accept its output |
+| First cross-built package | `scripts/build_mawk.sh` → `mawk-1.3.4` | ✅ installed on the TT (the TT had no awk) |
+| Mirror | NAS `/vault/tt030`, served at `http://mirror.sam.int/tt030/` | ✅ live; upstream sync not yet run |
+| HTTP client | SpareMiNT `wget-1.9.1` | ✅ installed; 151 KB fetched in 4.85 s |
+| MQTT client | `src/ttmqtt.c` | ✅ installed from the mirror; both directions verified |
+| `yum` client, `ttbuildd` build-on-miss | — | not written |
+
+**TT traps found on the way (2026-09-21):**
+- **`UNIXMODE`:** a process without it opens files in text mode, so CRLF becomes LF. `openssl` then gives wrong digests, `rpm -i` fails with `cpio: read`, and `rpm -V` shows false MD5 flags. The kernel sets `/brUs` at boot, but Dropbear wiped it from ssh sessions, so `staging/HD10_OVERLAY/etc/rc.dropbear` now starts `dropbear -e`.
+- **`rpm --root` is not a sandbox:** SpareMiNT's patch turns `chroot()` into `chdir()`, so only the database moves and files land at their real paths.
+- **`RPMVERSION`:** a header without it makes rpm 3.0.6 on big-endian use its "broken MD5" routine. `write_rpm` writes the tag.
+
+*Superseded:* `scripts/sam_tt030_rpm_builder.py` and the `ping` spec workflow (`rpmbuild`-based, pre-plan) were not used; the plan requires the dependency-free writer above.
+
+---
 
 ## Hardware Profile
 - **CPU / FPU**: Motorola MC68030 @ 32 MHz · MC68882 FPU
