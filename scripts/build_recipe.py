@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 
 import rpm_header as R
@@ -51,7 +52,8 @@ def fetch(r):
     return f
 
 
-def run(cmd, cwd, env, log, timeout):
+def run(cmd, cwd, env, log, deadline):
+    timeout = max(1.0, deadline - time.monotonic())   # ONE budget for the whole build, not per step
     with open(log, "a") as fh:
         fh.write(f"$ {' '.join(cmd)}\n")
         fh.flush()
@@ -62,6 +64,7 @@ def run(cmd, cwd, env, log, timeout):
 
 
 def build(name, out_dir, timeout=600, progress=print):
+    deadline = time.monotonic() + timeout
     r = recipes().get(name)
     if r is None:
         raise LookupError(name)
@@ -83,10 +86,10 @@ def build(name, out_dir, timeout=600, progress=print):
                    AR=f"{T}-ar", RANLIB=f"{T}-ranlib", STRIP=f"{T}-strip", CFLAGS="-m68020-60 -O2",
                    SOURCE_DATE_EPOCH="0", LC_ALL="C")
         progress("configure")
-        run(["./configure", f"--host={T}", "--prefix=/usr", *r.get("configure_args", [])], src_dir, env, log, timeout)
+        run(["./configure", f"--host={T}", "--prefix=/usr", *r.get("configure_args", [])], src_dir, env, log, deadline)
         progress("make")
-        run(["make", f"-j{os.cpu_count()}"], src_dir, env, log, timeout)
-        run(["make", "install", f"DESTDIR={stage}"], src_dir, env, log, timeout)
+        run(["make", f"-j{os.cpu_count()}"], src_dir, env, log, deadline)
+        run(["make", "install", f"DESTDIR={stage}"], src_dir, env, log, deadline)
         progress("package")
         files, bins = [], {}
         for root, dirs, names in os.walk(stage):
@@ -98,7 +101,7 @@ def build(name, out_dir, timeout=600, progress=print):
                     files.append((rel, 0o160777, os.readlink(p).encode()))
                     continue
                 if open(p, "rb").read(2) == M68K_MAGIC:
-                    run([f"{T}-strip", p], src_dir, env, log, timeout)
+                    run([f"{T}-strip", p], src_dir, env, log, deadline)
                 data = open(p, "rb").read()
                 if data[:2] == M68K_MAGIC:
                     bins[rel] = hashlib.sha256(data).hexdigest()

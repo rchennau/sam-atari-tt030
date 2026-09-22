@@ -1,10 +1,12 @@
 {
-  "_comment": "tt030-rpm-pipeline FR-6: packages ttbuildd may cross-build. Each entry pins a source tarball by SHA-256; configure_args extend the autotools template (--host=m68k-atari-mint --prefix=/usr). A package absent here is queued for a human recipe, never guessed.",
+  "_comment": "tt030-rpm-pipeline FR-6: packages ttbuildd may cross-build. Each entry pins a source tarball by SHA-256; configure_args extend the autotools template (--host=m68k-atari-mint --prefix=/usr). A package absent here is queued for a human recipe, never guessed. Tried and removed 2026-09-21: GNU hello 2.12.3 (gnulib's error.h wrapper vs mintlib error.h: __GNUC_PREREQ undefined) needs a hand recipe.",
   "pv": {
     "version": "1.7.24",
     "url": "https://github.com/a-j-wood/pv/releases/download/v1.7.24/pv-1.7.24.tar.gz",
     "sha256": "3bf43c5809c8d50066eaeaea5a115f6503c57a38c151975b710aa2bee857b65e",
-    "configure_args": ["--disable-nls"],
+    "configure_args": [
+      "--disable-nls"
+    ],
     "summary": "pv - monitor the progress of data through a pipe"
   }
 }

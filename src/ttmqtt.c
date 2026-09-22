@@ -1,12 +1,16 @@
 /* ttmqtt — minimal MQTT 3.1.1 publish/subscribe for the TT (tt030-rpm-pipeline FR-4).
  *
  *   ttmqtt pub [-h host] [-r] [-u user -P pass] TOPIC MESSAGE
- *   ttmqtt sub [-h host] [-W secs] [-u user -P pass] TOPIC_FILTER
+ *   ttmqtt sub [-h host] [-W secs] [-k] [-S] [-E substr]... [-u user -P pass] TOPIC_FILTER
  *
- * sub prints "TOPIC PAYLOAD" for the FIRST message and exits 0; no message within -W seconds
- * (default 900) exits 1; any connection/protocol failure exits 2. One message is all the yum
- * client needs: it subscribes to sam/tt030/build/+/<request_id> and reads the verb from the topic,
- * so no JSON is parsed on the 68030. QoS 0 throughout, as ttmon.
+ * sub prints "TOPIC PAYLOAD" per message, flushed. By default it exits 0 after the FIRST message;
+ * with -E it keeps going until a message whose topic contains one of the -E strings (then exit 0),
+ * and with -k until -W expires. No (terminal) message within -W seconds (default 900) exits 1; any
+ * connection/protocol failure exits 2. -W restarts on every message, so it bounds silence.
+ * -S prints "SUBSCRIBED" once the broker acknowledges, so a caller can publish a request only
+ * after its reply subscription is live (a fast reply is otherwise lost as a false timeout).
+ * The yum client runs `sub -E /done/ -E /failed/ -E /queued/ sam/tt030/build/+/<request_id>` and
+ * reads the verb from the topic, so no JSON is parsed on the 68030. QoS 0 throughout, as ttmon.
  *
  * Host defaults to the NAME mqtt.sam.int: the TT's /etc/hosts pins it to CT104's LAN address
  * (sam.int from the router is tailnet-only), so no IP lives in this binary.
@@ -152,7 +156,7 @@ static int mqtt_connect(const char *host, const char *user, const char *pass)
 static int usage(void)
 {
     fprintf(stderr, "usage: ttmqtt pub [-h host] [-r] [-u user -P pass] TOPIC MESSAGE\n"
-                    "       ttmqtt sub [-h host] [-W secs] [-u user -P pass] TOPIC_FILTER\n");
+                    "       ttmqtt sub [-h host] [-W secs] [-k] [-S] [-E substr]... [-u user -P pass] TOPIC_FILTER\n");
     return 2;
 }
 
@@ -160,7 +164,8 @@ int main(int argc, char **argv)
 {
     const char *host = "mqtt.sam.int", *user = NULL, *pass = NULL;
     long wait = 900;
-    int retain = 0, i, s, sub;
+    int retain = 0, keep = 0, announce = 0, nstop = 0, i, s, sub;
+    const char *stop[8];
     static unsigned char pkt[8192];
 
     if (argc < 2)
@@ -171,6 +176,10 @@ int main(int argc, char **argv)
     for (i = 2; i < argc && argv[i][0] == '-'; i++) {
         if (!strcmp(argv[i], "-r"))
             retain = 1;
+        else if (!strcmp(argv[i], "-k"))
+            keep = 1;
+        else if (!strcmp(argv[i], "-S"))
+            announce = 1;
         else if (i + 1 >= argc)
             return usage();
         else if (!strcmp(argv[i], "-h"))
@@ -181,6 +190,8 @@ int main(int argc, char **argv)
             user = argv[++i];
         else if (!strcmp(argv[i], "-P"))
             pass = argv[++i];
+        else if (!strcmp(argv[i], "-E") && nstop < 8)
+            stop[nstop++] = argv[++i];
         else
             return usage();
     }
@@ -213,6 +224,10 @@ int main(int argc, char **argv)
             fprintf(stderr, "ttmqtt: SUBACK missing or refused\n");
             return 2;
         }
+        if (announce) {
+            puts("SUBSCRIBED");
+            fflush(stdout);
+        }
         for (;;) {
             int r = wait_readable(s, wait);
             if (r == 0) {
@@ -222,16 +237,26 @@ int main(int argc, char **argv)
             if (r < 0 || (type = read_packet(s, pkt, sizeof pkt, &len)) < 0)
                 return 2;
             if ((type & 0xf0) == 0x30) {             /* PUBLISH (QoS 0: no packet id) */
-                int tl = (pkt[0] << 8) | pkt[1];
+                int tl = (pkt[0] << 8) | pkt[1], j, done = !keep && !nstop;
+                char save;
                 if (tl + 2 > len)
                     return 2;
                 fwrite(pkt + 2, 1, tl, stdout);
                 putchar(' ');
                 fwrite(pkt + 2 + tl, 1, len - 2 - tl, stdout);
                 putchar('\n');
-                send_all(s, (const unsigned char *)"\xe0\x00", 2);
-                close(s);
-                return 0;
+                fflush(stdout);
+                save = pkt[2 + tl];
+                pkt[2 + tl] = 0;                     /* topic as a C string for the -E match */
+                for (j = 0; j < nstop; j++)
+                    if (strstr((char *)pkt + 2, stop[j]))
+                        done = 1;
+                pkt[2 + tl] = save;
+                if (done) {
+                    send_all(s, (const unsigned char *)"\xe0\x00", 2);
+                    close(s);
+                    return 0;
+                }
             }
         }
     }
