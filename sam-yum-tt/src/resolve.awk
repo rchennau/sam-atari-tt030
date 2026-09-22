@@ -13,6 +13,7 @@
 # version compare happens here.
 # ponytail: versioned requires are not in the index; add rpmvercmp when one is.
 FNR == NR { inst[$1] = 1; next }
+/^#/ { next }                                   # "#serial" header line
 {
     ver[$1] = $2 "-" $3; path[$1] = $5; size[$1] = $6; sha[$1] = $7; req[$1] = $8
     n = split($9, p, ",")

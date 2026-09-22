@@ -62,11 +62,22 @@ def test_index_fields_and_file_provides(tmp_path, monkeypatch):
     assert tt_rpm.cmd_index(str(tmp_path)) == 0
     pub = subprocess.run(["openssl", "rsa", "-in", str(key), "-pubout"], capture_output=True, check=True).stdout
     (tmp_path / "k.pub").write_bytes(pub)
-    v = subprocess.run(["openssl", "dgst", "-sha256", "-verify", str(tmp_path / "k.pub"), "-signature",
-                        str(tmp_path / "index.tsv.sig"), str(tmp_path / "index.tsv")], capture_output=True)
-    assert v.returncode == 0                                   # the command the TT runs accepts it
+    signed = (tmp_path / "index.signed").read_bytes()          # split exactly as the TT client does
+    (tmp_path / "s.sig").write_bytes(signed[:256])
+    (tmp_path / "s.tsv").write_bytes(signed[256:])
+    verify = ["openssl", "dgst", "-sha256", "-verify", str(tmp_path / "k.pub"), "-signature",
+              str(tmp_path / "s.sig"), str(tmp_path / "s.tsv")]
+    assert subprocess.run(verify, capture_output=True).returncode == 0
+    assert signed[256:] == (tmp_path / "index.tsv").read_bytes()
+    serial = int(signed[256:].split(b"\n")[0].split(b"\t")[1])
+    assert tt_rpm.cmd_index(str(tmp_path)) == 0                # re-index: serial strictly increases
+    assert int((tmp_path / "index.tsv").read_text().split("\n")[0].split("\t")[1]) > serial
+    body = bytearray(signed[256:])
+    body[-2] ^= 1                                              # tampered body: one bit flipped
+    (tmp_path / "s.tsv").write_bytes(bytes(body))
+    assert subprocess.run(verify, capture_output=True).returncode != 0
     rows = {line.split("\t")[0]: line.split("\t")
-            for line in (tmp_path / "index.tsv").read_text().splitlines()}
+            for line in (tmp_path / "index.tsv").read_text().splitlines() if not line.startswith("#")}
     assert all(len(r) == 9 for r in rows.values())
     assert rows["gzip"][1:4] == ["1.3", "1", "m68kmint"]
     assert "/bin/sh" in rows["bash"][8].split(",")      # file-provide, required by many

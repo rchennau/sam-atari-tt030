@@ -1,7 +1,7 @@
 #!/bin/sh
 # yum — package installs on the Atari TT from the SAM mirror (tt030-rpm-pipeline FR-3).
 #
-#   yum makecache              fetch index.tsv + index.tsv.sig, verify the signature
+#   yum makecache              fetch index.signed, verify signature + serial (no replay)
 #   yum list [PATTERN]         name version-release of mirror packages (all, or matching)
 #   yum search PATTERN         like list, matching name or provides
 #   yum install [--nodeps] PKG...
@@ -12,7 +12,7 @@
 # Then one plain `rpm -i` over the set (rpm orders it). An unmet requirement is reported and the
 # install stops; --nodeps is the operator saying "install anyway".
 # Exit: 0 done · 1 failure (message says which) · 2 usage.
-MIRROR=http://mirror.sam.int/tt030
+MIRROR=${MIRROR:-http://mirror.sam.int/tt030}
 CACHE=/var/cache/yum.tt
 KEY=/etc/yum.tt/index.pub
 LIB=/usr/lib/yum.tt
@@ -26,13 +26,24 @@ die() { echo "yum: $*" >&2; exit 1; }
 sha256() { openssl dgst -sha256 "$1" | sed 's/.*= //'; }
 
 makecache() {
+    # index.signed = 256-byte RSA signature + index (one GET, so never a mismatched pair); the
+    # index's first line is "#serial<TAB>N". A lower N than the last accepted is a replay.
     mkdir -p "$CACHE" || die "cannot create $CACHE"
-    wget -q -T 60 -O "$CACHE/index.tsv.new" "$MIRROR/index.tsv" || die "cannot fetch $MIRROR/index.tsv"
-    wget -q -T 60 -O "$CACHE/index.tsv.sig.new" "$MIRROR/index.tsv.sig" || die "cannot fetch index.tsv.sig"
-    openssl dgst -sha256 -verify "$KEY" -signature "$CACHE/index.tsv.sig.new" "$CACHE/index.tsv.new" \
-        >/dev/null 2>&1 || { rm -f "$CACHE"/index.tsv*.new; die "index signature does NOT verify — refusing it"; }
-    mv "$CACHE/index.tsv.new" "$CACHE/index.tsv" && mv "$CACHE/index.tsv.sig.new" "$CACHE/index.tsv.sig"
-    echo "yum: index verified, $(wc -l < "$CACHE/index.tsv") packages"
+    t=$CACHE/new
+    wget -q -T 60 -O "$t.signed" "$MIRROR/index.signed" || { rm -f "$t".*; die "cannot fetch $MIRROR/index.signed"; }
+    head -c 256 "$t.signed" > "$t.sig" && tail -c +257 "$t.signed" > "$t.tsv"
+    openssl dgst -sha256 -verify "$KEY" -signature "$t.sig" "$t.tsv" >/dev/null 2>&1 \
+        || { rm -f "$t".*; die "index signature does NOT verify — refusing it"; }
+    new=$(sed -n '1s/^#serial	//p' "$t.tsv")
+    old=$(cat "$CACHE/serial" 2>/dev/null || echo 0)
+    case $new in ''|*[!0-9]*) rm -f "$t".*; die "index has no serial — refusing it" ;; esac
+    if [ "$new" -lt "$old" ]; then
+        rm -f "$t".*; die "index serial $new is older than $old already seen — refusing a replay"
+    fi
+    mv "$t.tsv" "$CACHE/index.tsv" && echo "$new" > "$CACHE/serial"
+    rm -f "$t".*
+    [ "$new" = "$old" ] && echo "yum: index unchanged (serial $new)" \
+        || echo "yum: index verified, serial $new, $(grep -vc '^#' "$CACHE/index.tsv") packages"
 }
 
 need_cache() { [ -f "$CACHE/index.tsv" ] || makecache; }
@@ -45,7 +56,7 @@ list|search)
     need_cache
     [ "$cmd" = search ] && [ -z "$1" ] && { echo "usage: yum search PATTERN" >&2; exit 2; }
     awk -F'\t' -v pat="$1" -v s="$cmd" \
-        '(pat == "" || index($1, pat) || (s == "search" && index($9, pat))) { print $1 "\t" $2 "-" $3 }' \
+        '/^#/ { next } (pat == "" || index($1, pat) || (s == "search" && index($9, pat))) { print $1 "\t" $2 "-" $3 }' \
         "$CACHE/index.tsv"
     ;;
 remove)

@@ -100,6 +100,18 @@ def cmd_keygen():
     return 0
 
 
+def serial_for(mirror):
+    """Strictly greater than the serial already published (clock steps backwards are survived)."""
+    import time
+    try:
+        with open(os.path.join(mirror, "index.tsv")) as fh:
+            first = fh.readline().split("\t")
+        prev = int(first[1]) if first[0] == "#serial" else 0
+    except (OSError, ValueError, IndexError):
+        prev = 0
+    return max(int(time.time()), prev + 1)
+
+
 def cmd_index(mirror):
     import subprocess
     pkgs, bad = scan(mirror)
@@ -112,13 +124,20 @@ def cmd_index(mirror):
         print(f"index NOT written: no signing key {SIGN_KEY} (tt_rpm.py keygen)", file=sys.stderr)
         return 1
     out = os.path.join(mirror, "index.tsv")
-    with open(out + ".tmp", "w") as fh:
-        fh.write(build_index(pkgs))
-    subprocess.run(["openssl", "dgst", "-sha256", "-sign", SIGN_KEY, "-out", out + ".sig.tmp", out + ".tmp"],
-                   check=True)
-    # ponytail: two renames, not atomic as a pair; a client racing them fails verify and re-runs.
-    os.replace(out + ".sig.tmp", out + ".sig")
-    os.replace(out + ".tmp", out)
+    # NFR-4: ONE file, index.signed = 256-byte RSA signature + index, replaced atomically, so a GET
+    # can never pair a new index with an old signature. The first line carries a monotonic serial
+    # the client compares with the last one it accepted (replay of an older signed index).
+    body = f"#serial\t{serial_for(mirror)}\n{build_index(pkgs)}".encode()
+    sig = subprocess.run(["openssl", "dgst", "-sha256", "-sign", SIGN_KEY], input=body,
+                         capture_output=True, check=True).stdout
+    assert len(sig) == 256, "index-sign.key must be RSA-2048 (client splits at 256 bytes)"
+    for name, data in (("index.signed", sig + body), ("index.tsv", body)):   # index.tsv: human copy
+        with open(os.path.join(mirror, name + ".tmp"), "wb") as fh:
+            fh.write(data)
+        os.replace(os.path.join(mirror, name + ".tmp"), os.path.join(mirror, name))
+    stale = os.path.join(mirror, "index.tsv.sig")
+    if os.path.exists(stale):
+        os.remove(stale)
     print(f"{out}: {len(pkgs)} RPMs scanned, signed")
     return 0
 
