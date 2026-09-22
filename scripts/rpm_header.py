@@ -124,7 +124,7 @@ def _cpio(files):
     return out
 
 
-def write_rpm(name, version, release, files, summary="", requires_=(), provides=()):
+def write_rpm(name, version, release, files, summary="", requires_=(), provides=(), description=""):
     """Build a v3 m68kmint binary RPM. files: list of (abs_path, mode, body).
 
     Symlinks are passed with MiNT's S_IFLNK 0160000 (what SpareMiNT's own payloads use,
@@ -137,7 +137,7 @@ def write_rpm(name, version, release, files, summary="", requires_=(), provides=
     main = [
         (I18NTABLE, T_STRING_ARRAY, ["C"]),
         (NAME, T_STRING, name), (VERSION, T_STRING, version), (RELEASE, T_STRING, release),
-        (SUMMARY, T_I18N, [summary or name]), (DESCRIPTION, T_I18N, [summary or name]),
+        (SUMMARY, T_I18N, [summary or name]), (DESCRIPTION, T_I18N, [description or summary or name]),
         (SIZE, T_INT32, [sum(len(b) for _, _, b in files)]),
         (GROUP, T_I18N, ["sam/built"]), (OS, T_STRING, "mint"), (ARCH, T_STRING, "m68kmint"),
         (FILENAMES, T_STRING_ARRAY, [p for p, _, _ in files]),
