@@ -8,16 +8,22 @@ LOCAL=${2:?usage: tt_get.sh <remote> <local>}
 HOST=${TT_HOST:-atari-tt}
 # Stage through the RAM disk: disk I/O concurrent with a DaynaPORT send kills the send (measured
 # 2026-09-22, NFR-2 426 root cause), so copy to /ram first and send with the disk idle.
-# ponytail: file must fit in /ram (TT-RAM, ~60 MiB free); stream from disk + retry if that ever bites.
+# ponytail: file must fit in /ram (TT-RAM, ~60 MiB free); stream from disk if that ever bites.
+# /ram only narrows the window: a send can still die if the disk is busy for another reason (1 of 10
+# failed from /ram, 2026-09-22), so retry once. A missing file costs one extra login.
 err=$(mktemp)
-timeout "${TT_TIMEOUT:-180}" ssh -o ConnectTimeout="${TT_CONNECT:-90}" "$HOST" \
-    "t=/ram/tt_get.\$\$; cp '$REMOTE' \$t || exit 3; echo TTGET_SIZE=\$(wc -c < \$t) >&2; cat \$t; rm -f \$t" > "$LOCAL" 2> "$err"
-want=$(sed -n "s/^TTGET_SIZE= *//p" "$err")
-n=$(stat -c%s "$LOCAL" 2>/dev/null || echo 0)
-if [ "$n" -eq 0 ] || [ "$n" != "$want" ]; then
-    echo "tt_get: read of $REMOTE got $n of ${want:-?} bytes — refusing (login timeout, missing file, or /ram full)" >&2
-    grep -v ^TTGET_SIZE= "$err" >&2; rm -f "$LOCAL" "$err"
-    exit 1
-fi
-rm -f "$err"
-echo "tt_get: $REMOTE -> $LOCAL ($n bytes)"
+for try in 1 2; do
+    timeout "${TT_TIMEOUT:-180}" ssh -o ConnectTimeout="${TT_CONNECT:-90}" "$HOST" \
+        "t=/ram/tt_get.\$\$; cp '$REMOTE' \$t || exit 3; echo TTGET_SIZE=\$(wc -c < \$t) >&2; cat \$t; rm -f \$t" > "$LOCAL" 2> "$err"
+    want=$(sed -n "s/^TTGET_SIZE= *//p" "$err")
+    n=$(stat -c%s "$LOCAL" 2>/dev/null || echo 0)
+    if [ "$n" -gt 0 ] && [ "$n" = "$want" ]; then
+        rm -f "$err"
+        echo "tt_get: $REMOTE -> $LOCAL ($n bytes)"
+        exit 0
+    fi
+    echo "tt_get: try $try: read of $REMOTE got $n of ${want:-?} bytes" >&2
+done
+echo "tt_get: refusing $REMOTE after 2 tries (login timeout, missing file, or /ram full)" >&2
+grep -v ^TTGET_SIZE= "$err" >&2; rm -f "$LOCAL" "$err"
+exit 1
