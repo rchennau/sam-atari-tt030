@@ -37,7 +37,7 @@ reset vector with the memory-valid markers cleared, so the restart takes the ful
 
 ## Transfers to the card: use the verified helpers
 
-`scripts/tt_put.sh <local> <remote>` and `scripts/tt_get.sh <remote> <local>` refuse empty reads and
+`scripts/tt_put.sh <local> <remote>` and `scripts/tt_get.sh <remote> <local>` refuse short reads and (`tt_get.sh` stages through `/ram` so the disk is idle while the DaynaPORT sends — disk I/O during a send kills it, 2026-09-22)
 verify a write by reading it back. A timed-out SSH login returns zero bytes, which once overwrote
 the live `XBOOT.CFG` with a 9-byte file. Never `ssh … 'cat > …'` by hand.
 

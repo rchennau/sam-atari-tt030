@@ -89,7 +89,7 @@ FreeMiNT boots from `--scsi` images.
 |---|---|
 | `tt_reboot.sh [--wait-back]` | restart the TT (~45 s); FreeMiNT here has no `reboot` binary |
 | `tt_put.sh <local> <remote>` | copy to the card and verify by reading back |
-| `tt_get.sh <remote> <local>` | fetch from the card, refusing an empty read |
+| `tt_get.sh <remote> <local>` | fetch from the card via `/ram` (avoids the 426 disk-vs-DaynaPORT send failure), refusing a short read |
 
 ## Build
 
