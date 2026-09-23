@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ttkbd_send.py — fractal side of the TT030 remote keyboard (track tt030-remote-keyboard, Phase 2).
+"""ttkbd_send.py — fractal side of the TT030 remote keyboard (track tt030-remote-keyboard, Phases 2-3).
 
 Connects to ttkbdd on the TT, runs the handshake, then sends encrypted key frames.
 
@@ -7,6 +7,9 @@ Connects to ttkbdd on the TT, runs the handshake, then sends encrypted key frame
                                              and print the 32-byte public key hex for /etc/ttkbd.pub
   ttkbd_send.py type "text"                  type text (UK layout subset), then close
   ttkbd_send.py frames HEX...                send raw frames: each HEX is scancode|flags<<8 (e.g. 2a 1e 19e)
+  ttkbd_send.py grab [--device PATH]         capture fractal's keyboard (evdev, exclusive grab) and type on
+                                             the TT until Right Ctrl + Right Alt + Esc; needs read access to
+                                             the event device (root:input 660 on fractal)
   options: --host 192.168.0.30 --port 7590 --hold SECONDS (keep the session open, heartbeats on)
 
 Wire (all TT-side reads are fixed sizes):
@@ -144,17 +147,82 @@ class Session:
         self.s.close()
 
 
+# Linux evdev keycode -> Atari scancode (FR-5). Linux 1-68 are PC set-1 codes, which the Atari IKBD
+# shares for the main block and F1-F10; the rest differ and are listed explicitly.
+EV2ST = {c: c for c in range(1, 69)}
+EV2ST.update({
+    97: 0x1D, 100: 0x38,                       # Right Ctrl/Alt -> the TT's single Control/Alternate
+    103: 0x48, 108: 0x50, 105: 0x4B, 106: 0x4D,  # cursor up/down/left/right
+    102: 0x47, 110: 0x52, 111: 0x53,           # Home -> Clr/Home, Insert, Delete
+    87: 0x61, 88: 0x62, 138: 0x62,             # F11 -> Undo, F12 -> Help, KEY_HELP -> Help
+    86: 0x60,                                  # UK 102nd key (\ |)
+    71: 0x67, 72: 0x68, 73: 0x69,              # keypad 7 8 9
+    75: 0x6A, 76: 0x6B, 77: 0x6C,              # keypad 4 5 6
+    79: 0x6D, 80: 0x6E, 81: 0x6F,              # keypad 1 2 3
+    82: 0x70, 83: 0x71, 96: 0x72,              # keypad 0 . Enter
+    98: 0x65, 55: 0x66, 74: 0x4A, 78: 0x4E,    # keypad / * - +
+})
+RELEASE_CHORD = {97, 100, 1}                   # Right Ctrl + Right Alt + Esc
+
+
+class KeyPump:
+    """Turns evdev (code, value) events into TT frames. value: 1 down, 0 up, 2 autorepeat (dropped —
+    the TT repeats a held make itself, and forwarding repeats would double keys)."""
+
+    def __init__(self, send):
+        self.send, self.down = send, set()
+
+    def event(self, code, value):
+        """-> False when the release chord was pressed (caller ends the session)."""
+        if value == 2:
+            return True
+        if value == 1:
+            self.down.add(code)
+            if RELEASE_CHORD <= self.down:
+                return False
+        else:
+            self.down.discard(code)
+        sc = EV2ST.get(code)
+        if sc is not None:
+            self.send(sc, 0 if value == 1 else F_BREAK)
+        return True
+
+
+def grab(host, port, device):
+    import select
+    import evdev  # python3-evdev (system python on fractal)
+    dev = evdev.InputDevice(device)
+    sess = Session(host, port)
+    dev.grab()  # keys stop typing on fractal while the session runs
+    pump = KeyPump(sess.send)
+    print("ttkbd_send: typing on the TT — Right Ctrl + Right Alt + Esc to stop", file=sys.stderr)
+    try:
+        while True:
+            r, _, _ = select.select([dev.fd], [], [], 0.5)
+            if r:
+                for ev in dev.read():
+                    if ev.type == evdev.ecodes.EV_KEY and not pump.event(ev.code, ev.value):
+                        return
+            sess.heartbeat_if_due()
+    finally:
+        dev.ungrab()
+        sess.close()  # the TT releases every held key when the session closes (FR-6)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["keygen", "type", "frames"])
+    ap.add_argument("cmd", choices=["keygen", "type", "frames", "grab"])
     ap.add_argument("args", nargs="*")
     ap.add_argument("--host", default="192.168.0.30")  # sam.int-exception: the TT has no DNS record
     ap.add_argument("--port", type=int, default=7590)
     ap.add_argument("--hold", type=float, default=0.0)
     ap.add_argument("--delay", type=float, default=0.0, help="seconds between frames")
+    ap.add_argument("--device", default="/dev/input/by-id/usb-05ac_KB104_Dongle-event-kbd")
     a = ap.parse_args()
     if a.cmd == "keygen":
         return keygen()
+    if a.cmd == "grab":
+        return grab(a.host, a.port, a.device)
     frames = text_frames(" ".join(a.args).replace("\\n", "\n")) if a.cmd == "type" else \
         [(int(h, 16) & 0xFF, int(h, 16) >> 8) for h in a.args]
     t0 = time.monotonic()
