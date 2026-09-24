@@ -26,7 +26,7 @@ Each custom software component contains its own dedicated project directory, REA
 5. **[`sam-rom-tt`](sam-rom-tt/README.md)** — *alpha skeleton, unproven*: custom (no-TOS) 512 KB firmware for the four ROM sockets, plus the byte-lane interleave tool. Nothing here is proven to run; do not burn from it.
 6. **[`ttmqtt`](src/ttmqtt.c)**: Minimal MQTT 3.1.1 `pub` / `sub -W secs` for shell scripts (113 KB). `sub` prints the first message's topic and payload; exit 0 message, 1 timeout, 2 error. Broker by name (`mqtt.sam.int`, pinned in the TT's `/etc/hosts`). Carries build-on-miss requests and replies.
 7. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
-8. **[`sam-kbd-tt`](sam-kbd-tt/README.md)** — **working on the real TT, started at boot**: fractal's keyboard types on the TT as if it were the TT's own (XaAES, TeraDesk, TosWin2), alongside the physical keyboard — which has a dead space bar, M key, Alt and Left Control. `ttkbdd` injects through FreeMiNT's kbdvec path over a signed, XChaCha20-Poly1305-encrypted TCP session; `ttkbd_send.py grab` captures the keyboard (track `tt030-remote-keyboard`).
+8. **[`sam-kbd-tt`](sam-kbd-tt/README.md)** — **keyboard and mouse working on the real TT, started at boot**: fractal's keyboard and mouse drive the TT as if they were its own (XaAES, TeraDesk, TosWin2), alongside the physical keyboard — which has a dead space bar, M key, Alt and Left Control. `ttkbdd` injects through FreeMiNT's kbdvec / mousevec paths over a raw serial link or a signed, XChaCha20-Poly1305-encrypted TCP session; one command on fractal, `scripts/ttkbd-session.sh`; the TT's top-right corner hands control back (track `tt030-remote-keyboard`).
 ---
 
 ## Software Stack & Subsystem Directory
@@ -47,7 +47,7 @@ Each custom software component contains its own dedicated project directory, REA
 ├── sam-scp-tt/                # Transputer-assisted SCP acceleration bridge project & docs
 ├── sam-rom-tt/                # ALPHA skeleton: custom no-TOS TT030 firmware (512 KB, 4 byte-lane chips)
 ├── sam-yum-tt/                # the TT-side yum client (+ the T425 SHA-256 probe that ruled out offload)
-├── sam-kbd-tt/                # remote keyboard: README (sources in src/ttkbdd.c, src/kbdinj.c, scripts/ttkbd_send.py)
+├── sam-kbd-tt/                # remote keyboard + mouse: README (sources: src/ttkbdd.c, src/kbdinj.c, scripts/ttkbd_send.py, scripts/ttkbd-session.sh)
 └── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
 ```
 
@@ -136,15 +136,18 @@ Full operator guide: `docs/runbooks/tt030-packages.md` in the SAM monorepo.
 
 ---
 
-## Remote Keyboard (track `tt030-remote-keyboard`)
+## Remote Keyboard and Mouse (track `tt030-remote-keyboard`)
 
 ```mermaid
 flowchart LR
-    K["KB104 keyboard<br/>(evdev, uaccess)"] --> SND["ttkbd_send.py grab<br/>Linux key -> Atari scancode"]
-    SND -->|"TCP :7590<br/>X25519 + Ed25519 handshake<br/>XChaCha20-Poly1305 frames"| D["ttkbdd"]
-    D -->|"Supexec: kbdvec slot<br/>(Kbdvbase()-4)"| KB["FreeMiNT ikbd_scan()"]
-    TTK["TT keyboard"] --> KB
+    K["KB104 keyboard + Logitech mouse<br/>(evdev, uaccess)"] --> SND["ttkbd_send.py grab --mouse<br/>(ttkbd-session.sh)"]
+    SND -->|"serial Modem 2, 38400, raw<br/>or TCP :7590 X25519 + Ed25519<br/>XChaCha20-Poly1305"| D["ttkbdd"]
+    D -->|"kbdvec slot (Kbdvbase()-4)"| KB["FreeMiNT ikbd_scan()"]
+    D -->|"mousevec"| MS["VDI / AES pointer"]
+    TTK["TT keyboard + mouse"] --> KB
     KB --> APP["XaAES / TosWin2 / console"]
+    MS --> APP
+    D -.->|"0x05: pointer in the TT's top-right corner"| SND
 ```
 
 | Piece | Where | State (2026-09-23) |
@@ -153,7 +156,9 @@ flowchart LR
 | Key table swap (remote `;` `[`) | `Ssystem(S_LOADKBD)` in `ttkbdd` | ✅ unpatched UK table during a session, space remap restored after |
 | Encrypted session | `ttkbdd` listener + `scripts/ttkbd_send.py` | ✅ forged / tampered / replayed input never typed; 3 s silence releases keys |
 | Reliability / CPU | 2,700-key run at 15 keys/s; ttkbdd CPU at 10 keys/s | 🟡 2,700 and 2,699 of 2,700; 10.8–11.2 % (target 10 %) |
-| Raw serial (D4) | `ttkbdd -S` exec'd from the Modem 2 console; `ttkbd_send.py --serial` | 🟡 9.3 % CPU; 600/600 keys; 2,690/2,700 at 15 keys/s |
+| Raw serial (D4) | `ttkbdd -S` exec'd from the Modem 2 console; `ttkbd_send.py --serial` | 🟡 9.3 % CPU; 600/600 keys; 2,690/2,700 at 15 keys/s; latency median 6 ms |
+| Mouse | `mousevec` injection, protocol v2 frames, `--mouse` | ✅ exact motion (4 px/unit), TT hot corner hands back; operator-confirmed live |
+| One command | `scripts/ttkbd-session.sh` (serial default, `--wifi`) | ✅ restores the Modem 2 console on the chord or hot corner |
 | fractal capture | `ttkbd_send.py grab`, `scripts/ttkbd-session.sh`, iac/fractal uaccess rule | ✅ operator confirmed the live session works (2026-09-23) |
 | Start at boot | `/etc/rc.ttkbdd` + `mint.cnf` exec line | ✅ on the card; after a reboot ttkbdd was PID 19, listening |
 

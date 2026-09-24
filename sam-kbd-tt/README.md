@@ -1,9 +1,11 @@
-# SAM KBD TT (`sam-kbd-tt`) — fractal's keyboard as the Atari TT030's keyboard
+# SAM KBD TT (`sam-kbd-tt`) — fractal's keyboard and mouse as the Atari TT030's own
 
-> **Status: working on the real TT and started at boot (2026-09-23); ~1 key in 2,700 can still be lost.** Keys typed on fractal reach XaAES,
-> TeraDesk and TosWin2 exactly as if typed on the TT's own keyboard — including Alt, Control, F-keys
-> and the space bar, which the TT's physical keyboard cannot send (space and M are dead, Alt and Left
-> Control unusable). The attached keyboard keeps working alongside.
+> **Status: keyboard and mouse working on the real TT, operator-confirmed (2026-09-23); ttkbdd starts at
+> boot; ~1 key in 2,700 can still be lost at fast typing.** Keys typed on fractal reach XaAES, TeraDesk and
+> TosWin2 exactly as if typed on the TT's own keyboard — including Alt, Control, F-keys and the space bar,
+> which the TT's physical keyboard cannot send (space and M are dead, Alt and Left Control unusable) — and
+> fractal's mouse drives the TT pointer. Moving the TT pointer into its top-right corner hands control
+> back. The attached keyboard and mouse keep working alongside.
 
 `sam-kbd-tt` is the plan `tt030-remote-keyboard` in the SAM monorepo
 (`maestro/tracks/tt030-remote-keyboard/`, approved 2026-09-23, decisions D1 direct TCP, D2 swap the key
@@ -93,9 +95,10 @@ ungrabs and ends the session (serial: the console returns). `ttkbdd -c N` picks 
 | Pointer into the top-right corner | 1023,0, `0x05` received | `0x05` received |
 | Keys still acked | yes | — |
 
-Not yet: a live run with the real mouse (needs the uaccess rule re-installed — it now covers the
-Logitech receiver), button click / release checks (FR-11), and a hot corner on **fractal's** screen
-(COSMIC is Wayland: a client cannot see the global pointer; trigger is the chord for now).
+**Live run with the real mouse: works (operator, 2026-09-23)**, after re-installing the uaccess rule, which
+now covers the Logitech receiver. Not yet: a separate button click / release check (FR-11), the mouse's
+CPU cost on the TT, and a hot corner on **fractal's** screen to *take* control (COSMIC is Wayland: a
+client cannot see the global pointer; `ttkbd-session.sh` starts a session for now).
 
 ## Raw serial transport (decision D4, 2026-09-23)
 
