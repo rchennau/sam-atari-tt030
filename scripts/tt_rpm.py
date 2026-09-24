@@ -8,8 +8,8 @@
   tt_rpm.py push MIRROR PKG... --host H [--nodeps]   install on a TT that cannot reach the mirror
   tt_rpm.py synth OUT.rpm    write the Phase-1 format-gate test RPM (symlink + mode-0750 file)
 
-index.tsv: name version release arch path size sha256 requires(csv) provides(csv), one package
-per line so the TT reads it with awk. A malformed RPM is named on stderr and the run exits 1
+index.tsv: name version release arch path size sha256 requires(csv) provides(csv) cmds(csv), one
+package per line so the TT reads it with awk. A malformed RPM is named on stderr and the run exits 1
 WITHOUT writing: the index never shrinks silently (FR-2).
 """
 import hashlib
@@ -91,6 +91,12 @@ def scan(mirror):
     return pkgs, bad
 
 
+def commands(files):
+    """Basenames of a package's */bin and */sbin files: `yum install top` has to find pstop, whose
+    name says nothing about the command it ships (2026-09-23). ~14 KB on the 419-package index."""
+    return sorted({f.rsplit("/", 1)[1] for f in files if f.rsplit("/", 1)[0].endswith(("/bin", "/sbin"))})
+
+
 def build_index(pkgs):
     best = {}
     for p in pkgs:
@@ -103,7 +109,7 @@ def build_index(pkgs):
         prov = dict.fromkeys([p["name"], *p["provides"], *sorted(wanted & set(p["files"]))])
         lines.append("\t".join([p["name"], p["version"], p["release"], p["arch"], p["path"],
                                 str(p["size"]), p["sha256"], ",".join(dict.fromkeys(p["requires"])),
-                                ",".join(prov)]))
+                                ",".join(prov), ",".join(commands(p["files"]))]))
     return "".join(line + "\n" for line in lines)
 
 

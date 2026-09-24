@@ -3,8 +3,8 @@
 #
 #   yum makecache              fetch index.signed, verify signature + serial (no replay)
 #   yum list [PATTERN]         name version-release of mirror packages (all, or matching)
-#   yum search PATTERN         like list, matching name or provides
-#   yum install [--nodeps] PKG...
+#   yum search PATTERN         like list, matching name, provides or commands
+#   yum install [--nodeps] [--build] PKG...
 #   yum update [PKG...]       rpm -U whatever the mirror has newer (all installed, or just PKG)
 #   yum remove PKG...
 #
@@ -12,13 +12,15 @@
 # drop never leaves half a closure installed; a re-run refetches only what is missing or bad.
 # Then one plain `rpm -i` over the set (rpm orders it). An unmet requirement is reported and the
 # install stops; --nodeps is the operator saying "install anyway".
+# A PKG not on the mirror lists near matches (a package shipping that command, a similar name) and
+# stops; with none, or with --build, sam is asked to build it (FR-4).
 # Exit: 0 done · 1 failure (message says which) · 2 usage.
 # bash, not /bin/sh: the TT's /bin/sh (bash-2.05a's minimal build, 307 KB) has no `kill` builtin and
 # there is no /bin/kill, so build-on-miss could not tell a live subscriber from a dead one.
 MIRROR=${MIRROR:-http://mirror.sam.int/tt030}
-CACHE=/var/cache/yum.tt
+CACHE=${CACHE:-/var/cache/yum.tt}
 KEY=/etc/yum.tt/index.pub
-LIB=/usr/lib/yum.tt
+LIB=${LIB:-/usr/lib/yum.tt}   # CACHE/LIB: overridable for host tests
 [ -f /etc/yum.tt.conf ] && . /etc/yum.tt.conf
 # Without UNIXMODE mintlib reads files in text mode (CRLF->LF): openssl mis-hashes, rpm -i fails
 # `cpio: read`. ssh sessions lacked it until rc.dropbear passed -e (2026-09-21); keep the guard.
@@ -146,7 +148,7 @@ list|search)
     need_cache
     [ "$cmd" = search ] && [ -z "$1" ] && { echo "usage: yum search PATTERN" >&2; exit 2; }
     awk -F'\t' -v pat="$1" -v s="$cmd" \
-        '/^#/ { next } (pat == "" || index($1, pat) || (s == "search" && index($9, pat))) { print $1 "\t" $2 "-" $3 }' \
+        '/^#/ { next } (pat == "" || index($1, pat) || (s == "search" && (index($9, pat) || index($10, pat)))) { print $1 "\t" $2 "-" $3 }' \
         "$CACHE/index.tsv"
     ;;
 update)
@@ -164,9 +166,12 @@ remove)
     rpm -e "$@"
     ;;
 install)
-    nodeps=
-    [ "$1" = --nodeps ] && { nodeps=--nodeps; shift; }
-    [ $# -gt 0 ] || { echo "usage: yum install [--nodeps] PKG..." >&2; exit 2; }
+    nodeps= build=
+    while :; do
+        case $1 in --nodeps) nodeps=--nodeps ;; --build) build=--build ;; *) break ;; esac
+        shift
+    done
+    [ $# -gt 0 ] || { echo "usage: yum install [--nodeps] [--build] PKG..." >&2; exit 2; }
     fresh_cache
     rpm -qa --queryformat '%{NAME}\n' > "$CACHE/installed" || die "rpm -qa failed"
     awk -F'\t' -v WANT="$*" -f "$LIB/resolve.awk" "$CACHE/installed" "$CACHE/index.tsv" > "$CACHE/plan" \
@@ -175,9 +180,23 @@ install)
         # One build round per invocation: YUM_BUILT stops a package that is still missing after a
         # "done" from triggering another build forever.
         [ -n "$YUM_BUILT" ] && { sed -n 's/^NOTFOUND /yum: still not on the mirror: /p' "$CACHE/plan" >&2; exit 1; }
+        # A name the mirror lacks is often a command or a typo (`top` ships in pstop, 2026-09-23):
+        # show near matches before asking sam to build anything.
+        if [ -z "$build" ]; then
+            miss=$(sed -n 's/^NOTFOUND //p' "$CACHE/plan" | tr '\n' ' ')
+            miss=${miss% }
+            awk -F'\t' -v WANT="$miss" -f "$LIB/near.awk" "$CACHE/index.tsv" > "$CACHE/near"
+            if [ -s "$CACHE/near" ]; then
+                awk '$2 != w { w = $2; print "yum: no package \"" w "\" on the mirror. Near matches:" }
+                     { printf "  %-20s %-14s %s\n", $3, $4,
+                       $5 == "cmd" ? "provides " w : ($5 == "name" ? "similar name" : "similar spelling") }' "$CACHE/near"
+                echo "yum: install one of those, or 'yum install --build $miss' to ask sam to build it"
+                exit 1
+            fi
+        fi
         for p in $(sed -n 's/^NOTFOUND //p' "$CACHE/plan"); do build_on_miss "$p"; done
         makecache
-        YUM_BUILT=1 exec "$0" install $nodeps "$@"
+        YUM_BUILT=1 exec "$0" install $nodeps $build "$@"
     fi
     if grep -q '^UNRESOLVED ' "$CACHE/plan"; then
         sed -n 's/^UNRESOLVED \([^ ]*\) \(.*\)/yum: nothing provides \1 (needed by \2)/p' "$CACHE/plan" >&2

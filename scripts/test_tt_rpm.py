@@ -79,7 +79,8 @@ def test_index_fields_and_file_provides(tmp_path, monkeypatch):
     assert subprocess.run(verify, capture_output=True).returncode != 0
     rows = {line.split("\t")[0]: line.split("\t")
             for line in (tmp_path / "index.tsv").read_text().splitlines() if not line.startswith("#")}
-    assert all(len(r) == 9 for r in rows.values())
+    assert all(len(r) == 10 for r in rows.values())
+    assert "gzip" in rows["gzip"][9].split(",")          # commands column: /bin, /usr/bin, /sbin basenames
     assert rows["gzip"][1:4] == ["1.3", "1", "m68kmint"]
     assert "/bin/sh" in rows["bash"][8].split(",")      # file-provide, required by many
     assert "/usr/bin/gzip" not in rows["gzip"][8]       # nobody requires it: bounded out
@@ -236,3 +237,34 @@ def test_update_awk_offers_only_newer(tmp_path):
                                           str(tmp_path / "ix")], capture_output=True, text=True, check=True).stdout
     assert run() == "GET less m/less.rpm s1 9\n"     # newer only; equal, older and not-installed skipped
     assert run("pv") == ""
+
+
+def test_near_awk_and_yum_install_lists_near_matches(tmp_path):
+    """`yum install top` found nothing and asked for a build (2026-09-23); top ships in pstop."""
+    import subprocess
+    src = os.path.join(os.path.dirname(__file__), "..", "sam-yum-tt", "src")
+    row = lambda n, cmds="", prov="": "\t".join([n, "1", "1", "m68kmint", f"m68kmint/{n}.rpm", "10",  # noqa: E731
+                                                 "s" + n, "", prov or n, cmds]) + "\n"
+    ix = tmp_path / "index.tsv"
+    ix.write_text("#serial\t1\n" + row("less", "less,lessecho") + row("pstop", "ps,top") + row("sed", "sed")
+                  + row("vim", "vi,vim") + row("vim-minimal", "vi") + row("fileutils", "ls,cp"))
+
+    def near(want):
+        return subprocess.run(["awk", "-F\t", "-v", f"WANT={want}", "-f", os.path.join(src, "near.awk"), str(ix)],
+                              capture_output=True, text=True, check=True).stdout.splitlines()
+    assert near("top") == ["NEAR top pstop 1-1 cmd"]
+    assert near("vi")[:2] == ["NEAR vi vim 1-1 cmd", "NEAR vi vim-minimal 1-1 cmd"]
+    assert near("lses")[0] == "NEAR lses less 1-1 spelling"
+    assert near("ls") == ["NEAR ls fileutils 1-1 cmd"]       # 2 chars: no substring noise
+    assert near("xyzzy") == []                                # nothing near: caller builds
+    # the client, on the host: rpm stubbed, no network (the index is fresh, so no makecache)
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "rpm").write_text("#!/bin/sh\nexit 0\n")
+    (bin_ / "rpm").chmod(0o755)
+    env = dict(os.environ, CACHE=str(tmp_path), LIB=src, PATH=f"{bin_}:{os.environ['PATH']}")
+    r = subprocess.run(["bash", os.path.join(src, "yum"), "install", "top"], env=env, capture_output=True, text=True)
+    assert r.returncode == 1
+    assert 'no package "top"' in r.stdout and "pstop" in r.stdout and "provides top" in r.stdout
+    assert "yum install --build top'" in r.stdout
+    assert "requesting a build" not in r.stdout + r.stderr    # no build asked for
