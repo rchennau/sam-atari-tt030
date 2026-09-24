@@ -1,7 +1,7 @@
 # SAM KBD TT (`sam-kbd-tt`) — fractal's keyboard and mouse as the Atari TT030's own
 
 > **Status: keyboard and mouse working on the real TT, operator-confirmed (2026-09-23); ttkbdd starts at
-> boot; ~1 key in 2,700 can still be lost at fast typing.** Keys typed on fractal reach XaAES, TeraDesk and
+> boot; about 1 key in 8,100 lost at fast typing (target ≤ 1 in 5,000).** Keys typed on fractal reach XaAES, TeraDesk and
 > TosWin2 exactly as if typed on the TT's own keyboard — including Alt, Control, F-keys and the space bar,
 > which the TT's physical keyboard cannot send (space and M are dead, Alt and Left Control unusable) — and
 > fractal's mouse drives the TT pointer. Moving the TT pointer into its top-right corner hands control
@@ -35,13 +35,18 @@ end; `Keytbl()` writes are ignored under MiNT, so the table swap uses `Ssystem(S
 ## Wire
 
 ```
-TT -> fractal   ver(1)=1 | challenge(16) | TT X25519 public key(32)
+TT -> fractal   ver(1)=3 | challenge(16) | TT X25519 public key(32)
 fractal -> TT   fractal X25519 public key(32) | Ed25519 signature(64) over challenge | both keys | "ttkbd1"
 key = BLAKE2b-256(X25519 shared | challenge | TT key | fractal key)
-fractal -> TT   mac(16) | ciphertext(2)   XChaCha20-Poly1305, nonce = 64-bit counter
-                plaintext {scancode, flags}; flags bit0 = key up, bit1 = heartbeat
+fractal -> TT   mac(16) | ciphertext(4)   XChaCha20-Poly1305, nonce = 16 zero bytes | 64-bit counter
+                plaintext {flags, code, dx, dy}: bit0 key up, bit1 heartbeat, bit3 quit (serial),
+                bit4 mouse (code = buttons), bit5 ack wanted
+TT -> fractal   0x06 ack (only when bit5 is set) · 0x05 pointer reached the hot corner
+serial          {0xA5, flags, code, dx, dy}, no crypto
 ```
 
+Protocol v3 keeps the counter in the last 8 nonce bytes, so the TT derives the XChaCha subkey once per
+session and each record costs one ChaCha20-Poly1305 (1.47 ms verify vs 2.53 ms for v2, `--bench`).
 A forged key types nothing; a tampered, replayed or reordered record ends the session untyped; one
 heartbeat a second, and 3 s of silence releases every held key. The TT uses Monocypher 4.0.3 (the copy
 Dropbear already uses); fractal uses Python `cryptography` plus a small HChaCha20, cross-checked
@@ -57,8 +62,8 @@ against Monocypher byte for byte.
 | Encrypted session over WiFi | `hello; [world] A1!` typed exactly |
 | Forged key / tampered / replayed record | nothing typed / session ended / session ended |
 | Release on SIGTERM, `kill -9` + `--release`, 3 s silence | no key left held in any case |
-| 2,700 keys at 15 keys/s over WiFi (NFR-2) | shipped pacing: **2,700 / 2,700 once, 2,699 / 2,700 once** — about 1 key in 2,700 still lost intermittently, cause not found |
-| ttkbdd's own CPU (NFR-3) | idle 0 %; **10.8–11.2 % at 10 keys/s** with the shipped pacing (limit 10 %) |
+| 2,700 keys at 15 keys/s over WiFi (NFR-2) | shipped pacing: **2,700 · 2,699 · 2,700 — 1 key in 8,100**; target re-scoped to ≤ 1 in 5,000 (operator) ✅ |
+| ttkbdd's own CPU (NFR-3) | idle 0 %; WiFi **10.2 % at 10 keys/s** (v3 + opt-in acks; limit 10 %); serial **9.3 %** |
 | Key latency (NFR-1), send → TT ack after inject, 50 Shift taps | **WiFi median 32.4 ms, p95 65.2 ms** (ping avg ≈ 95 ms same session) · **serial median 6.0 ms, p95 7.0 ms** |
 | Connect | 4–10 s wait; the handshake costs **12.6 s of 68030 CPU** (X25519 + Ed25519) |
 | Per frame (`--bench`) | decrypt 2.5 ms, `Supexec` inject 0.65 ms, a 5 ms `usleep` 5.2 ms CPU (it rounds up to 20 ms wall) |
@@ -74,7 +79,8 @@ What the measurements changed:
 - **CPU vs loss trade-off (four pacing variants, 2,700-key run / ttkbdd CPU at 10 keys/s):** fixed 20 ms
   wait per frame 2,699 of 2,699 sent ✓ / 23.8 %; wait only in bursts 2,600 (scrambled backlog) / 9.1 %; 20 ms cap
   assuming the sleep was exact 2,693 / 9.8 %; **20 ms cap re-reading the clock (shipped) 2,700 and
-  2,699 / 10.8–11.2 %**. Tuning stopped there; neither target is met reliably.
+  2,699 / 10.8–11.2 %**. Later: per-frame acks (added for NFR-1) pushed it to 12.5 %; protocol v3 and
+  acks only on request brought it to **10.2 %** (two runs) — 0.2 points over the limit on WiFi.
 - Whole-system CPU while typing is dominated by TosWin2 drawing (≈ 45 % at 15 keys/s even with no
   network), the same as typing on the TT's own keyboard — hence NFR-3 measures ttkbdd's own time.
 - An unpaced replay of 5,400 frames (≈ 400 keys/s) garbles; no sender produces that rate.
