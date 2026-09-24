@@ -10,6 +10,8 @@
  *
  * usage: ttkbdd [-l ADDR] [-k PUB] listen on ADDR:7590 (default 192.168.0.30, /etc/ttkbd.pub):
  *                                 handshake + encrypted frames from scripts/ttkbd_send.py
+ *        ttkbdd -s /dev/ttyS1    raw serial on Modem 2 (D4): frames {0xA5, scancode, flags}, no crypto;
+ *                                 stop ttygetty first — Modem 2 is otherwise the console
  *        ttkbdd --bench N        time N frame decrypts and N injects (Shift pairs; types nothing)
  *        ttkbdd -f FILE [-t] [-d MS]  session from a frame file, MS between frames ("-" = stdin); -t: test mode, read the
  *                                 BIOS keyboard queue back afterwards and print it (steals keys), then
@@ -32,6 +34,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/times.h>
+#include <termios.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -394,6 +397,56 @@ out:
 	crypto_wipe(sess_key, sizeof sess_key);
 }
 
+/* ---- raw serial (decision D4): 3-byte frames {0xA5, scancode, flags} on Modem 2, no crypto — the
+ * null-modem cable is the trust boundary. A "session" is a burst of activity: the first frame after
+ * idle loads the unpatched table, 3 s of silence releases keys and restores it. ---- */
+#define SYNC 0xA5
+
+static int serial_loop(const char *dev)
+{
+	struct termios tio;
+	uint8_t b[3];
+	int fd = open(dev, O_RDWR | O_NOCTTY), in_session = 0, r;
+
+	if (fd < 0 || tcgetattr(fd, &tio)) {
+		perror(dev);
+		return 1;
+	}
+	cfmakeraw(&tio);
+	tio.c_cflag |= CLOCAL | CREAD;
+	tio.c_cflag &= ~CRTSCTS;
+	cfsetispeed(&tio, B38400);	/* scc.xdd refuses 57600 (measured 2026-09-13) */
+	cfsetospeed(&tio, B38400);
+	if (tcsetattr(fd, TCSANOW, &tio)) {
+		perror("ttkbdd: tcsetattr");
+		return 1;
+	}
+	fprintf(stderr, "ttkbdd: serial on %s, 38400 raw\n", dev);
+	for (;;) {
+		r = recv_exact(fd, b, 1, SILENCE_S);
+		if (r == -2) {
+			if (in_session) {
+				session_end("serial silence");
+				in_session = 0;
+			}
+			continue;
+		}
+		if (r)
+			return 1;
+		if (b[0] != SYNC)
+			continue;	/* resync: skip until the next frame start */
+		if (recv_exact(fd, b + 1, 2, SILENCE_S))
+			continue;
+		if (!in_session) {
+			if (session_begin())
+				return 1;
+			in_session = 1;
+			fprintf(stderr, "ttkbdd: serial session up\n");
+		}
+		key(b[1], b[2]);
+	}
+}
+
 static int listen_loop(const char *addr, int port, const char *pubfile)
 {
 	struct sockaddr_in sa;
@@ -440,7 +493,7 @@ static int release_all(void)
 
 int main(int argc, char **argv)
 {
-	const char *file = NULL, *addr = "192.168.0.30", *pubfile = "/etc/ttkbd.pub";
+	const char *file = NULL, *addr = "192.168.0.30", *pubfile = "/etc/ttkbd.pub", *serdev = NULL;
 	int test = 0, rel = 0, bench_n = 0, i;
 
 	for (i = 1; i < argc; i++) {
@@ -458,12 +511,14 @@ int main(int argc, char **argv)
 			addr = argv[++i];
 		else if (i + 1 < argc && !strcmp(argv[i], "-k"))
 			pubfile = argv[++i];
+		else if (i + 1 < argc && !strcmp(argv[i], "-s"))
+			serdev = argv[++i];
 		else if (i + 1 < argc && !strcmp(argv[i], "-d"))
 			pace_ms = atol(argv[++i]);
 		else if (i + 1 < argc && !strcmp(argv[i], "--bench"))
 			bench_n = atoi(argv[++i]);
 		else {
-			fprintf(stderr, "usage: ttkbdd [-l ADDR] [-k PUBFILE] | -f FILE [-t] | --release  [-u TABLE] [-p TABLE]\n");
+			fprintf(stderr, "usage: ttkbdd [-l ADDR] [-k PUBFILE] | -s DEV | -f FILE [-t] [-d MS] | --release | --bench N  [-u TABLE] [-p TABLE]\n");
 			return 2;
 		}
 	}
@@ -480,5 +535,7 @@ int main(int argc, char **argv)
 		return bench(bench_n);
 	if (file)
 		return session_file(file, test);
+	if (serdev)
+		return serial_loop(serdev);
 	return listen_loop(addr, 7590, pubfile);
 }

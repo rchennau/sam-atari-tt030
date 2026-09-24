@@ -11,6 +11,7 @@ Connects to ttkbdd on the TT, runs the handshake, then sends encrypted key frame
                                              the TT until Right Ctrl + Right Alt + Esc; needs read access to
                                              the event device (root:input 660 on fractal)
   options: --host 192.168.0.30 --port 7590 --hold SECONDS (keep the session open, heartbeats on)
+           --serial /dev/atari-tt  raw serial to Modem 2 instead of WiFi (D4; TT runs ttkbdd -s /dev/ttyS1)
 
 Wire (all TT-side reads are fixed sizes):
   TT -> fractal  hello  : ver(1)=1 | chal(16) | tt_x25519_pub(32)
@@ -147,6 +148,37 @@ class Session:
         self.s.close()
 
 
+class SerialLink:
+    """Raw serial transport (decision D4): 3-byte frames {0xA5, scancode, flags} on the null-modem cable
+    to the TT's Modem 2 at 38400 — no TCP, no handshake, no crypto; the cable is the trust boundary.
+    Same send / heartbeat_if_due / close interface as Session."""
+
+    SYNC = 0xA5
+
+    def __init__(self, dev):
+        import termios
+        import tty
+        self.fd = os.open(dev, os.O_RDWR | os.O_NOCTTY)
+        tty.setraw(self.fd)
+        attr = termios.tcgetattr(self.fd)
+        attr[2] |= termios.CLOCAL | termios.CREAD
+        attr[2] &= ~termios.CRTSCTS
+        attr[4] = attr[5] = termios.B38400
+        termios.tcsetattr(self.fd, termios.TCSANOW, attr)
+        self.last = time.monotonic()
+
+    def send(self, sc, flags):
+        os.write(self.fd, bytes([self.SYNC, sc, flags]))
+        self.last = time.monotonic()
+
+    def heartbeat_if_due(self):
+        if time.monotonic() - self.last >= 1.0:
+            self.send(0, F_HEARTBEAT)
+
+    def close(self):
+        os.close(self.fd)
+
+
 # Linux evdev keycode -> Atari scancode (FR-5). Linux 1-68 are PC set-1 codes, which the Atari IKBD
 # shares for the main block and F1-F10; the rest differ and are listed explicitly.
 EV2ST = {c: c for c in range(1, 69)}
@@ -192,11 +224,11 @@ class KeyPump:
         return True
 
 
-def grab(host, port, device):
+def grab(host, port, device, serial=None):
     import select
     import evdev  # python3-evdev (system python on fractal)
     dev = evdev.InputDevice(device)
-    sess = Session(host, port)
+    sess = SerialLink(serial) if serial else Session(host, port)
     dev.grab()  # keys stop typing on fractal while the session runs
     pump = KeyPump(sess.send)
     print("ttkbd_send: typing on the TT — Right Ctrl + Right Alt + Esc to stop", file=sys.stderr)
@@ -222,15 +254,16 @@ def main():
     ap.add_argument("--hold", type=float, default=0.0)
     ap.add_argument("--delay", type=float, default=0.0, help="seconds between frames")
     ap.add_argument("--device", default="/dev/input/by-id/usb-05ac_KB104_Dongle-event-kbd")
+    ap.add_argument("--serial", metavar="DEV", help="raw serial to the TT's Modem 2 instead of WiFi (D4), e.g. /dev/atari-tt")
     a = ap.parse_args()
     if a.cmd == "keygen":
         return keygen()
     if a.cmd == "grab":
-        return grab(a.host, a.port, a.device)
+        return grab(a.host, a.port, a.device, a.serial)
     frames = text_frames(" ".join(a.args).replace("\\n", "\n")) if a.cmd == "type" else \
         [(int(h, 16) & 0xFF, int(h, 16) >> 8) for h in a.args]
     t0 = time.monotonic()
-    sess = Session(a.host, a.port)
+    sess = SerialLink(a.serial) if a.serial else Session(a.host, a.port)
     print(f"ttkbd_send: session up in {time.monotonic() - t0:.1f} s", file=sys.stderr)
     for sc, fl in frames:
         sess.send(sc, fl)
