@@ -18,6 +18,7 @@ mosquitto ACLs cannot deny one topic, so authorization lives here). Unsigned, ba
 older than MAX_AGE, or replayed ids are refused with `failed unauthorized`. No public key on disk
 means every request is refused (fail closed).
 """
+import importlib
 import json
 import os
 import queue
@@ -132,7 +133,7 @@ def handle(pkg, rid, say, build=build_recipe.build, add=tt_rpm.cmd_add, file_car
     """One request, end to end. `say(verb, text)` publishes to sam/tt030/build/<verb>/<rid>."""
     if on_mirror(pkg):
         return say("done", "on-mirror")
-    if pkg not in build_recipe.recipes():
+    if pkg not in build_recipe.recipes():      # module attribute: sees a reload
         err = enqueue_for_human(pkg, rid, file_card)
         # 2026-09-23: the card failed ("board has no home on this node") while the TT was told
         # a plain "queued" — the request looked routed to a human and reached only queue.jsonl.
@@ -190,7 +191,16 @@ def main():
         pkg, rid = work.get()
         busy.set()
         try:
-            handle(pkg, rid, lambda verb, text: say(verb, rid, text))
+            # Reload the build code per request: the service runs from the side-repo checkout, and a
+            # code-only change restarts nothing, so a long-running ttbuildd kept building with the
+            # build_recipe it loaded at start (FR-3 E2E, 2026-09-24: the new "t425" block was
+            # ignored and make failed on a missing t4call.h). rpm_header is reloaded first, as both
+            # import it.
+            importlib.reload(build_recipe.R)
+            importlib.reload(tt_rpm)
+            importlib.reload(build_recipe)
+            handle(pkg, rid, lambda verb, text: say(verb, rid, text),
+                   build=build_recipe.build, add=tt_rpm.cmd_add)
         finally:
             busy.clear()
 
