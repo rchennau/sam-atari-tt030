@@ -80,12 +80,14 @@ static long mouse_one(void)
 }
 
 /* Line-A GCURX/GCURY: the mouse position the VDI/AES track. */
+static short mouse_bt;
 static void pointer(short *x, short *y)
 {
 	register char *base __asm__("a0");
 	__asm__ volatile(".word 0xA000" : "=r"(base) : : "d0", "a1", "a2", "d1", "d2", "cc");
 	*x = *(short *)(base - 602);
 	*y = *(short *)(base - 600);
+	mouse_bt = *(short *)(base - 596);	/* MOUSE_BT: current button state */
 }
 
 static void readback(void)
@@ -131,7 +133,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-p")) {
 			short x, y;
 			pointer(&x, &y);
-			printf("pointer %d %d\n", x, y);
+			printf("pointer %d %d buttons %d\n", x, y, mouse_bt);
 		} else if (!strcmp(argv[i], "-m") && i + 3 < argc) {	/* -m DX DY BUTTONS (1 = right, 2 = left) */
 			mpkt[0] = (signed char)(0xf8 | (atoi(argv[i + 3]) & 3));
 			mpkt[1] = (signed char)atoi(argv[i + 1]);
