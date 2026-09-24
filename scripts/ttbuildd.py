@@ -100,18 +100,18 @@ def on_mirror(pkg):
 
 
 def enqueue_for_human(pkg, rid, file_card):
-    """Append to queue.jsonl unless an open entry exists; file one board card per package."""
+    """Append to queue.jsonl unless an open entry exists; file one board card per package.
+    Returns the card error, or None: a card that failed must reach the TT, not only stderr."""
     path = os.path.join(MIRROR, "queue.jsonl")
     open_entries = []
     if os.path.exists(path):
         open_entries = [json.loads(line) for line in open(path) if line.strip()]
     if any(e["pkg"] == pkg and e.get("state") == "open" for e in open_entries):
-        return False
+        return None
     with open(path, "a") as fh:
         fh.write(json.dumps({"pkg": pkg, "state": "open", "first_request_id": rid,
                              "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
-    file_card(pkg, rid)
-    return True
+    return file_card(pkg, rid)
 
 
 def board_card(pkg, rid):
@@ -122,8 +122,10 @@ def board_card(pkg, rid):
                         f"recipes/source-map.json (request {rid}). Add a pinned source-map entry in "
                         f"~/Projects/atari-tt030-enhancement, then mark the queue.jsonl entry done.",
                    lane="backlog", origin="ttbuildd")
-    except Exception as e:  # noqa: BLE001 — the queue entry is the record; a card failure is logged
+    except Exception as e:  # noqa: BLE001 — the queue entry is the record; a card failure is reported
         print(f"ttbuildd: board card for {pkg} not filed: {e}", file=sys.stderr, flush=True)
+        return str(e).strip().splitlines()[0][:80] if str(e).strip() else type(e).__name__
+    return None
 
 
 def handle(pkg, rid, say, build=build_recipe.build, add=tt_rpm.cmd_add, file_card=board_card):
@@ -131,8 +133,10 @@ def handle(pkg, rid, say, build=build_recipe.build, add=tt_rpm.cmd_add, file_car
     if on_mirror(pkg):
         return say("done", "on-mirror")
     if pkg not in build_recipe.recipes():
-        enqueue_for_human(pkg, rid, file_card)
-        return say("queued", "no-recipe")
+        err = enqueue_for_human(pkg, rid, file_card)
+        # 2026-09-23: the card failed ("board has no home on this node") while the TT was told
+        # a plain "queued" — the request looked routed to a human and reached only queue.jsonl.
+        return say("queued", f"no-recipe; board card NOT filed: {err}" if err else "no-recipe")
     try:
         rpm, bins = build(pkg, os.path.join(MIRROR, ".ttbuildd-out"), timeout=BUILD_TIMEOUT,
                           progress=lambda step: say("progress", step))

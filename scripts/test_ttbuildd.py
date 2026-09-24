@@ -7,14 +7,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 import ttbuildd  # noqa: E402
 
 
-def run(tmp_path, monkeypatch, pkg, build=None, add=None, recipes=("pv",)):
+def run(tmp_path, monkeypatch, pkg, build=None, add=None, recipes=("pv",), card_error=None):
     (tmp_path / "built").mkdir(exist_ok=True)
     (tmp_path / "index.tsv").write_text("#serial\t1\nless\t458\t1\n")
     monkeypatch.setattr(ttbuildd, "MIRROR", str(tmp_path))
     monkeypatch.setattr(ttbuildd.build_recipe, "recipes", lambda: {r: {"version": "1"} for r in recipes})
     said, cards = [], []
     ttbuildd.handle(pkg, "rid1", lambda v, t: said.append((v, t)), build=build, add=add,
-                    file_card=lambda p, r: cards.append(p))
+                    file_card=lambda p, r: cards.append(p) or card_error)
     return said, cards
 
 
@@ -28,6 +28,11 @@ def test_no_recipe_queues_once_and_files_one_card(tmp_path, monkeypatch):
     said, cards = run(tmp_path, monkeypatch, "vim")                  # second request: deduplicated
     assert said == [("queued", "no-recipe")] and cards == []
     assert len((tmp_path / "queue.jsonl").read_text().splitlines()) == 1
+
+
+def test_card_failure_reaches_the_tt(tmp_path, monkeypatch):
+    said, _ = run(tmp_path, monkeypatch, "top", card_error="board has no home on this node")
+    assert said == [("queued", "no-recipe; board card NOT filed: board has no home on this node")]
 
 
 def test_build_failure_is_reported_not_hung(tmp_path, monkeypatch):
