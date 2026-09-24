@@ -88,7 +88,7 @@ What the measurements changed:
 ## Mouse (FR-8…11, added 2026-09-23)
 
 fractal's Logitech mouse drives the TT pointer through `Kbdvbase()->mousevec`, the path FreeMiNT's own
-mouse emulation uses, on both transports. Protocol v2 frames are `{flags, code, dx, dy}` (flag 0x10 =
+mouse emulation uses, on both transports. Frames (introduced in v2, kept in v3) are `{flags, code, dx, dy}` (flag 0x10 =
 mouse, code = buttons 1 right / 2 left). Motion is scaled (`--mouse-scale`, default 4 counts per TT unit;
 the TT moves 4 px per unit), coalesced to one frame per 20 ms and split into ±127 steps.
 **Hand-back:** moving the TT pointer into its **top-right corner** makes ttkbdd send `0x05`; the sender
