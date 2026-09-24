@@ -3,7 +3,7 @@
  * Injects key frames into FreeMiNT's keyboard path via the kbdvec slot at Kbdvbase()-4 (proven in
  * Phase 0, src/kbdinj.c): the same ikbd_scan() path as the attached keyboard, so both merge.
  *
- * Frame: 2 bytes {scancode, flags}; flags bit0 = break, bit1 = heartbeat (no key).
+ * Frame: 2 bytes {scancode, flags}; flags bit0 = break, bit1 = heartbeat (no key), bit3 = quit (serial).
  * Session: load the unpatched key table (D2: remote ; and [ must type ; and [), inject frames,
  * then release every key still held and restore the space-patched table — also on SIGTERM,
  * SIGINT and SIGHUP.
@@ -49,6 +49,7 @@
 #define SC_MAX 0x72
 #define F_BREAK 1
 #define F_HEARTBEAT 2
+#define F_QUIT 8	/* serial only: end the session and exit, so ttygetty respawns the console */
 #define S_LOADKBD 27
 #define KBRATE_BOOT 0x0f02	/* delay 15, rate 2 (1/50 s); confirmed on the TT by --bench */
 
@@ -475,6 +476,12 @@ static int serial_loop(const char *dev)
 			continue;	/* resync: skip until the next frame start */
 		if (recv_exact(fd, b + 1, 2, SILENCE_S))
 			continue;
+		if (b[2] & F_QUIT) {
+			if (in_session)
+				session_end("serial quit");
+			fprintf(stderr, "ttkbdd: quit — console returns\n");
+			return 0;
+		}
 		if (!in_session) {
 			if (session_begin())
 				return 1;

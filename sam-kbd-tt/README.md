@@ -14,6 +14,7 @@ path; `ttkbd_send.py` on fractal captures the keyboard and streams it.
 | Part | What it does |
 | :--- | :--- |
 | [`../src/ttkbdd.c`](../src/ttkbdd.c) | TT daemon: WiFi listener or raw serial (`-S` on stdin, `-s DEV`, `-v` hex dump), handshake, XChaCha20-Poly1305 frames, inject via the kbdvec slot, key-table swap, key-repeat off for the session, release on end / signal / 3 s silence; `--release` recovery; `-f FILE` replay; `--bench N` |
+| [`../scripts/ttkbd-session.sh`](../scripts/ttkbd-session.sh) | one-command session on fractal: serial (default) or `--wifi`; restores the console on the stop chord |
 | [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | fractal sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`; Linux keycode → Atari scancode map |
 | [`../scripts/test_ttkbd_send.py`](../scripts/test_ttkbd_send.py) | checks the map against the TT's own `en_uk.tbl` and the key-pump rules |
 | [`../src/kbdinj.c`](../src/kbdinj.c) | Phase 0 spike and test tool: inject raw scancodes, read the BIOS queue back (`-r`), swap the table (`-k`) |
@@ -118,6 +119,19 @@ tools/cross-mint/usr/bin/m68k-atari-mint-gcc -m68020-60 -O2 -o build/kbdinj.prg 
 ```
 
 ## Run
+
+**One command (on fractal, from your desktop session):** `scripts/ttkbd-session.sh` — raw serial, no key
+needed, works with WiFi down. It types `exec ttkbdd -S` at the TT's Modem 2 console, grabs the keyboard,
+and on **Right Ctrl + Right Alt + Esc** sends a quit frame: ttkbdd exits, `ttygetty` respawns the console,
+and the script checks it answers. `scripts/ttkbd-session.sh --wifi` uses the encrypted WiFi path instead
+(needs your key on the TT and ttkbdd listening; the console is not touched).
+
+**Back to console mode:** the stop chord does it. If the script died mid-session, by hand, in order:
+`ttkbd_send.py --serial /dev/atari-tt frames 800` (quit frame) · over WiFi kill ttkbdd · then
+`ttkbdd --release` if a key or the key table is stuck. The same list is at the end of the script.
+
+Manual steps, if you are not using the script:
+
 
 1. **Key (once, on fractal, as the user who will type):** `python3 scripts/ttkbd_send.py keygen` writes
    `~/.config/atari-tt/ttkbd.key` (mode 600) and prints the public key; write its 32 raw bytes to the

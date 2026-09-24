@@ -18,7 +18,7 @@ Wire (all TT-side reads are fixed sizes):
   fractal -> TT  auth   : f_x25519_pub(32) | sig(64)   sig = Ed25519(chal | tt_pub | f_pub | b"ttkbd1")
   key = BLAKE2b-256(x25519(f_sk, tt_pub) | chal | tt_pub | f_pub)
   fractal -> TT  record : mac(16) | ct(2)   XChaCha20-Poly1305, nonce = counter (u64 LE) padded to 24,
-                          plaintext {scancode, flags}; flags bit0 break, bit1 heartbeat
+                          plaintext {scancode, flags}; flags bit0 break, bit1 heartbeat, bit3 quit (serial)
 Heartbeat every 1 s; the TT releases all keys after 3 s of silence.
 Python `cryptography` has no XChaCha20-Poly1305, so HChaCha20 is done here (RFC draft-irtf-cfrg-xchacha
 §2.3) and the IETF ChaCha20-Poly1305 does the rest — the same construction as Monocypher's crypto_aead_lock.
@@ -38,7 +38,7 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 KEYFILE = Path("~/.config/atari-tt/ttkbd.key").expanduser()
-F_BREAK, F_HEARTBEAT = 1, 2
+F_BREAK, F_HEARTBEAT, F_QUIT = 1, 2, 8
 
 # UK Atari scancodes (keyboard/en_uk.tbl, unpatched — the TT loads it for the session, D2).
 # ponytail: letters/digits/common punctuation only; Phase 3's evdev map replaces this.
@@ -242,6 +242,8 @@ def grab(host, port, device, serial=None):
             sess.heartbeat_if_due()
     finally:
         dev.ungrab()
+        if serial:
+            sess.send(0, F_QUIT)  # ttkbdd exits; ttygetty respawns the serial console
         sess.close()  # the TT releases every held key when the session closes (FR-6)
 
 
