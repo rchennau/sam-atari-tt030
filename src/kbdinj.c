@@ -9,6 +9,8 @@
  * usage: kbdinj [hex | -r | -k FILE]...   run in order, e.g. kbdinj 1e 9e -r
  *   hex: inject that scancode (make; |0x80 = break)   -r: read back the BIOS keyboard queue
  *   -k FILE: Ssystem(S_LOADKBD, FILE) — swap the key table at runtime (root)
+ *   -m DX DY BUTTONS: relative mouse packet via mousevec (-128..127; buttons 1 right, 2 left)
+ *   -p: print the pointer position (Line-A GCURX/GCURY)
  *   no arguments: usage error (there is deliberately no default action)
  *
  * ponytail: spike only — no network, no table swap; ttkbdd replaces it in Phase 1.
@@ -23,9 +25,12 @@
 static void (*kbdvec)(void);
 static void *kbd_iorec;
 
+static void (*mousevec)(void);
+
 static long setup(void)
 {
 	kbdvec = ((void (**)(void))Kbdvbase())[-1];
+	mousevec = ((void (**)(void))Kbdvbase())[4];	/* midivec vkbderr vmiderr statvec MOUSEVEC */
 	kbd_iorec = Iorec(1);
 	return 0;
 }
@@ -48,6 +53,39 @@ static long inject_one(void)
 		: "m"(cur), "m"(kbd_iorec), "m"(kbdvec)
 		: "d0", "d1", "d2", "a0", "a1", "a2", "cc", "memory");
 	return 0;
+}
+
+/* ---- mouse spike (track tt030-remote-keyboard, FR-8): a relative IKBD packet through
+ * Kbdvbase()->mousevec, the path FreeMiNT's own keyboard mouse-emulation uses (sys/keyboard.c:238,
+ * send_packet in sys/arch/intr.S: a0 = packet, a1 = end, jsr vec). ---- */
+static signed char mpkt[3];
+static long mouse_one(void)
+{
+	if (!mousevec)
+		return -1;
+	/* Load the vector BEFORE pushing SR: a stack-relative operand read after the push points two bytes
+	 * off — the first build jumped to 0 that way (SIGSEGV / ADDRESS ERROR, 2026-09-23). Globals only. */
+	__asm__ volatile(
+		"move.l %1,%%a2\n\t"
+		"lea %0,%%a0\n\t"
+		"lea 3(%%a0),%%a1\n\t"
+		"move.w %%sr,-(%%sp)\n\t"
+		"ori.w #0x0700,%%sr\n\t"
+		"jsr (%%a2)\n\t"
+		"move.w (%%sp)+,%%sr"
+		:
+		: "m"(mpkt), "m"(mousevec)
+		: "d0", "d1", "d2", "a0", "a1", "a2", "cc", "memory");
+	return 0;
+}
+
+/* Line-A GCURX/GCURY: the mouse position the VDI/AES track. */
+static void pointer(short *x, short *y)
+{
+	register char *base __asm__("a0");
+	__asm__ volatile(".word 0xA000" : "=r"(base) : : "d0", "a1", "a2", "d1", "d2", "cc");
+	*x = *(short *)(base - 602);
+	*y = *(short *)(base - 600);
 }
 
 static void readback(void)
@@ -90,6 +128,18 @@ int main(int argc, char **argv)
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-r"))
 			readback();
+		else if (!strcmp(argv[i], "-p")) {
+			short x, y;
+			pointer(&x, &y);
+			printf("pointer %d %d\n", x, y);
+		} else if (!strcmp(argv[i], "-m") && i + 3 < argc) {	/* -m DX DY BUTTONS (1 = right, 2 = left) */
+			mpkt[0] = (signed char)(0xf8 | (atoi(argv[i + 3]) & 3));
+			mpkt[1] = (signed char)atoi(argv[i + 1]);
+			mpkt[2] = (signed char)atoi(argv[i + 2]);
+			Supexec(mouse_one);
+			Syield();
+			i += 3;
+		}
 		else if (!strcmp(argv[i], "-k") && i + 1 < argc) {
 			long r = Ssystem(27 /* S_LOADKBD */, (long)argv[i + 1], 0L);
 			printf("kbdinj: S_LOADKBD %s -> %ld\n", argv[i + 1], r);
