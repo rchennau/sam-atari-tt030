@@ -9,7 +9,8 @@
 
 int main(void)
 {
-    static const char ops[] = "zZb";
+    static const char ops[] = "zZb";               /* deflate 1, deflate 6, bzip2 1 */
+    static const int lv[] = { 1, 6, 1 };
     unsigned char *in = malloc(N), *out = malloc(N + N / 2 + 1024);
     long i, len;
     unsigned long sum;
@@ -22,7 +23,7 @@ int main(void)
     for (i = 0; i < N; i++)                     /* text-like: words from a small alphabet, some noise */
         in[i] = (unsigned char)("the quick brown fox jumps over a lazy dog\n"[(i * 7 + i / 97) % 42]);
     for (k = 0; ops[k]; k++) {
-        len = ck_compress(ops[k], in, N, out, N + N / 2 + 1024);
+        len = ck_compress(ops[k] == 'Z' ? 'z' : ops[k], lv[k], in, N, out, N + N / 2 + 1024);
         for (sum = 0, i = 0; i < len; i++)
             sum = sum * 31 + out[i];
         printf("%c %ld %08lx\n", ops[k], len, sum & 0xffffffffUL);

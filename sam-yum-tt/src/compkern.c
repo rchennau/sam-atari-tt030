@@ -23,7 +23,7 @@ void bz_internal_error(int code)
     abort();
 }
 
-static long deflate_buf(int level, const unsigned char *in, long n, unsigned char *out, long cap)
+static long deflate_buf(int level, int bits, const unsigned char *in, long n, unsigned char *out, long cap)
 {
     z_stream s;
     int r;
@@ -32,7 +32,7 @@ static long deflate_buf(int level, const unsigned char *in, long n, unsigned cha
     s.zalloc = z_alloc;
     s.zfree = z_free;
     s.opaque = 0;
-    if (deflateInit(&s, level) != Z_OK)
+    if (deflateInit2(&s, level, Z_DEFLATED, bits, 8, Z_DEFAULT_STRATEGY) != Z_OK)
         return -1;
     s.next_in = (Bytef *)in;
     s.avail_in = (uInt)n;
@@ -44,16 +44,18 @@ static long deflate_buf(int level, const unsigned char *in, long n, unsigned cha
     return r == Z_STREAM_END ? len : -1;
 }
 
-long ck_compress(int op, const unsigned char *in, long n, unsigned char *out, long cap)
+long ck_compress(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap)
 {
     unsigned int len = (unsigned int)cap;
 
+    if (level < 1 || level > 9)
+        return -1;
     if (op == 'z')
-        return deflate_buf(1, in, n, out, cap);
-    if (op == 'Z')
-        return deflate_buf(6, in, n, out, cap);
+        return deflate_buf(level, 15, in, n, out, cap);
+    if (op == 'g')                               /* 15 + 16: gzip header and trailer instead of zlib's */
+        return deflate_buf(level, 31, in, n, out, cap);
     if (op == 'b')
-        return BZ2_bzBuffToBuffCompress((char *)out, &len, (char *)in, (unsigned int)n, 1, 0, 0) == BZ_OK
+        return BZ2_bzBuffToBuffCompress((char *)out, &len, (char *)in, (unsigned int)n, level, 0, 0) == BZ_OK
             ? (long)len : -1;
     return -1;
 }

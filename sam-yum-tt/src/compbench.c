@@ -17,7 +17,8 @@
 #include <string.h>
 #include <time.h>
 
-static const char OPS[] = "zZb";
+static const char OPS[] = "zzb";
+static const int LEVEL[] = { 1, 6, 1 };
 static const char *NAMES[] = { "deflate -1", "deflate -6", "bzip2 -1" };
 
 int main(int argc, char **argv)
@@ -52,7 +53,7 @@ int main(int argc, char **argv)
         if (!(out[k] = malloc(cap)))
             return 1;
         t0 = clock();
-        olen[k] = ck_compress(OPS[k], buf, len, out[k], cap);
+        olen[k] = ck_compress(OPS[k], LEVEL[k], buf, len, out[k], cap);
         ms68[k] = ms_since(t0);
         sprintf(what, "68030 %s", NAMES[k]);
         rate(what, kb, ms68[k]);
@@ -64,7 +65,7 @@ int main(int argc, char **argv)
         return 1;
 
     t0 = clock();
-    if (send_hdr('E', len))
+    if (send_op('E', 0, len))
         return 1;
     for (i = 0; i < len; i += n) {
         n = len - i > 4096 ? 4096 : len - i;
@@ -78,7 +79,7 @@ int main(int argc, char **argv)
 
     for (k = 0; OPS[k]; k++) {
         t0 = clock();
-        if (send_hdr(OPS[k], len) || link_write(buf, len) != len || link_read(h, 4, 300000) != 4) {
+        if (send_op(OPS[k], LEVEL[k], len) || link_write(buf, len) != len || link_read(h, 4, 300000) != 4) {
             printf("T425 %s: no reply\n", NAMES[k]);
             return 1;
         }

@@ -5,7 +5,21 @@
 #include <mint/osbind.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
+
+int atw_verbose = 1;
+
+/* Start-up chatter goes to stdout for the benchmarks; tgzip turns it off (its stdout is the data). */
+static void atw_log(const char *fmt, ...)
+{
+    va_list ap;
+    if (!atw_verbose)
+        return;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+}
 
 #define OP_CHECK 100
 #define OP_WRITE 105
@@ -75,7 +89,7 @@ int atw_boot(const char *path, const char *board)
     FILE *f;
 
     if ((short)trap_1_ww(OP_CHECK, 0x17) != 0x17) {
-        printf("fpgabios not resident (opcode %d check failed)\n", OP_CHECK);
+        atw_log("fpgabios not resident (opcode %d check failed)\n", OP_CHECK);
         return 1;
     }
     if (!(f = fopen(path, "rb"))) {
@@ -87,7 +101,7 @@ int atw_boot(const char *path, const char *board)
     rewind(f);
     img = malloc(imglen);
     if (!img || fread(img, 1, imglen, f) != (size_t)imglen) {
-        printf("cannot read %s\n", path);
+        atw_log("cannot read %s\n", path);
         return 1;
     }
     fclose(f);
@@ -95,7 +109,7 @@ int atw_boot(const char *path, const char *board)
     n = link_write(img, imglen);
     free(img);
     if (n != imglen) {
-        printf("boot: only %ld of %ld bytes sent\n", n, imglen);
+        atw_log("boot: only %ld of %ld bytes sent\n", n, imglen);
         return 1;
     }
     t0 = clock();
@@ -104,15 +118,15 @@ int atw_boot(const char *path, const char *board)
         long len, rl;
         if (link_read(pkt, 2, 10000) != 2)
             break;                             /* quiet: start-up done */
-        printf("start-up: packet at +%ld ms\n", (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
+        atw_log("start-up: packet at +%ld ms\n", (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
         if (pkt[0] == 'R' && pkt[1] == 'D') {  /* the server's "RDYk" marker: main() runs, on link k */
             if (link_read(pkt + 2, 2, 2000) == 2)
-                printf("start-up done: server ready, marker %.4s\n", pkt);
+                atw_log("start-up done: server ready, marker %.4s\n", pkt);
             break;
         }
         len = pkt[0] | (pkt[1] << 8);
         if (len < 1 || len > (long)sizeof pkt || link_read(pkt, len, 2000) != len) {
-            printf("start-up: bad packet (length %ld)\n", len);
+            atw_log("start-up: bad packet (length %ld)\n", len);
             return 1;
         }
         if (pkt[0] == 32 && len >= 3) {        /* SP_GETENV: slice = 2-byte length + name */
@@ -128,29 +142,29 @@ int atw_boot(const char *path, const char *board)
                 rep[2] = 129;                  /* SP_ERROR: variable not set, as iserver answers */
                 rl = 1;
             }
-            printf("start-up: SP_GETENV %.*s answered\n", (int)(nl < 40 ? nl : 40), pkt + 3);
+            atw_log("start-up: SP_GETENV %.*s answered\n", (int)(nl < 40 ? nl : 40), pkt + 3);
         } else if (pkt[0] == 40) {             /* SP_COMMAND: success + empty command line (serverc.c) */
             rep[2] = 0;
             rep[3] = 0;
             rep[4] = 0;
             rl = 3;
-            printf("start-up: SP_COMMAND answered\n");
+            atw_log("start-up: SP_COMMAND answered\n");
         } else if (pkt[0] == 42) {             /* SP_ID: success + version, host, OS, board (serverc.c) */
             rep[2] = 0;
             rep[3] = rep[4] = rep[5] = rep[6] = 0;
             rl = 5;
-            printf("start-up: SP_ID answered\n");
+            atw_log("start-up: SP_ID answered\n");
         } else {
             rep[2] = 1;                        /* SP_UNIMPLEMENTED */
             rl = 1;
-            printf("start-up: SP command %d answered unimplemented\n", pkt[0]);
+            atw_log("start-up: SP command %d answered unimplemented\n", pkt[0]);
         }
         rep[0] = (unsigned char)rl;
         rep[1] = (unsigned char)(rl >> 8);
         if ((n = link_write(rep, rl + 2)) != rl + 2)
-            printf("start-up: reply only %ld of %ld bytes sent\n", n, rl + 2);
+            atw_log("start-up: reply only %ld of %ld bytes sent\n", n, rl + 2);
     }
-    printf("start-up done (%ld short driver writes so far)\n", short_writes);
+    atw_log("start-up done (%ld short driver writes so far)\n", short_writes);
     (void)t0;
     return 0;
 }
@@ -164,4 +178,16 @@ int send_hdr(char op, long len)
     h[3] = (unsigned char)(len >> 16);
     h[4] = (unsigned char)(len >> 24);
     return link_write(h, 5) == 5 ? 0 : 1;
+}
+
+int send_op(char op, int level, long len)
+{
+    unsigned char h[6];
+    h[0] = (unsigned char)op;
+    h[1] = (unsigned char)level;
+    h[2] = (unsigned char)len;
+    h[3] = (unsigned char)(len >> 8);
+    h[4] = (unsigned char)(len >> 16);
+    h[5] = (unsigned char)(len >> 24);
+    return link_write(h, 6) == 6 ? 0 : 1;
 }

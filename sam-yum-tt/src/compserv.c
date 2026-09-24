@@ -1,8 +1,8 @@
 /* compserv — T425 side of the Rev. 7 benchmark: does a build-on-miss package gain from the transputer?
  * Booted raw by compbench, as shaserv is by shabench (atwboot.c). Protocol on link 0, after "RDY0":
- *   TT -> T425  op (1) || len (4, little-endian) || len bytes
+ *   TT -> T425  op (1) || level (1) || len (4, little-endian) || len bytes
  *   op 'E': each 4096-byte chunk echoed back at once                     (link throughput)
- *   op 'z' | 'Z' | 'b': compkern compresses the buffer, then
+ *   op 'z' | 'g' | 'b': ck_compress(op, level) on the buffer, then
  *   T425 -> TT  outlen (4, little-endian; 0xffffffff = failed) || adler32(out) (4), then per 4096-byte
  *               chunk: TT -> T425 one byte ("send"), T425 -> TT the chunk.
  * Measured 2026-09-24: the T425 streaming a ~96 KB result in one go reached the TT DAMAGED (its adler32
@@ -31,14 +31,14 @@ int main(void)
 {
     static char ready[4] = { 'R', 'D', 'Y', '0' };
     static unsigned char chunk[CHUNK];
-    unsigned char hdr[5], *in, *out;
+    unsigned char hdr[6], *in, *out;
     unsigned long len, n, i;
     long olen, cap;
 
     ChanOut(LINK0OUT, ready, 4);
     for (;;) {
-        ChanIn(LINK0IN, (char *)hdr, 5);
-        len = hdr[1] | ((unsigned long)hdr[2] << 8) | ((unsigned long)hdr[3] << 16) | ((unsigned long)hdr[4] << 24);
+        ChanIn(LINK0IN, (char *)hdr, 6);
+        len = hdr[2] | ((unsigned long)hdr[3] << 8) | ((unsigned long)hdr[4] << 16) | ((unsigned long)hdr[5] << 24);
         if (hdr[0] == 'E') {
             for (; len > 0; len -= n) {
                 n = len > CHUNK ? CHUNK : len;
@@ -54,7 +54,7 @@ int main(void)
             n = len - i > CHUNK ? CHUNK : len - i;
             ChanIn(LINK0IN, in ? (char *)in + i : (char *)chunk, (int)n);
         }
-        olen = in && out ? ck_compress(hdr[0], in, (long)len, out, cap) : -1;
+        olen = in && out ? ck_compress(hdr[0], hdr[1], in, (long)len, out, cap) : -1;
         put4(olen < 0 ? 0xffffffffUL : (unsigned long)olen);
         if (olen > 0) {
             put4(adler32(adler32(0L, Z_NULL, 0), out, (uInt)olen));

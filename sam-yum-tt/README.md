@@ -89,6 +89,23 @@ always clean, so `compserv` sends each 4 KB chunk only when the TT asks. Any T42
 returns more than a few KB needs the same pacing. `bzip2 -1` on 256 KB also needs
 `IBOARDSIZE #400000` (4 MB); the `t4` emulator runs out of memory at that size.
 
+### First user: `tgzip` / `tbzip2` (`t425-compress` RPM, 2026-09-24)
+
+`yum install t425-compress` → `/usr/bin/tgzip`, `/usr/bin/tbzip2` (`src/tgzip.c`, built by
+`scripts/build_t425_compress.sh`). The input goes to the T425 in 256 KB pieces, each returned as a
+gzip member / bzip2 stream (they concatenate, so stock `gunzip` / `bunzip2` read the file). A piece
+falls back to the 68030 (same code) when fpgabios is absent, `/tmp/t425.lock` names a live pid, or
+a piece fails or arrives damaged, and the fallback is printed. Separate names, not a replacement
+for SpareMiNT's `gzip`: `tar -z` and rpm scripts rely on its full flag set.
+
+| Real TT | stock | T425 | output |
+|---|---|---|---|
+| `/etc/termcap` 429 KB, gzip -6 | 22.0 s, 146,087 B | **18.3 s**, 147,424 B (2/2 pieces) | `gzip -t` ok, round-trip identical |
+| `/bin/bash` 542 KB, bzip2 | -9: 57.5 s, 253,793 B | **47.1 s** (-9 → 3), 254,651 B (3/3) | `bzip2 -t` ok, round-trip identical |
+
+Times include booting `compserv` (a run resets the T425; Dropbear's X25519 offload restarts at the
+next SSH login). Piece boundaries cost ~0.3-0.9 % in size.
+
 ## Layout
 
 ```
