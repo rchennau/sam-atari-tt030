@@ -109,8 +109,19 @@ for SpareMiNT's `gzip`: `tar -z` and rpm scripts rely on its full flag set.
 | `/etc/termcap` 429 KB, gzip -6 | 22.0 s, 146,087 B | **18.3 s**, 147,424 B (2/2 pieces) | `gzip -t` ok, round-trip identical |
 | `/bin/bash` 542 KB, bzip2 | -9: 57.5 s, 253,793 B | **47.1 s** (-9 → 3), 254,651 B (3/3) | `bzip2 -t` ok, round-trip identical |
 
-Times include booting `compserv` (a run resets the T425; Dropbear's X25519 offload restarts at the
-next SSH login). Piece boundaries cost ~0.3-0.9 % in size.
+Times include booting `compserv`. A run replaces Dropbear's X25519 server on the T425; the next login
+reads `/tmp/t425.loaded` and boots its own at once, and a login *during* a run takes the 68030
+(`/tmp/t425.lock`). Piece boundaries cost ~0.3-0.9 % in size.
+
+## T425 runtime (tt030-t425-kernel-ports, 2026-09-24)
+
+| File | Side | Role |
+|---|---|---|
+| `src/t4call.[ch]` | TT | boot a package's server once, frame requests, cap reads at `0x7000`, adler32-check results, `t4_enabled(pkg)` switch |
+| `src/t4lock.[ch]` | TT (+ Dropbear) | `/tmp/t425.lock` (pid + program path) and `/tmp/t425.loaded`; libc only, `#include`d by `staging/DROPBEAR/atwx25519.c` |
+| `src/t4serv.[ch]` | T425 | generic server loop; a family adds `t4_kernel()` + `t4_out_cap()` (`src/compserv.c`) |
+| `../scripts/build_recipe.py` | fractal | a recipe's `"t425"` block builds a T425 variant + a held `<pkg>-t425-on` switch RPM |
+| `../scripts/t425_inventory.py`, `t425_icc_trial.py` | fractal | the porting inventory and the icc trial compile |
 
 ## Layout
 

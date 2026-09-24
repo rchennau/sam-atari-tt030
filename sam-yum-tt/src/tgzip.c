@@ -12,8 +12,8 @@
  * resident, the T425 is busy (/tmp/t425.lock names a live pid), or a piece fails or arrives damaged
  * (compserv sends its adler32 of each piece; see compserv.c for the one damage ever seen, and its fix).
  * After a failure the rest of the run stays on the 68030: the link may be out of step. Each fallback
- * is said on stderr. Booting compserv resets the T425, so Dropbear's X25519 offload restarts at the
- * next SSH login.
+ * is said on stderr. Booting compserv replaces Dropbear's X25519 server; the next SSH login sees
+ * /tmp/t425.loaded and boots its own at once (t4lock.c), and a login during a run uses the 68030.
  *
  * bzip2: a piece is 256 KB, so a block size above 3 (300 KB) compresses identically; levels 4-9 are
  * clamped to 3, which keeps the T425's memory under IBOARDSIZE #400000.
