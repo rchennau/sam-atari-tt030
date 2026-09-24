@@ -153,6 +153,7 @@ flowchart LR
 | Key table swap (remote `;` `[`) | `Ssystem(S_LOADKBD)` in `ttkbdd` | ✅ unpatched UK table during a session, space remap restored after |
 | Encrypted session | `ttkbdd` listener + `scripts/ttkbd_send.py` | ✅ forged / tampered / replayed input never typed; 3 s silence releases keys |
 | Reliability / CPU | 2,700-key run at 15 keys/s; ttkbdd CPU at 10 keys/s | 🟡 2,700 and 2,699 of 2,700; 10.8–11.2 % (target 10 %) |
+| Raw serial (D4) | `ttkbdd -S` exec'd from the Modem 2 console; `ttkbd_send.py --serial` | 🟡 9.3 % CPU; 600/600 keys; 2,690/2,700 at 15 keys/s |
 | fractal capture | `ttkbd_send.py grab`, iac/fractal uaccess rule | ✅ map tested against `en_uk.tbl`; live grab awaits the operator's key |
 | Start at boot | `staging/HD10_OVERLAY/etc/rc.ttkbdd` + `mint.cnf` | ⏳ staged, not on the card |
 

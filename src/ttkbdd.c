@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <sys/times.h>
 #include <termios.h>
+#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -401,18 +402,36 @@ out:
  * null-modem cable is the trust boundary. A "session" is a burst of activity: the first frame after
  * idle loads the unpatched table, 3 s of silence releases keys and restores it. ---- */
 #define SYNC 0xA5
+static int verbose;	/* -v: hex-dump every byte received (serial diagnosis) */
 
 static int serial_loop(const char *dev)
 {
 	struct termios tio;
 	uint8_t b[3];
-	int fd = open(dev, O_RDWR | O_NOCTTY), in_session = 0, r;
+	/* ttygetty's recipe for this port (src/ttygetty.c, measured 2026-09-13): open non-blocking until
+	 * CLOCAL is set — the cable has no DCD and a blocking open can wait for carrier — and clear the SCC
+	 * driver's own XON/XOFF and RTS/CTS through TIOCSFLAGSB, which termios alone cannot reach. */
+	int fd, in_session = 0, r;
+	long fb[2] = { -1, 0 };
 
+	/* "-S": the line is already open on stdin, set up by ttygetty (run as `ttygetty /dev/ttyS1 38400
+	 * ttkbdd -S`) — the one path proven to receive on this port. Opening the device here from another
+	 * session read nothing at all, even with ttygetty's own open/flag recipe (2026-09-23). */
+	if (!strcmp(dev, "-")) {
+		fd = 0;
+	} else {
+		setsid();
+		fd = open(dev, O_RDWR | O_NONBLOCK);
+		if (fd >= 0)
+			ioctl(fd, TIOCSCTTY, 0);
+	}
 	if (fd < 0 || tcgetattr(fd, &tio)) {
 		perror(dev);
 		return 1;
 	}
 	cfmakeraw(&tio);
+	tio.c_cc[VMIN] = 1;	/* MiNTLib's cfmakeraw may leave these unset */
+	tio.c_cc[VTIME] = 0;
 	tio.c_cflag |= CLOCAL | CREAD;
 	tio.c_cflag &= ~CRTSCTS;
 	cfsetispeed(&tio, B38400);	/* scc.xdd refuses 57600 (measured 2026-09-13) */
@@ -421,7 +440,24 @@ static int serial_loop(const char *dev)
 		perror("ttkbdd: tcsetattr");
 		return 1;
 	}
-	fprintf(stderr, "ttkbdd: serial on %s, 38400 raw\n", dev);
+	if (ioctl(fd, TIOCSFLAGSB, fb) == 0) {
+		fb[0] &= ~(TANDEM | RTSCTS);
+		fb[1] = TANDEM | RTSCTS;
+		if (ioctl(fd, TIOCSFLAGSB, fb))
+			perror("ttkbdd: TIOCSFLAGSB");
+	}
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+	tcgetattr(fd, &tio);
+	fprintf(stderr, "ttkbdd: serial on %s, 38400 raw (iflag %lx lflag %lx cflag %lx, ispeed %ld)\n", dev,
+	        (long)tio.c_iflag, (long)tio.c_lflag, (long)tio.c_cflag, (long)cfgetispeed(&tio));
+	if (verbose > 1) {	/* -vv: plain blocking read, no select — isolates select() on this tty */
+		for (;;) {
+			int k = read(fd, b, 1);
+			fprintf(stderr, "raw read %d %02x\n", k, k > 0 ? b[0] : 0);
+			if (k <= 0)
+				return 1;
+		}
+	}
 	for (;;) {
 		r = recv_exact(fd, b, 1, SILENCE_S);
 		if (r == -2) {
@@ -433,6 +469,8 @@ static int serial_loop(const char *dev)
 		}
 		if (r)
 			return 1;
+		if (verbose)
+			fprintf(stderr, "rx %02x\n", b[0]);
 		if (b[0] != SYNC)
 			continue;	/* resync: skip until the next frame start */
 		if (recv_exact(fd, b + 1, 2, SILENCE_S))
@@ -501,6 +539,8 @@ int main(int argc, char **argv)
 			rel = 1;
 		else if (!strcmp(argv[i], "-t"))
 			test = 1;
+		else if (!strcmp(argv[i], "-v"))
+			verbose++;
 		else if (i + 1 < argc && !strcmp(argv[i], "-f"))
 			file = argv[++i];
 		else if (i + 1 < argc && !strcmp(argv[i], "-u"))
@@ -513,6 +553,8 @@ int main(int argc, char **argv)
 			pubfile = argv[++i];
 		else if (i + 1 < argc && !strcmp(argv[i], "-s"))
 			serdev = argv[++i];
+		else if (!strcmp(argv[i], "-S"))
+			serdev = "-";
 		else if (i + 1 < argc && !strcmp(argv[i], "-d"))
 			pace_ms = atol(argv[++i]);
 		else if (i + 1 < argc && !strcmp(argv[i], "--bench"))

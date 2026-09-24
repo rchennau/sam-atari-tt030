@@ -13,7 +13,7 @@ path; `ttkbd_send.py` on fractal captures the keyboard and streams it.
 
 | Part | What it does |
 | :--- | :--- |
-| [`../src/ttkbdd.c`](../src/ttkbdd.c) | TT daemon: listener, handshake, XChaCha20-Poly1305 frames, inject via the kbdvec slot, key-table swap, key-repeat off for the session, release on end / signal / 3 s silence; `--release` recovery; `-f FILE` replay; `--bench N` |
+| [`../src/ttkbdd.c`](../src/ttkbdd.c) | TT daemon: WiFi listener or raw serial (`-S` on stdin, `-s DEV`, `-v` hex dump), handshake, XChaCha20-Poly1305 frames, inject via the kbdvec slot, key-table swap, key-repeat off for the session, release on end / signal / 3 s silence; `--release` recovery; `-f FILE` replay; `--bench N` |
 | [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | fractal sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`; Linux keycode → Atari scancode map |
 | [`../scripts/test_ttkbd_send.py`](../scripts/test_ttkbd_send.py) | checks the map against the TT's own `en_uk.tbl` and the key-pump rules |
 | [`../src/kbdinj.c`](../src/kbdinj.c) | Phase 0 spike and test tool: inject raw scancodes, read the BIOS queue back (`-r`), swap the table (`-k`) |
@@ -74,6 +74,26 @@ What the measurements changed:
 - Whole-system CPU while typing is dominated by TosWin2 drawing (≈ 45 % at 15 keys/s even with no
   network), the same as typing on the TT's own keyboard — hence NFR-3 measures ttkbdd's own time.
 - An unpaced replay of 5,400 frames (≈ 400 keys/s) garbles; no sender produces that rate.
+
+## Raw serial transport (decision D4, 2026-09-23)
+
+No TCP/IP: `ttkbdd` reads 3-byte frames `{0xA5, scancode, flags}` straight off the null-modem cable on
+Modem 2 at 38400 and injects them the same way; no handshake, no crypto (the cable is the trust
+boundary). fractal: `ttkbd_send.py --serial /dev/atari-tt type|frames|grab`.
+
+**Start it from the serial console itself:** at the console's bash prompt, `exec /tmp/ttkbdd.prg -S`
+(or `/usr/sbin/ttkbdd -S`). It takes over the console's line; when it exits, `ttygetty` respawns the
+console bash. Measured on the real TT: that works; starting `ttkbdd -s /dev/ttyS1` from an SSH session
+does **not** — the port is the console bash's controlling terminal, so any other process that reads it
+is stopped by SIGTTIN (state T) and reads nothing. Six stopped shells found and cleaned up after the
+tests. A forced `TIOCSCTTY` would be the fix for `-s`; untested.
+
+| Check (serial) | Result |
+|---|---|
+| ttkbdd CPU at 10 keys/s | **9.32 %** (no handshake, no decrypt) |
+| 600 keys at 10 keys/s | byte-identical |
+| 2,700 keys at 15 keys/s | 2,690 / 2,700 — keys still lost, as on WiFi; cause not found |
+| Cost | Modem 2 is not the console while it runs |
 
 ## Layout
 
