@@ -262,9 +262,19 @@ def test_near_awk_and_yum_install_lists_near_matches(tmp_path):
     bin_.mkdir()
     (bin_ / "rpm").write_text("#!/bin/sh\nexit 0\n")
     (bin_ / "rpm").chmod(0o755)
+    (bin_ / "logger").write_text(f'#!/bin/sh\necho "$@" >> {tmp_path}/syslog\n')   # records what yum logs
+    (bin_ / "logger").chmod(0o755)
     env = dict(os.environ, CACHE=str(tmp_path), LIB=src, PATH=f"{bin_}:{os.environ['PATH']}")
     r = subprocess.run(["bash", os.path.join(src, "yum"), "install", "top"], env=env, capture_output=True, text=True)
     assert r.returncode == 1
     assert 'no package "top"' in r.stdout and "pstop" in r.stdout and "provides top" in r.stdout
     assert "yum install --build top'" in r.stdout
     assert "requesting a build" not in r.stdout + r.stderr    # no build asked for
+    logged = (tmp_path / "syslog").read_text()
+    assert "-p user.notice" in logged and "not on the mirror: top; near matches: pstop" in logged
+    (bin_ / "logger").unlink()                                # no logger: yum still works, says so
+    for tool in ("awk", "sed", "grep", "find", "tr", "cat", "rm", "mkdir", "wc", "head", "tail"):
+        (bin_ / tool).symlink_to(shutil.which(tool))          # PATH without the host's real logger
+    r = subprocess.run([shutil.which("bash"), os.path.join(src, "yum"), "install", "top"], env=dict(env, PATH=str(bin_)),
+                       capture_output=True, text=True)
+    assert r.returncode == 1 and "not logged: no logger" in r.stderr
