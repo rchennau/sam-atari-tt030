@@ -76,6 +76,8 @@ static long setup(void)
 
 /* IPL 7 around the call: a real key interrupt must not interleave with ikbd_scan()'s ring update. */
 static unsigned char cur;
+static short io_peak, io_size;	/* bytes; 4 per key */
+static long n_makes;	/* key-downs injected this session (NFR-2 diagnosis) */
 static long inject_one(void)
 {
 	__asm__ volatile(
@@ -90,6 +92,15 @@ static long inject_one(void)
 		:
 		: "m"(cur), "m"(kbd_iorec), "m"(kbdvec)
 		: "d0", "d1", "d2", "a0", "a1", "a2", "cc", "memory");
+	{	/* NFR-2 diagnosis: peak fill of the BIOS keyboard buffer (IOREC: ibuf, size, head, tail) */
+		struct { void *buf; short size; volatile short hd, tl, lo, hi; } *io = kbd_iorec;
+		short fill = io->tl - io->hd;
+		if (fill < 0)
+			fill += io->size;
+		if (fill > io_peak)
+			io_peak = fill;
+		io_size = io->size;
+	}
 	return 0;
 }
 
@@ -131,6 +142,7 @@ static int key(unsigned char sc, unsigned char flags)
 	} else {
 		raw(sc);
 		held[sc] = 1;
+		n_makes++;
 	}
 	return 0;
 }
@@ -302,7 +314,10 @@ static void session_end(const char *why)
 	release_mouse();
 	restore_kbrate();
 	load_table(tbl_patched);
-	fprintf(stderr, "ttkbdd: session end (%s)\n", why);
+	fprintf(stderr, "ttkbdd: session end (%s): %ld key-downs injected, keyboard buffer peak %d of %d bytes\n",
+	        why, n_makes, io_peak, io_size);
+	n_makes = 0;
+	io_peak = 0;
 }
 
 static long pace_ms;	/* -d: delay between frames in file mode (NFR-2 replay without the network) */
