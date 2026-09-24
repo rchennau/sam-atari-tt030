@@ -10,7 +10,8 @@
  *
  * usage: ttkbdd [-l ADDR] [-k PUB] listen on ADDR:7590 (default 192.168.0.30, /etc/ttkbd.pub):
  *                                 handshake + encrypted frames from scripts/ttkbd_send.py
- *        ttkbdd -f FILE [-t]     session from a frame file ("-" = stdin); -t: test mode, read the
+ *        ttkbdd --bench N        time N frame decrypts and N injects (Shift pairs; types nothing)
+ *        ttkbdd -f FILE [-t] [-d MS]  session from a frame file, MS between frames ("-" = stdin); -t: test mode, read the
  *                                 BIOS keyboard queue back afterwards and print it (steals keys), then
  *                                 inject 'a' + 0x27 and read back again (expects 'a' ' ')
  *        ttkbdd --release        recovery (ttkbd-release): break every scancode 0x01-0x72, restore
@@ -161,6 +162,8 @@ static void session_end(const char *why)
 	fprintf(stderr, "ttkbdd: session end (%s)\n", why);
 }
 
+static long pace_ms;	/* -d: delay between frames in file mode (NFR-2 replay without the network) */
+
 static int session_file(const char *file, int test)
 {
 	unsigned char fr[2];
@@ -177,6 +180,8 @@ static int session_file(const char *file, int test)
 		frames++;
 		if (key(fr[0], fr[1]))
 			dropped++;
+		if (pace_ms)
+			usleep(pace_ms * 1000);
 	}
 	session_end("file");
 	printf("ttkbdd: %ld frame(s), %ld dropped\n", frames, dropped);
@@ -188,6 +193,27 @@ static int session_file(const char *file, int test)
 		readback();
 	}
 	return 0;
+}
+
+/* --bench N: per-frame cost on this CPU (NFR-3). Injects Shift make/break pairs, which type nothing. */
+static int bench(int n)
+{
+	uint8_t key32[32] = {1}, nonce[24] = {0}, pt[2] = {0x2a, 0}, mac[16], ct[2], out[2];
+	clock_t t0;
+	int i, bad = 0;
+
+	crypto_aead_lock(ct, mac, key32, nonce, NULL, 0, pt, 2);
+	t0 = clock();
+	for (i = 0; i < n; i++)
+		bad |= crypto_aead_unlock(out, mac, key32, nonce, NULL, 0, ct, 2);
+	printf("ttkbdd: aead_unlock %.2f ms/frame%s\n", (clock() - t0) * 1000.0 / CLOCKS_PER_SEC / n,
+	       bad ? " (FAILED)" : "");
+	t0 = clock();
+	for (i = 0; i < n; i++)
+		raw(i & 1 ? 0xaa : 0x2a);
+	raw(0xaa);
+	printf("ttkbdd: inject (Supexec+Syield) %.2f ms/frame\n", (clock() - t0) * 1000.0 / CLOCKS_PER_SEC / n);
+	return bad;
 }
 
 /* ---- network (Phase 2): handshake + XChaCha20-Poly1305 records; see scripts/ttkbd_send.py ---- */
@@ -336,7 +362,7 @@ static int release_all(void)
 int main(int argc, char **argv)
 {
 	const char *file = NULL, *addr = "192.168.0.30", *pubfile = "/etc/ttkbd.pub";
-	int test = 0, rel = 0, i;
+	int test = 0, rel = 0, bench_n = 0, i;
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--release"))
@@ -353,6 +379,10 @@ int main(int argc, char **argv)
 			addr = argv[++i];
 		else if (i + 1 < argc && !strcmp(argv[i], "-k"))
 			pubfile = argv[++i];
+		else if (i + 1 < argc && !strcmp(argv[i], "-d"))
+			pace_ms = atol(argv[++i]);
+		else if (i + 1 < argc && !strcmp(argv[i], "--bench"))
+			bench_n = atoi(argv[++i]);
 		else {
 			fprintf(stderr, "usage: ttkbdd [-l ADDR] [-k PUBFILE] | -f FILE [-t] | --release  [-u TABLE] [-p TABLE]\n");
 			return 2;
@@ -367,6 +397,8 @@ int main(int argc, char **argv)
 	Supexec(setup);
 	if (rel)
 		return release_all();
+	if (bench_n)
+		return bench(bench_n);
 	if (file)
 		return session_file(file, test);
 	return listen_loop(addr, 7590, pubfile);
