@@ -4,7 +4,7 @@
  * Phase 0, src/kbdinj.c): the same ikbd_scan() path as the attached keyboard, so both merge.
  *
  * Frame (protocol v2): 4 bytes {flags, code, dx, dy}; flags bit0 = key up, bit1 = heartbeat, bit3 = quit
- * (serial), bit4 = mouse (code = buttons 1 right / 2 left, dx/dy signed). TT -> fractal: 0x06 ack,
+ * (serial), bit4 = mouse (code = buttons 1 right / 2 left, dx/dy signed), bit5 = ack wanted. TT -> fractal: 0x06 ack,
  * 0x05 = pointer reached the hot corner (-c N: 1 top-right [default], 2 top-left, 3/4 bottom, 0 off).
  * Session: load the unpatched key table (D2: remote ; and [ must type ; and [), inject frames,
  * then release every key still held and restore the space-patched table — also on SIGTERM,
@@ -53,7 +53,8 @@
 #define F_HEARTBEAT 2
 #define F_QUIT 8	/* serial only: end the session and exit, so ttygetty respawns the console */
 #define F_MOUSE 0x10	/* code = buttons (1 right, 2 left), dx/dy signed (FR-8) */
-#define MSG_ACK 0x06	/* TT -> fractal: frame injected (NFR-1 timing) */
+#define F_ACK 0x20	/* sender asks for an ack: only the latency tool sets it — a write per frame cost ~1.5 points of CPU */
+#define MSG_ACK 0x06	/* TT -> fractal: frame injected (NFR-1 timing), only when F_ACK is set */
 #define MSG_CORNER 0x05	/* TT -> fractal: pointer reached the hot corner, hand control back (FR-10) */
 #define S_LOADKBD 27
 #define KBRATE_BOOT 0x0f02	/* delay 15, rate 2 (1/50 s); confirmed on the TT by --bench */
@@ -241,8 +242,8 @@ static int frame(const uint8_t f[4], int reply_fd)
 			fprintf(stderr, "ttkbdd: hot corner — control back to fractal\n");
 		return 0;
 	}
-	ok = key(f[1], f[0]) == 0;
-	if (ok && reply_fd >= 0 && write(reply_fd, "\006", 1) != 1)
+	ok = key(f[1], f[0] & ~F_ACK) == 0;
+	if (ok && (f[0] & F_ACK) && reply_fd >= 0 && write(reply_fd, "\006", 1) != 1)
 		;	/* ack for NFR-1 timing only */
 	return 0;
 }
@@ -355,6 +356,7 @@ static int session_file(const char *file, int test)
 }
 
 static int recv_exact(int fd, uint8_t *b, int n, int secs);
+static int v3_unlock(uint8_t pt[4], const uint8_t rec[20], const uint8_t subkey[32], uint64_t ctr);
 
 /* --bench N: per-frame cost on this CPU (NFR-3), wall and process CPU (times(): user+system) per op.
  * Injects Shift make/break pairs, which type nothing. */
@@ -383,6 +385,14 @@ static int bench(int n)
 	for (i = 0; i < n; i++)
 		bad |= crypto_aead_unlock(out, mac, key32, nonce, NULL, 0, ct, 2);
 	bench_report(bad ? "aead_unlock (FAILED)" : "aead_unlock", n, w0, &c0);
+	{	/* v3: subkey derived once, then ChaCha20-Poly1305 per record */
+		uint8_t sub[32], zero16[16] = {0}, rec3[20] = {0}, pt4[4];
+		crypto_chacha20_h(sub, key32, zero16);
+		w0 = times(&c0);
+		for (i = 0; i < n; i++)
+			(void)v3_unlock(pt4, rec3, sub, (uint64_t)i);	/* MAC fails on zeros: timing of the check path */
+		bench_report("v3_unlock (verify path)", n, w0, &c0);
+	}
 
 	w0 = times(&c0);
 	for (i = 0; i < n; i++) {
@@ -454,11 +464,33 @@ static int urandom(uint8_t *b, int n)
 	return ok ? 0 : -1;
 }
 
+/* v3 record: XChaCha20-Poly1305 with the counter in the LAST 8 nonce bytes, so the HChaCha20 input
+ * (first 16 bytes) is constant and the subkey is derived once per session; each record is then the
+ * RFC 8439 ChaCha20-Poly1305 construction. Same bytes as Python's XChaCha sealing (interop-checked on
+ * fractal 2026-09-23); saves one ChaCha block per frame — NFR-3 on WiFi. */
+static int v3_unlock(uint8_t pt[4], const uint8_t rec[20], const uint8_t subkey[32], uint64_t ctr)
+{
+	uint8_t n12[12] = {0}, pk[32] = {0}, mac[16], buf[32] = {0};
+	int i;
+	for (i = 0; i < 8; i++)
+		n12[4 + i] = (uint8_t)(ctr >> (8 * i));
+	crypto_chacha20_ietf(pk, pk, 32, subkey, n12, 0);	/* Poly1305 key = keystream block 0 */
+	memcpy(buf, rec + 16, 4);				/* ct | pad | le64 ad len 0 | le64 ct len 4 */
+	buf[24] = 4;
+	crypto_poly1305(mac, buf, 32, pk);
+	i = crypto_verify16(mac, rec);
+	crypto_wipe(pk, sizeof pk);
+	if (i)
+		return -1;
+	crypto_chacha20_ietf(pt, rec + 16, 4, subkey, n12, 1);
+	return 0;
+}
+
 static void serve(int c)
 {
-	uint8_t hello[49], auth[96], msg[86], shared[32], sess_key[32], tt_sk[32], nonce[24], rec[20], fr[4];
+	uint8_t hello[49], auth[96], msg[86], shared[32], sess_key[32], subkey[32], tt_sk[32], nonce[24], rec[20], fr[4];
 	uint64_t ctr = 0;
-	int r, i;
+	int r;
 	const char *why;
 
 	/* ponytail: keypair made per connection (~one X25519 at connect); precompute while idle if slow */
@@ -466,7 +498,7 @@ static void serve(int c)
 		fprintf(stderr, "ttkbdd: /dev/urandom failed\n");
 		return;
 	}
-	hello[0] = 2;	/* protocol v2: 4-byte frames {flags, code, dx, dy} */
+	hello[0] = 3;	/* v3: 4-byte frames {flags, code, dx, dy}; counter in the last 8 nonce bytes */
 	crypto_x25519_public_key(hello + 17, tt_sk);
 	if (write(c, hello, sizeof hello) != sizeof hello)
 		return;
@@ -491,6 +523,8 @@ static void serve(int c)
 		crypto_wipe(kdf, sizeof kdf);
 	}
 	crypto_wipe(shared, sizeof shared);
+	memset(nonce, 0, 16);
+	crypto_chacha20_h(subkey, sess_key, nonce);	/* once per session (v3) */
 	if (session_begin())
 		goto out;
 	fprintf(stderr, "ttkbdd: session up\n");
@@ -500,10 +534,7 @@ static void serve(int c)
 			why = r == -2 ? "silence" : "closed";
 			break;
 		}
-		memset(nonce, 0, sizeof nonce);
-		for (i = 0; i < 8; i++)
-			nonce[i] = (uint8_t)(ctr >> (8 * i));
-		if (crypto_aead_unlock(fr, rec, sess_key, nonce, NULL, 0, rec + 16, 4)) {
+		if (v3_unlock(fr, rec, subkey, ctr)) {
 			why = "bad record";	/* tampered, replayed or reordered: never typed */
 			break;
 		}
@@ -514,6 +545,7 @@ static void serve(int c)
 out:
 	crypto_wipe(tt_sk, sizeof tt_sk);
 	crypto_wipe(sess_key, sizeof sess_key);
+	crypto_wipe(subkey, sizeof subkey);
 }
 
 /* ---- raw serial (decision D4): 3-byte frames {0xA5, scancode, flags} on Modem 2, no crypto — the

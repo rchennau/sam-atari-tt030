@@ -19,10 +19,10 @@ Wire (all TT-side reads are fixed sizes):
   TT -> fractal  hello  : ver(1)=1 | chal(16) | tt_x25519_pub(32)
   fractal -> TT  auth   : f_x25519_pub(32) | sig(64)   sig = Ed25519(chal | tt_pub | f_pub | b"ttkbd1")
   key = BLAKE2b-256(x25519(f_sk, tt_pub) | chal | tt_pub | f_pub)
-  fractal -> TT  record : mac(16) | ct(4)   XChaCha20-Poly1305, nonce = counter (u64 LE) padded to 24,
+  fractal -> TT  record : mac(16) | ct(4)   XChaCha20-Poly1305, nonce = 16 zero bytes | counter (u64 LE) — v3,
                           plaintext v2 {flags, code, dx, dy}; flags bit0 break, bit1 heartbeat, bit3 quit
-                          (serial), bit4 mouse (code = buttons 1 right / 2 left)
-  TT -> fractal          : 0x06 ack after an inject, 0x05 pointer reached the hot corner
+                          (serial), bit4 mouse (code = buttons 1 right / 2 left), bit5 ack wanted
+  TT -> fractal          : 0x06 ack after an inject (only if bit5 set), 0x05 pointer reached the hot corner
 Heartbeat every 1 s; the TT releases all keys after 3 s of silence.
 Python `cryptography` has no XChaCha20-Poly1305, so HChaCha20 is done here (RFC draft-irtf-cfrg-xchacha
 §2.3) and the IETF ChaCha20-Poly1305 does the rest — the same construction as Monocypher's crypto_aead_lock.
@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 KEYFILE = Path("~/.config/atari-tt/ttkbd.key").expanduser()
-F_BREAK, F_HEARTBEAT, F_QUIT, F_MOUSE = 1, 2, 8, 0x10
+F_BREAK, F_HEARTBEAT, F_QUIT, F_MOUSE, F_ACK = 1, 2, 8, 0x10, 0x20
 MSG_ACK, MSG_CORNER = b"\x06", b"\x05"   # TT -> fractal: injected; pointer hit the hot corner
 
 # UK Atari scancodes (keyboard/en_uk.tbl, unpatched — the TT loads it for the session, D2).
@@ -97,7 +97,9 @@ def xchacha_lock(key, nonce24, pt):
 
 
 def nonce(counter):
-    return struct.pack("<Q", counter) + bytes(16)
+    """v3: counter in the LAST 8 bytes, so the HChaCha20 input is constant and the TT derives the
+    subkey once per session (NFR-3); v2 put it first, costing the TT one ChaCha block per frame."""
+    return bytes(16) + struct.pack("<Q", counter)
 
 
 def keygen():
@@ -128,8 +130,8 @@ class Session:
         self.s = socket.create_connection((host, port), timeout=60)
         self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         hello = recv_exact(self.s, 49)
-        if hello[0] != 2:
-            raise SystemExit(f"TT speaks protocol v{hello[0]}, this sender v2 — update ttkbdd or ttkbd_send.py")
+        if hello[0] != 3:
+            raise SystemExit(f"TT speaks protocol v{hello[0]}, this sender v3 — update ttkbdd or ttkbd_send.py")
         chal, tt_pub = hello[1:17], hello[17:49]
         f_sk = X25519PrivateKey.generate()
         f_pub = f_sk.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
@@ -359,7 +361,7 @@ def latency(host, port, serial, n):
     ms = []
     for _ in range(n):
         t0 = time.monotonic()
-        link.send(0x2A, 0)
+        link.send(0x2A, F_ACK)  # only frames with F_ACK are acked
         if b"\x06" in drain(2.0):
             ms.append((time.monotonic() - t0) * 1000)
         link.send(0x2A, F_BREAK)
