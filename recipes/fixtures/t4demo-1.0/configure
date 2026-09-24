@@ -1,0 +1,9 @@
+#!/bin/sh
+# Minimal autotools-shaped configure for the t4demo fixture: build_recipe runs ./configure, make,
+# make install DESTDIR=...; flags come from the environment it sets (CC, CFLAGS, CPPFLAGS, LDFLAGS, LIBS).
+cat > Makefile <<MK
+t4demo: t4demo.c
+	\$(CC) \$(CFLAGS) \$(CPPFLAGS) -o t4demo t4demo.c \$(LDFLAGS) \$(LIBS)
+install: t4demo
+	mkdir -p \$(DESTDIR)/usr/bin && cp t4demo \$(DESTDIR)/usr/bin/t4demo
+MK

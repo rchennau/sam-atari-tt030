@@ -70,3 +70,18 @@ def test_lock_live_holder_falls_back_dead_holder_is_reclaimed(tgzip, tmp_path):
     assert r.returncode == 0 and "did not boot" in r.stderr and "busy" not in r.stderr
     assert not lock.exists()                                            # taken, then released at exit
     assert gzip.decompress((tmp_path / "f.gz").read_bytes()) == b"abc" * 1000
+
+
+def test_t4_adler32_matches_zlib_and_t4_enabled(tmp_path):
+    """t4call's own adler32 must equal zlib's (t4serv.c checks with zlib's), incl. > 5552-byte blocks."""
+    import ctypes
+    import zlib
+    so = tmp_path / "t4call.so"
+    subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-w", f"-I{SRC}", "-o", str(so),
+                    os.path.join(SRC, "t4call.c"), os.path.join(SRC, "atwboot_host.c")], check=True)
+    lib = ctypes.CDLL(str(so))
+    lib.t4_adler32.restype = ctypes.c_ulong
+    lib.t4_adler32.argtypes = [ctypes.c_char_p, ctypes.c_long]
+    for data in (b"", b"a", os.urandom(5552), os.urandom(5553), bytes(200000), os.urandom(300000)):
+        assert lib.t4_adler32(data, len(data)) == zlib.adler32(data)
+    assert lib.t4_enabled(b"surely-not-a-package") == 0

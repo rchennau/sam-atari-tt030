@@ -7,6 +7,15 @@ Autotools template: fetch the pinned tarball (cached in tools/src/), check its S
 --host=m68k-atari-mint --prefix=/usr, make, make install DESTDIR=<stage>, strip every m68k binary,
 package with rpm_header.write_rpm. Deterministic by construction: SOURCE_DATE_EPOCH, a fixed build
 dir name, files sorted, header mtimes 0 (NFR-3 checks the stripped-binary SHA across two builds).
+T425 variant (tt030-t425-kernel-ports FR-3): a recipe with a "t425" block, e.g.
+  "t425": {"server_build": "sam-yum-tt/t4compress.sh", "server_out": "compserv.b4h", "btl": "<name>.btl"}
+also links the package against libt4call.a (t4call.c + atwboot.c; header t4call.h on CPPFLAGS), builds
+the T425 server with server_build into a short dir, ships it as /usr/lib/t425/<btl>, and writes a
+second RPM, <name>-t425-on, holding only /etc/t425/enabled/<name>. The package offloads only when that
+file exists (t4_enabled), so the -on RPM is published by hand once the FR-5 gate passes; ttbuildd
+publishes the main RPM only.
+Name the server after the package (btl "<name>.btl"): two packages shipping one /usr/lib/t425 path
+collide in rpm as soon as their builds differ (found with the t4demo fixture, 2026-09-24).
 Exit 0 built · 1 failed (the last lines of the failing step are printed) · 2 no recipe for NAME.
 """
 import hashlib
@@ -85,11 +94,29 @@ def build(name, out_dir, timeout=600, progress=print):
         env = dict(os.environ, PATH=XBIN + os.pathsep + os.environ["PATH"], CC=f"{T}-gcc", LD=f"{T}-ld",
                    AR=f"{T}-ar", RANLIB=f"{T}-ranlib", STRIP=f"{T}-strip", CFLAGS="-m68020-60 -O2",
                    SOURCE_DATE_EPOCH="0", LC_ALL="C")
+        t4 = r.get("t425")
+        if t4:
+            progress("t425 runtime")
+            lib = os.path.join(work, "t4lib")
+            os.makedirs(lib)
+            rt = os.path.join(REPO, "sam-yum-tt", "src")
+            for c in ("t4call.c", "atwboot.c"):
+                run([f"{T}-gcc", "-m68020-60", "-O2", "-c", "-I", rt, "-o", os.path.join(lib, c[:-2] + ".o"),
+                     os.path.join(rt, c)], work, env, log, deadline)
+            run([f"{T}-ar", "rcs", os.path.join(lib, "libt4call.a"), os.path.join(lib, "t4call.o"),
+                 os.path.join(lib, "atwboot.o")], work, env, log, deadline)
+            env.update(CPPFLAGS=f"-I{rt}", LDFLAGS=f"-L{lib}", LIBS="-lt4call")
         progress("configure")
         run(["./configure", f"--host={T}", "--prefix=/usr", *r.get("configure_args", [])], src_dir, env, log, deadline)
         progress("make")
         run(["make", f"-j{os.cpu_count()}"], src_dir, env, log, deadline)
         run(["make", "install", f"DESTDIR={stage}"], src_dir, env, log, deadline)
+        if t4:
+            progress("t425 server")
+            srv = f"/tmp/t4s-{name}"[:40]         # short: ilink's ISEARCH breaks past ~100 characters
+            run(["sh", os.path.join(REPO, t4["server_build"]), srv], work, env, log, deadline)
+            os.makedirs(os.path.join(stage, "usr", "lib", "t425"), exist_ok=True)
+            shutil.copy(os.path.join(srv, t4["server_out"]), os.path.join(stage, "usr", "lib", "t425", t4["btl"]))
         progress("package")
         files, bins = [], {}
         for root, dirs, names in os.walk(stage):
@@ -116,6 +143,15 @@ def build(name, out_dir, timeout=600, progress=print):
             fh.write(R.write_rpm(name, r["version"], "1", files, summary=r.get("summary", name),
                                  provides=[name], description=desc))
         os.replace(rpm + ".tmp", rpm)
+        if t4:
+            on = os.path.join(out_dir, f"{name}-t425-on-{r['version']}-1.m68kmint.rpm")
+            with open(on + ".tmp", "wb") as fh:
+                fh.write(R.write_rpm(f"{name}-t425-on", r["version"], "1",
+                                     [(f"/etc/t425/enabled/{name}", 0o100644, b"")],
+                                     summary=f"turn on T425 offload for {name} (after its FR-5 gate)",
+                                     requires_=[name]))
+            os.replace(on + ".tmp", on)
+            progress(f"t425-on held: {os.path.basename(on)}")
         return rpm, bins
     finally:
         shutil.rmtree(work, ignore_errors=True)
