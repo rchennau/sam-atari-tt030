@@ -1,6 +1,6 @@
 # SAM KBD TT (`sam-kbd-tt`) — fractal's keyboard and mouse as the Atari TT030's own
 
-> **Status: keyboard and mouse working on the real TT, operator-confirmed (2026-09-23); ttkbdd starts at
+> **Status: complete (2026-09-24) — keyboard and mouse working on the real TT, operator-confirmed; ttkbdd starts at
 > boot; about 1 key in 8,100 lost at fast typing (target ≤ 1 in 5,000).** Keys typed on fractal reach XaAES, TeraDesk and
 > TosWin2 exactly as if typed on the TT's own keyboard — including Alt, Control, F-keys and the space bar,
 > which the TT's physical keyboard cannot send (space and M are dead, Alt and Left Control unusable) — and
