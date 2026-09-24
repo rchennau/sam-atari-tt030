@@ -1,2 +1,3 @@
 Source: https://freemint.github.io/sparemint/sparemint/RPMS/m68kmint/ (SpareMiNT, arch m68kmint; fetched 2026-09-12). Base userland for FR-7.
 Old builds (bash 2.05a, OpenSSH 5.6p1, OpenSSL 1.0.0c): LAN use only, never expose the TT to the internet.
+Added 2026-09-24: mint-util-0.3.2-2 (logger, required by yum-tt 1.10 for syslog).
