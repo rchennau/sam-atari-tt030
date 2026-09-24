@@ -495,5 +495,7 @@ exec u:/usr/sbin/atwxserv
 exec u:/bin/bash /etc/rc.dropbear
 # FR-5: health telemetry to SAM over MQTT (sam/node/telemetry/atari-tt030)
 exec u:/bin/bash /etc/rc.ttmon
+# tt030-remote-keyboard: remote keyboard listener (ttkbdd, :7590, signed + encrypted)
+exec u:/bin/bash /etc/rc.ttkbdd
 # Serial login on Modem 2, 57600 baud (space bar dead, 2026-09-12); script respawns login
 exec u:/bin/bash u:/c/mint/1-19-4eb/getty1.sh

@@ -31,6 +31,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/times.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -80,14 +81,29 @@ static long inject_one(void)
 	return 0;
 }
 
-/* One frame per 5 ms kernel tick. ikbd_scan() queues into a 16-entry ring that a root timeout drains
- * on the next tick and silently drops when full; a network burst injected back to back lost keys
- * (NFR-2, 2026-09-23: 4 of 2,700, all after a stall), a paced replay of the same frames lost none. */
+/* At most one frame per 20 ms (50 frames/s, 25 keys/s), sleeping only for what is left of the 20 ms.
+ * Two limits sit downstream: ikbd_scan()'s 16-entry ring, drained once per 5 ms tick and silently
+ * dropped when full, and the application's own key buffer. Injecting back to back lost keys (NFR-2,
+ * 2026-09-23: 4 of 2,700 after network stalls); capping only at 8 per tick protected the ring but
+ * scrambled the backlog queued during the handshake (2,600 of 2,700). A fixed 20 ms wait per frame
+ * passed NFR-2 but cost 5.2 ms CPU each (--bench, 23.8 % at 10 keys/s); spaced typing now skips it. */
 static void raw(unsigned char code)
 {
+	static clock_t last, min, us_per_tick;
+	struct tms t;
+	clock_t now = times(&t);
+
+	if (!min) {	/* sysconf once, not per frame */
+		us_per_tick = 1000000 / sysconf(_SC_CLK_TCK);
+		min = 20000 / us_per_tick;
+	}
+	if (now - last < min)
+		usleep((min - (now - last)) * us_per_tick);
 	cur = code;
 	Supexec(inject_one);
-	usleep(5000);
+	/* read the clock again: usleep oversleeps, and assuming exactly 20 ms had passed let the next
+	 * frame follow an inject back to back — 7 of 2,700 keys lost (2026-09-23) */
+	last = times(&t);
 }
 
 /* One frame. Returns 0 if applied, -1 if dropped (bad scancode). */
@@ -216,25 +232,63 @@ static int session_file(const char *file, int test)
 	return 0;
 }
 
-/* --bench N: per-frame cost on this CPU (NFR-3). Injects Shift make/break pairs, which type nothing. */
+static int recv_exact(int fd, uint8_t *b, int n, int secs);
+
+/* --bench N: per-frame cost on this CPU (NFR-3), wall and process CPU (times(): user+system) per op.
+ * Injects Shift make/break pairs, which type nothing. */
+static void bench_report(const char *what, int n, clock_t w0, struct tms *c0)
+{
+	struct tms c1;
+	clock_t w1 = times(&c1);
+	double tck = sysconf(_SC_CLK_TCK);
+	printf("ttkbdd: %-28s wall %6.2f ms  cpu %6.2f ms (user %.2f sys %.2f)\n", what,
+	       (w1 - w0) * 1000.0 / tck / n,
+	       ((c1.tms_utime - c0->tms_utime) + (c1.tms_stime - c0->tms_stime)) * 1000.0 / tck / n,
+	       (c1.tms_utime - c0->tms_utime) * 1000.0 / tck / n,
+	       (c1.tms_stime - c0->tms_stime) * 1000.0 / tck / n);
+}
+
 static int bench(int n)
 {
-	uint8_t key32[32] = {1}, nonce[24] = {0}, pt[2] = {0x2a, 0}, mac[16], ct[2], out[2];
-	clock_t t0;
-	int i, bad = 0;
+	uint8_t key32[32] = {1}, nonce[24] = {0}, pt[2] = {0x2a, 0}, mac[16], ct[2], out[2], rec[18];
+	struct tms c0;
+	clock_t w0;
+	int i, bad = 0, pfd[2];
 
 	printf("ttkbdd: Kbrate now 0x%04lx (boot default assumed 0x%04x)\n", (long)Kbrate(-1, -1) & 0xffff, KBRATE_BOOT);
 	crypto_aead_lock(ct, mac, key32, nonce, NULL, 0, pt, 2);
-	t0 = clock();
+	w0 = times(&c0);
 	for (i = 0; i < n; i++)
 		bad |= crypto_aead_unlock(out, mac, key32, nonce, NULL, 0, ct, 2);
-	printf("ttkbdd: aead_unlock %.2f ms/frame%s\n", (clock() - t0) * 1000.0 / CLOCKS_PER_SEC / n,
-	       bad ? " (FAILED)" : "");
-	t0 = clock();
+	bench_report(bad ? "aead_unlock (FAILED)" : "aead_unlock", n, w0, &c0);
+
+	w0 = times(&c0);
+	for (i = 0; i < n; i++) {
+		cur = i & 1 ? 0xaa : 0x2a;
+		Supexec(inject_one);
+	}
+	cur = 0xaa;
+	Supexec(inject_one);
+	bench_report("Supexec inject only", n, w0, &c0);
+
+	w0 = times(&c0);
 	for (i = 0; i < n; i++)
-		raw(i & 1 ? 0xaa : 0x2a);
-	raw(0xaa);
-	printf("ttkbdd: inject (Supexec + one tick) %.2f ms/frame\n", (clock() - t0) * 1000.0 / CLOCKS_PER_SEC / n);
+		usleep(5000);
+	bench_report("usleep(5000)", n, w0, &c0);
+
+	w0 = times(&c0);
+	for (i = 0; i < n; i++)
+		Syield();
+	bench_report("Syield", n, w0, &c0);
+
+	if (pipe(pfd) == 0) {
+		w0 = times(&c0);
+		for (i = 0; i < n; i++) {
+			if (write(pfd[1], rec, sizeof rec) != sizeof rec || recv_exact(pfd[0], rec, sizeof rec, 1))
+				bad = 1;
+		}
+		bench_report("pipe write + select/read 18B", n, w0, &c0);
+	}
 	return bad;
 }
 

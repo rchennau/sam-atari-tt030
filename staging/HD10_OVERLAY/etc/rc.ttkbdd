@@ -1,0 +1,5 @@
+#!/bin/bash
+# tt030-remote-keyboard FR-4/FR-6: release anything a crashed session left held and put the space-patched
+# key table back (ttkbd-release), then listen for ttkbd_send.py on 192.168.0.30:7590. Called from mint.cnf.
+/usr/sbin/ttkbdd --release < /dev/null > /dev/null 2>&1
+/usr/sbin/ttkbdd < /dev/null >> /var/log/ttkbdd.log 2>&1 &
