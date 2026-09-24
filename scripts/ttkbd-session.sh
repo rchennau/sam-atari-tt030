@@ -5,7 +5,7 @@
 #   scripts/ttkbd-session.sh --wifi     encrypted TCP to 192.168.0.30:7590 (needs your key on the TT)
 #
 # Run it on fractal from your desktop session (the keyboard is readable there via the uaccess rule).
-# Stop typing on the TT with  Right Ctrl + Right Alt + Esc.
+# Stop with  Right Ctrl + Right Alt + Esc,  or by moving the TT pointer into the TT's top-right corner.
 #
 # Serial mode takes over the TT's Modem 2 console for the session: it types `exec ttkbdd -S` at the
 # console prompt, grabs the keyboard, and on the stop chord sends a quit frame — ttkbdd exits and
@@ -18,6 +18,15 @@ PORT=${TTKBD_PORT:-/dev/atari-tt}         # CP2102 null-modem cable to the TT's 
 TTKBDD=${TTKBDD:-/usr/sbin/ttkbdd}        # installed on the card 2026-09-23; rc.ttkbdd starts the WiFi listener at boot
 TT=192.168.0.30                           # sam.int-exception: the TT has no DNS record
 mode=${1:---serial}
+# The mouse comes along unless TTKBD_NO_MOUSE is set: the Logitech receiver drives the TT pointer, and
+# moving it into the TT's top-right corner hands control back, like the chord. Speed: TTKBD_MOUSE_SCALE
+# (mouse counts per TT unit; the TT moves 4 px per unit — raise it to slow the pointer down).
+MOUSE=""
+if [ -z "${TTKBD_NO_MOUSE:-}" ] && [ -r /dev/input/by-id/usb-Logitech_USB_Receiver-if02-event-mouse ]; then
+    MOUSE="--mouse --mouse-scale ${TTKBD_MOUSE_SCALE:-4}"
+elif [ -z "${TTKBD_NO_MOUSE:-}" ]; then
+    echo "ttkbd-session: mouse not readable — keyboard only (install iac/fractal 70-atari-tt-kbd-uaccess.rules)" >&2
+fi
 
 die() { echo "ttkbd-session: $*" >&2; exit 1; }
 
@@ -59,7 +68,7 @@ serial() {
         "$PY" "$DIR/ttkbd_send.py" --serial "$PORT" type "$TTKBD_TEST_TYPE"
         "$PY" "$DIR/ttkbd_send.py" --serial "$PORT" frames 800
     else
-        "$PY" "$DIR/ttkbd_send.py" --serial "$PORT" grab   # sends the quit frame on the chord
+        "$PY" "$DIR/ttkbd_send.py" --serial "$PORT" grab $MOUSE   # quit frame on the chord or TT hot corner
     fi
     sleep 3
     if console '\x15\r' '# ' 10; then
@@ -73,7 +82,7 @@ wifi() {
     [ -f "$HOME/.config/atari-tt/ttkbd.key" ] || die "no key: run $DIR/ttkbd_send.py keygen and install the public key as the TT's /etc/ttkbd.pub"
     timeout 5 bash -c "</dev/tcp/$TT/7590" 2>/dev/null || die "ttkbdd is not listening on $TT:7590 (start it on the TT: $TTKBDD)"
     echo "ttkbd-session: typing on the TT over WiFi — Right Ctrl + Right Alt + Esc to stop (connect takes 4-10 s)"
-    "$PY" "$DIR/ttkbd_send.py" grab
+    "$PY" "$DIR/ttkbd_send.py" grab $MOUSE
     echo "ttkbd-session: done (the serial console was not touched)"
 }
 

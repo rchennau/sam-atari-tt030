@@ -28,3 +28,15 @@ def test_pump_forwards_autorepeat_and_stops_on_chord():
     assert sent == [(0x1E, 0), (0x1E, 0), (0x1E, t.F_BREAK)]
     assert p.event(e.KEY_RIGHTCTRL, 1) and p.event(e.KEY_RIGHTALT, 1)
     assert p.event(e.KEY_ESC, 1) is False
+
+
+def test_mouse_pump_scales_carries_splits_and_buttons():
+    sent = []
+    m = t.MousePump(lambda b, x, y: sent.append((b, x, y)), scale=4.0)
+    m.rel(0, 6); m.rel(1, -2); m.flush(force=True)       # 1.5, -0.5 -> (1, 0), remainder carried
+    m.rel(0, 2); m.flush(force=True)                      # 0.5 + 0.5 -> 1
+    m.rel(0, 4 * 300); m.flush(force=True)                # 300 -> 127, 127, 46
+    m.button(e.BTN_LEFT, 1); m.button(e.BTN_LEFT, 0)
+    assert sent[0] == (0, 1, 0) and sent[1][1] == 1
+    assert [x for _, x, _ in sent[2:5]] == [127, 127, 46]
+    assert sent[-2][0] == 2 and sent[-1][0] == 0

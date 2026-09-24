@@ -3,7 +3,9 @@
  * Injects key frames into FreeMiNT's keyboard path via the kbdvec slot at Kbdvbase()-4 (proven in
  * Phase 0, src/kbdinj.c): the same ikbd_scan() path as the attached keyboard, so both merge.
  *
- * Frame: 2 bytes {scancode, flags}; flags bit0 = break, bit1 = heartbeat (no key), bit3 = quit (serial).
+ * Frame (protocol v2): 4 bytes {flags, code, dx, dy}; flags bit0 = key up, bit1 = heartbeat, bit3 = quit
+ * (serial), bit4 = mouse (code = buttons 1 right / 2 left, dx/dy signed). TT -> fractal: 0x06 ack,
+ * 0x05 = pointer reached the hot corner (-c N: 1 top-right [default], 2 top-left, 3/4 bottom, 0 off).
  * Session: load the unpatched key table (D2: remote ; and [ must type ; and [), inject frames,
  * then release every key still held and restore the space-patched table — also on SIGTERM,
  * SIGINT and SIGHUP.
@@ -50,10 +52,14 @@
 #define F_BREAK 1
 #define F_HEARTBEAT 2
 #define F_QUIT 8	/* serial only: end the session and exit, so ttygetty respawns the console */
+#define F_MOUSE 0x10	/* code = buttons (1 right, 2 left), dx/dy signed (FR-8) */
+#define MSG_ACK 0x06	/* TT -> fractal: frame injected (NFR-1 timing) */
+#define MSG_CORNER 0x05	/* TT -> fractal: pointer reached the hot corner, hand control back (FR-10) */
 #define S_LOADKBD 27
 #define KBRATE_BOOT 0x0f02	/* delay 15, rate 2 (1/50 s); confirmed on the TT by --bench */
 
 static void (*kbdvec)(void);
+static void (*mousevec)(void);
 static void *kbd_iorec;
 static unsigned char held[SC_MAX + 1];
 static const char *tbl_unpatched = "c:\\mint\\1-19-4eb\\keyboard\\en_uk.tbl";
@@ -63,6 +69,7 @@ static volatile sig_atomic_t stop;
 static long setup(void)
 {
 	kbdvec = ((void (**)(void))Kbdvbase())[-1];
+	mousevec = ((void (**)(void))Kbdvbase())[4];	/* midivec vkbderr vmiderr statvec MOUSEVEC */
 	kbd_iorec = Iorec(1);
 	return 0;
 }
@@ -136,6 +143,98 @@ static void release_held(void)
 			key(sc, F_BREAK);
 }
 
+/* ---- mouse (FR-8): relative IKBD packets through Kbdvbase()->mousevec, as FreeMiNT's own mouse
+ * emulation does (sys/keyboard.c:238). Proven with src/kbdinj.c -m on the real TT, MEMPROT on. ---- */
+static signed char mpkt[3];
+static unsigned char mbuttons;	/* buttons we hold down on the TT, released on session end (FR-11) */
+
+static long mouse_one(void)
+{
+	/* load the vector before pushing SR: a stack-relative operand read after the push is 2 bytes off */
+	__asm__ volatile(
+		"move.l %1,%%a2\n\t"
+		"lea %0,%%a0\n\t"
+		"lea 3(%%a0),%%a1\n\t"
+		"move.w %%sr,-(%%sp)\n\t"
+		"ori.w #0x0700,%%sr\n\t"
+		"jsr (%%a2)\n\t"
+		"move.w (%%sp)+,%%sr"
+		:
+		: "m"(mpkt), "m"(mousevec)
+		: "d0", "d1", "d2", "a0", "a1", "a2", "cc", "memory");
+	return 0;
+}
+
+static void mouse(unsigned char buttons, signed char dx, signed char dy)
+{
+	mpkt[0] = (signed char)(0xf8 | (buttons & 3));
+	mpkt[1] = dx;
+	mpkt[2] = dy;
+	Supexec(mouse_one);
+	mbuttons = buttons & 3;
+}
+
+static void release_mouse(void)
+{
+	if (mbuttons)
+		mouse(0, 0, 0);
+}
+
+/* Line-A: pointer position and screen size, as the VDI/AES see them */
+static short *linea;
+static void pointer(short *x, short *y, short *w, short *h)
+{
+	if (!linea) {
+		register char *base __asm__("a0");
+		__asm__ volatile(".word 0xA000" : "=r"(base) : : "d0", "a1", "a2", "d1", "d2", "cc");
+		linea = (short *)base;
+	}
+	*x = *(short *)((char *)linea - 602);	/* GCURX */
+	*y = *(short *)((char *)linea - 600);	/* GCURY */
+	*w = *(short *)((char *)linea - 12);	/* V_REZ_HZ */
+	*h = *(short *)((char *)linea - 4);	/* V_REZ_VT */
+}
+
+static int corner = 1;	/* -c: 0 off, 1 top-right, 2 top-left, 3 bottom-right, 4 bottom-left */
+
+static int in_corner(void)
+{
+	short x, y, w, h, e = 2;
+	if (!corner)
+		return 0;
+	pointer(&x, &y, &w, &h);
+	switch (corner) {
+	case 1: return x >= w - e && y <= e;
+	case 2: return x <= e && y <= e;
+	case 3: return x >= w - e && y >= h - e;
+	default: return x <= e && y >= h - e;
+	}
+}
+
+static void release_held(void);
+static void session_end(const char *why);
+
+/* One v2 frame {flags, code, dx, dy}. reply_fd < 0: no replies (file mode).
+ * Returns 1 on a quit frame, 0 otherwise. */
+static int frame(const uint8_t f[4], int reply_fd)
+{
+	int ok;
+	if (f[0] & F_QUIT)
+		return 1;
+	if (f[0] & F_HEARTBEAT)
+		return 0;
+	if (f[0] & F_MOUSE) {
+		mouse(f[1], (signed char)f[2], (signed char)f[3]);
+		if (reply_fd >= 0 && in_corner() && write(reply_fd, "\005", 1) == 1)
+			fprintf(stderr, "ttkbdd: hot corner — control back to fractal\n");
+		return 0;
+	}
+	ok = key(f[1], f[0]) == 0;
+	if (ok && reply_fd >= 0 && write(reply_fd, "\006", 1) != 1)
+		;	/* ack for NFR-1 timing only */
+	return 0;
+}
+
 static long load_table(const char *path)
 {
 	long r = Ssystem(S_LOADKBD, (long)path, 0L);
@@ -157,6 +256,7 @@ static void on_signal(int sig)
 	(void)sig;
 	stop = 1;
 	release_held();
+	release_mouse();
 	restore_kbrate();
 	load_table(tbl_patched);
 	_exit(0);
@@ -199,6 +299,7 @@ static void restore_kbrate(void)
 static void session_end(const char *why)
 {
 	release_held();
+	release_mouse();
 	restore_kbrate();
 	load_table(tbl_patched);
 	fprintf(stderr, "ttkbdd: session end (%s)\n", why);
@@ -208,7 +309,7 @@ static long pace_ms;	/* -d: delay between frames in file mode (NFR-2 replay with
 
 static int session_file(const char *file, int test)
 {
-	unsigned char fr[2];
+	uint8_t fr[4];
 	int fd = strcmp(file, "-") ? open(file, O_RDONLY) : 0;
 	long frames = 0, dropped = 0;
 
@@ -218,10 +319,11 @@ static int session_file(const char *file, int test)
 	}
 	if (session_begin())
 		return 1;
-	while (!stop && read(fd, fr, 2) == 2) {
+	while (!stop && read(fd, fr, 4) == 4) {
 		frames++;
-		if (key(fr[0], fr[1]))
+		if (!(fr[0] & (F_MOUSE | F_HEARTBEAT | F_QUIT)) && (fr[1] < SC_MIN || fr[1] > SC_MAX))
 			dropped++;
+		frame(fr, -1);
 		if (pace_ms)
 			usleep(pace_ms * 1000);
 	}
@@ -339,7 +441,7 @@ static int urandom(uint8_t *b, int n)
 
 static void serve(int c)
 {
-	uint8_t hello[49], auth[96], msg[86], shared[32], sess_key[32], tt_sk[32], nonce[24], rec[18], fr[2];
+	uint8_t hello[49], auth[96], msg[86], shared[32], sess_key[32], tt_sk[32], nonce[24], rec[20], fr[4];
 	uint64_t ctr = 0;
 	int r, i;
 	const char *why;
@@ -349,7 +451,7 @@ static void serve(int c)
 		fprintf(stderr, "ttkbdd: /dev/urandom failed\n");
 		return;
 	}
-	hello[0] = 1;
+	hello[0] = 2;	/* protocol v2: 4-byte frames {flags, code, dx, dy} */
 	crypto_x25519_public_key(hello + 17, tt_sk);
 	if (write(c, hello, sizeof hello) != sizeof hello)
 		return;
@@ -386,13 +488,12 @@ static void serve(int c)
 		memset(nonce, 0, sizeof nonce);
 		for (i = 0; i < 8; i++)
 			nonce[i] = (uint8_t)(ctr >> (8 * i));
-		if (crypto_aead_unlock(fr, rec, sess_key, nonce, NULL, 0, rec + 16, 2)) {
+		if (crypto_aead_unlock(fr, rec, sess_key, nonce, NULL, 0, rec + 16, 4)) {
 			why = "bad record";	/* tampered, replayed or reordered: never typed */
 			break;
 		}
 		ctr++;
-		if (!key(fr[0], fr[1]) && !(fr[1] & F_HEARTBEAT) && write(c, "\006", 1) != 1)
-			;	/* 1-byte ack after each inject: timing only (NFR-1), carries nothing */
+		frame(fr, c);
 	}
 	session_end(why);
 out:
@@ -403,13 +504,13 @@ out:
 /* ---- raw serial (decision D4): 3-byte frames {0xA5, scancode, flags} on Modem 2, no crypto — the
  * null-modem cable is the trust boundary. A "session" is a burst of activity: the first frame after
  * idle loads the unpatched table, 3 s of silence releases keys and restores it. ---- */
-#define SYNC 0xA5
+#define SYNC 0xA5	/* serial frame: {SYNC, flags, code, dx, dy} */
 static int verbose;	/* -v: hex-dump every byte received (serial diagnosis) */
 
 static int serial_loop(const char *dev)
 {
 	struct termios tio;
-	uint8_t b[3];
+	uint8_t b[5];
 	/* ttygetty's recipe for this port (src/ttygetty.c, measured 2026-09-13): open non-blocking until
 	 * CLOCAL is set — the cable has no DCD and a blocking open can wait for carrier — and clear the SCC
 	 * driver's own XON/XOFF and RTS/CTS through TIOCSFLAGSB, which termios alone cannot reach. */
@@ -475,22 +576,21 @@ static int serial_loop(const char *dev)
 			fprintf(stderr, "rx %02x\n", b[0]);
 		if (b[0] != SYNC)
 			continue;	/* resync: skip until the next frame start */
-		if (recv_exact(fd, b + 1, 2, SILENCE_S))
+		if (recv_exact(fd, b + 1, 4, SILENCE_S))
 			continue;
-		if (b[2] & F_QUIT) {
+		if (b[1] & F_QUIT) {
 			if (in_session)
 				session_end("serial quit");
 			fprintf(stderr, "ttkbdd: quit — console returns\n");
 			return 0;
 		}
-		if (!in_session) {
+		if (!in_session && !(b[1] & F_HEARTBEAT)) {
 			if (session_begin())
 				return 1;
 			in_session = 1;
 			fprintf(stderr, "ttkbdd: serial session up\n");
 		}
-		if (!key(b[1], b[2]) && !(b[2] & F_HEARTBEAT) && write(fd, "\006", 1) != 1)
-			;	/* ack for NFR-1 timing; stderr text on the same line never contains 0x06 */
+		frame(b + 1, fd);
 	}
 }
 
@@ -562,6 +662,8 @@ int main(int argc, char **argv)
 			pubfile = argv[++i];
 		else if (i + 1 < argc && !strcmp(argv[i], "-s"))
 			serdev = argv[++i];
+		else if (i + 1 < argc && !strcmp(argv[i], "-c"))
+			corner = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "-S"))
 			serdev = "-";
 		else if (i + 1 < argc && !strcmp(argv[i], "-d"))

@@ -7,7 +7,9 @@ Connects to ttkbdd on the TT, runs the handshake, then sends encrypted key frame
                                              and print the 32-byte public key hex for /etc/ttkbd.pub
   ttkbd_send.py type "text"                  type text (UK layout subset), then close
   ttkbd_send.py frames HEX...                send raw frames: each HEX is scancode|flags<<8 (e.g. 2a 1e 19e)
-  ttkbd_send.py grab [--device PATH]         capture fractal's keyboard (evdev, exclusive grab) and type on
+  ttkbd_send.py grab [--device PATH] [--mouse [PATH]] [--mouse-scale N]
+                                             capture fractal's keyboard (and mouse) and drive the TT; the TT
+                                             pointer entering its hot corner (top-right) also hands back; type on
                                              the TT until Right Ctrl + Right Alt + Esc; needs read access to
                                              the event device (root:input 660 on fractal)
   options: --host 192.168.0.30 --port 7590 --hold SECONDS (keep the session open, heartbeats on)
@@ -17,8 +19,10 @@ Wire (all TT-side reads are fixed sizes):
   TT -> fractal  hello  : ver(1)=1 | chal(16) | tt_x25519_pub(32)
   fractal -> TT  auth   : f_x25519_pub(32) | sig(64)   sig = Ed25519(chal | tt_pub | f_pub | b"ttkbd1")
   key = BLAKE2b-256(x25519(f_sk, tt_pub) | chal | tt_pub | f_pub)
-  fractal -> TT  record : mac(16) | ct(2)   XChaCha20-Poly1305, nonce = counter (u64 LE) padded to 24,
-                          plaintext {scancode, flags}; flags bit0 break, bit1 heartbeat, bit3 quit (serial)
+  fractal -> TT  record : mac(16) | ct(4)   XChaCha20-Poly1305, nonce = counter (u64 LE) padded to 24,
+                          plaintext v2 {flags, code, dx, dy}; flags bit0 break, bit1 heartbeat, bit3 quit
+                          (serial), bit4 mouse (code = buttons 1 right / 2 left)
+  TT -> fractal          : 0x06 ack after an inject, 0x05 pointer reached the hot corner
 Heartbeat every 1 s; the TT releases all keys after 3 s of silence.
 Python `cryptography` has no XChaCha20-Poly1305, so HChaCha20 is done here (RFC draft-irtf-cfrg-xchacha
 §2.3) and the IETF ChaCha20-Poly1305 does the rest — the same construction as Monocypher's crypto_aead_lock.
@@ -38,7 +42,8 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 KEYFILE = Path("~/.config/atari-tt/ttkbd.key").expanduser()
-F_BREAK, F_HEARTBEAT, F_QUIT = 1, 2, 8
+F_BREAK, F_HEARTBEAT, F_QUIT, F_MOUSE = 1, 2, 8, 0x10
+MSG_ACK, MSG_CORNER = b"\x06", b"\x05"   # TT -> fractal: injected; pointer hit the hot corner
 
 # UK Atari scancodes (keyboard/en_uk.tbl, unpatched — the TT loads it for the session, D2).
 # ponytail: letters/digits/common punctuation only; Phase 3's evdev map replaces this.
@@ -123,8 +128,8 @@ class Session:
         self.s = socket.create_connection((host, port), timeout=60)
         self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         hello = recv_exact(self.s, 49)
-        if hello[0] != 1:
-            raise SystemExit(f"unknown protocol version {hello[0]}")
+        if hello[0] != 2:
+            raise SystemExit(f"TT speaks protocol v{hello[0]}, this sender v2 — update ttkbdd or ttkbd_send.py")
         chal, tt_pub = hello[1:17], hello[17:49]
         f_sk = X25519PrivateKey.generate()
         f_pub = f_sk.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
@@ -136,9 +141,21 @@ class Session:
         self.last = time.monotonic()
 
     def send(self, sc, flags):
-        self.s.sendall(xchacha_lock(self.key, nonce(self.ctr), bytes([sc, flags])))
+        self.frame(flags, sc, 0, 0)
+
+    def send_mouse(self, buttons, dx, dy):
+        self.frame(F_MOUSE, buttons, dx & 0xFF, dy & 0xFF)
+
+    def frame(self, flags, code, dx, dy):  # v2: {flags, code, dx, dy}
+        self.s.sendall(xchacha_lock(self.key, nonce(self.ctr), bytes([flags, code, dx, dy])))
         self.ctr += 1
         self.last = time.monotonic()
+
+    def fileno(self):
+        return self.s.fileno()
+
+    def recv_msgs(self):
+        return self.s.recv(256)
 
     def heartbeat_if_due(self):
         if time.monotonic() - self.last >= 1.0:
@@ -149,7 +166,7 @@ class Session:
 
 
 class SerialLink:
-    """Raw serial transport (decision D4): 3-byte frames {0xA5, scancode, flags} on the null-modem cable
+    """Raw serial transport (decision D4): 5-byte frames {0xA5, flags, code, dx, dy} on the null-modem cable
     to the TT's Modem 2 at 38400 — no TCP, no handshake, no crypto; the cable is the trust boundary.
     Same send / heartbeat_if_due / close interface as Session."""
 
@@ -168,8 +185,20 @@ class SerialLink:
         self.last = time.monotonic()
 
     def send(self, sc, flags):
-        os.write(self.fd, bytes([self.SYNC, sc, flags]))
+        self.frame(flags, sc, 0, 0)
+
+    def send_mouse(self, buttons, dx, dy):
+        self.frame(F_MOUSE, buttons, dx & 0xFF, dy & 0xFF)
+
+    def frame(self, flags, code, dx, dy):  # v2: {SYNC, flags, code, dx, dy}
+        os.write(self.fd, bytes([self.SYNC, flags, code, dx, dy]))
         self.last = time.monotonic()
+
+    def fileno(self):
+        return self.fd
+
+    def recv_msgs(self):
+        return os.read(self.fd, 256)
 
     def heartbeat_if_due(self):
         if time.monotonic() - self.last >= 1.0:
@@ -224,27 +253,86 @@ class KeyPump:
         return True
 
 
-def grab(host, port, device, serial=None):
+class MousePump:
+    """evdev mouse -> TT mouse frames (FR-8). Relative motion is scaled (the TT moved 4 px per unit,
+    measured 2026-09-23; `scale` is the calibration knob), accumulated with the remainder carried, and
+    sent at most every 20 ms, split into -128..127 steps. Left/right buttons map to IKBD bits 2 / 1."""
+
+    BTN = {272: 2, 273: 1}  # BTN_LEFT, BTN_RIGHT
+
+    def __init__(self, send_mouse, scale=4.0):
+        self.send_mouse, self.scale = send_mouse, scale
+        self.fx = self.fy = 0.0
+        self.buttons, self.last = 0, 0.0
+
+    def rel(self, axis, value):  # axis 0 = REL_X, 1 = REL_Y
+        if axis == 0:
+            self.fx += value / self.scale
+        elif axis == 1:
+            self.fy += value / self.scale
+
+    def button(self, code, value):
+        bit = self.BTN.get(code)
+        if bit:
+            self.buttons = self.buttons | bit if value else self.buttons & ~bit
+            self.flush(force=True)
+
+    def flush(self, force=False):
+        if not force and time.monotonic() - self.last < 0.02:
+            return
+        dx, dy = int(self.fx), int(self.fy)
+        if not (dx or dy or force):
+            return
+        self.fx -= dx
+        self.fy -= dy
+        while True:
+            sx, sy = max(-128, min(127, dx)), max(-128, min(127, dy))
+            self.send_mouse(self.buttons, sx, sy)
+            dx, dy = dx - sx, dy - sy
+            if not (dx or dy):
+                break
+        self.last = time.monotonic()
+
+
+def grab(host, port, device, serial=None, mouse_dev=None, scale=4.0):
     import select
     import evdev  # python3-evdev (system python on fractal)
-    dev = evdev.InputDevice(device)
+    kbd = evdev.InputDevice(device)
+    mouse = evdev.InputDevice(mouse_dev) if mouse_dev else None
     sess = SerialLink(serial) if serial else Session(host, port)
-    dev.grab()  # keys stop typing on fractal while the session runs
-    pump = KeyPump(sess.send)
-    print("ttkbd_send: typing on the TT — Right Ctrl + Right Alt + Esc to stop", file=sys.stderr)
+    devs = [kbd] + ([mouse] if mouse else [])
+    for d in devs:
+        d.grab()  # keys and pointer stop acting on fractal while the session runs
+    kp, mp = KeyPump(sess.send), MousePump(sess.send_mouse, scale)
+    print("ttkbd_send: driving the TT — Right Ctrl + Right Alt + Esc"
+          + (", or the TT pointer into its hot corner," if mouse else "") + " to stop", file=sys.stderr)
+    why = "chord"
     try:
         while True:
-            r, _, _ = select.select([dev.fd], [], [], 0.5)
-            if r:
-                for ev in dev.read():
-                    if ev.type == evdev.ecodes.EV_KEY and not pump.event(ev.code, ev.value):
-                        return
+            r, _, _ = select.select([d.fd for d in devs] + [sess.fileno()], [], [], 0.02)
+            if sess.fileno() in r and MSG_CORNER in sess.recv_msgs():
+                why = "TT hot corner"
+                return
+            for d in devs:
+                if d.fd not in r:
+                    continue
+                for ev in d.read():
+                    if ev.type == evdev.ecodes.EV_KEY:
+                        if ev.code in MousePump.BTN:
+                            mp.button(ev.code, ev.value)
+                        elif not kp.event(ev.code, ev.value):
+                            return
+                    elif ev.type == evdev.ecodes.EV_REL and ev.code in (0, 1):
+                        mp.rel(ev.code, ev.value)
+            mp.flush()
             sess.heartbeat_if_due()
     finally:
-        dev.ungrab()
+        for d in devs:
+            d.ungrab()
         if serial:
             sess.send(0, F_QUIT)  # ttkbdd exits; ttygetty respawns the serial console
-        sess.close()  # the TT releases every held key when the session closes (FR-6)
+        sess.close()  # the TT releases every held key and button when the session closes (FR-6, FR-11)
+        print(f"ttkbd_send: control back on fractal ({why})", file=sys.stderr)
 
 
 def latency(host, port, serial, n):
@@ -263,7 +351,7 @@ def latency(host, port, serial, n):
         got, end = b"", time.monotonic() + timeout
         while time.monotonic() < end:
             if select.select([fd], [], [], max(0, end - time.monotonic()))[0]:
-                got += os.read(fd, 256) if serial else link.s.recv(256)
+                got += link.recv_msgs()
                 if b"\x06" in got:
                     return got
         return got
@@ -296,12 +384,15 @@ def main():
     ap.add_argument("--hold", type=float, default=0.0)
     ap.add_argument("--delay", type=float, default=0.0, help="seconds between frames")
     ap.add_argument("--device", default="/dev/input/by-id/usb-05ac_KB104_Dongle-event-kbd")
+    ap.add_argument("--mouse", nargs="?", const="/dev/input/by-id/usb-Logitech_USB_Receiver-if02-event-mouse",
+                    help="also drive the TT pointer with this mouse (default: the Logitech receiver)")
+    ap.add_argument("--mouse-scale", type=float, default=4.0, help="mouse counts per TT unit (TT moves 4 px/unit)")
     ap.add_argument("--serial", metavar="DEV", help="raw serial to the TT's Modem 2 instead of WiFi (D4), e.g. /dev/atari-tt")
     a = ap.parse_args()
     if a.cmd == "keygen":
         return keygen()
     if a.cmd == "grab":
-        return grab(a.host, a.port, a.device, a.serial)
+        return grab(a.host, a.port, a.device, a.serial, a.mouse, a.mouse_scale)
     if a.cmd == "latency":
         return latency(a.host, a.port, a.serial, int(a.args[0]) if a.args else 50)
     frames = text_frames(" ".join(a.args).replace("\\n", "\n")) if a.cmd == "type" else \

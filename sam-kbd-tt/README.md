@@ -14,7 +14,7 @@ path; `ttkbd_send.py` on fractal captures the keyboard and streams it.
 | Part | What it does |
 | :--- | :--- |
 | [`../src/ttkbdd.c`](../src/ttkbdd.c) | TT daemon: WiFi listener or raw serial (`-S` on stdin, `-s DEV`, `-v` hex dump), handshake, XChaCha20-Poly1305 frames, inject via the kbdvec slot, key-table swap, key-repeat off for the session, release on end / signal / 3 s silence; `--release` recovery; `-f FILE` replay; `--bench N` |
-| [`../scripts/ttkbd-session.sh`](../scripts/ttkbd-session.sh) | one-command session on fractal: serial (default) or `--wifi`; restores the console on the stop chord |
+| [`../scripts/ttkbd-session.sh`](../scripts/ttkbd-session.sh) | one-command session on fractal: serial (default) or `--wifi`, keyboard + mouse; restores the console on the stop chord or TT hot corner |
 | [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | fractal sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`, `latency N`; Linux keycode → Atari scancode map |
 | [`../scripts/test_ttkbd_send.py`](../scripts/test_ttkbd_send.py) | checks the map against the TT's own `en_uk.tbl` and the key-pump rules |
 | [`../src/kbdinj.c`](../src/kbdinj.c) | Phase 0 spike and test tool: inject raw scancodes, read the BIOS queue back (`-r`), swap the table (`-k`) |
@@ -76,6 +76,26 @@ What the measurements changed:
 - Whole-system CPU while typing is dominated by TosWin2 drawing (≈ 45 % at 15 keys/s even with no
   network), the same as typing on the TT's own keyboard — hence NFR-3 measures ttkbdd's own time.
 - An unpaced replay of 5,400 frames (≈ 400 keys/s) garbles; no sender produces that rate.
+
+## Mouse (FR-8…11, added 2026-09-23)
+
+fractal's Logitech mouse drives the TT pointer through `Kbdvbase()->mousevec`, the path FreeMiNT's own
+mouse emulation uses, on both transports. Protocol v2 frames are `{flags, code, dx, dy}` (flag 0x10 =
+mouse, code = buttons 1 right / 2 left). Motion is scaled (`--mouse-scale`, default 4 counts per TT unit;
+the TT moves 4 px per unit), coalesced to one frame per 20 ms and split into ±127 steps.
+**Hand-back:** moving the TT pointer into its **top-right corner** makes ttkbdd send `0x05`; the sender
+ungrabs and ends the session (serial: the console returns). `ttkbdd -c N` picks the corner (0 = off).
+`ttkbd-session.sh` includes the mouse when it is readable (`TTKBD_NO_MOUSE=1` for keyboard only).
+
+| Check (real TT, 2026-09-23) | WiFi | Serial |
+|---|---|---|
+| Drive to top-left, then +25,+25 / +50,+30 units | 0,0 → 100,100 | 0,0 → 200,120 |
+| Pointer into the top-right corner | 1023,0, `0x05` received | `0x05` received |
+| Keys still acked | yes | — |
+
+Not yet: a live run with the real mouse (needs the uaccess rule re-installed — it now covers the
+Logitech receiver), button click / release checks (FR-11), and a hot corner on **fractal's** screen
+(COSMIC is Wayland: a client cannot see the global pointer; trigger is the chord for now).
 
 ## Raw serial transport (decision D4, 2026-09-23)
 
