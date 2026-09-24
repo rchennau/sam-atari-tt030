@@ -391,7 +391,8 @@ static void serve(int c)
 			break;
 		}
 		ctr++;
-		key(fr[0], fr[1]);
+		if (!key(fr[0], fr[1]) && !(fr[1] & F_HEARTBEAT) && write(c, "\006", 1) != 1)
+			;	/* 1-byte ack after each inject: timing only (NFR-1), carries nothing */
 	}
 	session_end(why);
 out:
@@ -488,7 +489,8 @@ static int serial_loop(const char *dev)
 			in_session = 1;
 			fprintf(stderr, "ttkbdd: serial session up\n");
 		}
-		key(b[1], b[2]);
+		if (!key(b[1], b[2]) && !(b[2] & F_HEARTBEAT) && write(fd, "\006", 1) != 1)
+			;	/* ack for NFR-1 timing; stderr text on the same line never contains 0x06 */
 	}
 }
 

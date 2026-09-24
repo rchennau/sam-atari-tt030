@@ -247,9 +247,49 @@ def grab(host, port, device, serial=None):
         sess.close()  # the TT releases every held key when the session closes (FR-6)
 
 
+def latency(host, port, serial, n):
+    """NFR-1: time from sending a key-down to the TT's 1-byte ack after injecting it. Uses Shift taps,
+    which type nothing. Prints median / p95 in ms."""
+    import select
+    link = SerialLink(serial) if serial else Session(host, port)
+    fd = link.fd if serial else link.s.fileno()
+    if not serial:  # the TT verifies the handshake for several seconds; keep that out of the numbers,
+        end = time.monotonic() + 15  # heartbeating so its 3 s silence timeout does not end the session
+        while time.monotonic() < end:
+            time.sleep(0.2)
+            link.heartbeat_if_due()
+
+    def drain(timeout):
+        got, end = b"", time.monotonic() + timeout
+        while time.monotonic() < end:
+            if select.select([fd], [], [], max(0, end - time.monotonic()))[0]:
+                got += os.read(fd, 256) if serial else link.s.recv(256)
+                if b"\x06" in got:
+                    return got
+        return got
+    drain(0.5)
+    ms = []
+    for _ in range(n):
+        t0 = time.monotonic()
+        link.send(0x2A, 0)
+        if b"\x06" in drain(2.0):
+            ms.append((time.monotonic() - t0) * 1000)
+        link.send(0x2A, F_BREAK)
+        drain(0.3)
+        time.sleep(0.2)
+    if serial:
+        link.send(0, F_QUIT)
+    link.close()
+    ms.sort()
+    if not ms:
+        raise SystemExit("latency: no acks received")
+    print(f"latency: {len(ms)}/{n} acked, median {ms[len(ms)//2]:.1f} ms, p95 {ms[int(len(ms)*0.95)-1]:.1f} ms, "
+          f"min {ms[0]:.1f}, max {ms[-1]:.1f}")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["keygen", "type", "frames", "grab"])
+    ap.add_argument("cmd", choices=["keygen", "type", "frames", "grab", "latency"])
     ap.add_argument("args", nargs="*")
     ap.add_argument("--host", default="192.168.0.30")  # sam.int-exception: the TT has no DNS record
     ap.add_argument("--port", type=int, default=7590)
@@ -262,6 +302,8 @@ def main():
         return keygen()
     if a.cmd == "grab":
         return grab(a.host, a.port, a.device, a.serial)
+    if a.cmd == "latency":
+        return latency(a.host, a.port, a.serial, int(a.args[0]) if a.args else 50)
     frames = text_frames(" ".join(a.args).replace("\\n", "\n")) if a.cmd == "type" else \
         [(int(h, 16) & 0xFF, int(h, 16) >> 8) for h in a.args]
     t0 = time.monotonic()

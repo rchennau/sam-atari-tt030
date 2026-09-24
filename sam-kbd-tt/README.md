@@ -15,7 +15,7 @@ path; `ttkbd_send.py` on fractal captures the keyboard and streams it.
 | :--- | :--- |
 | [`../src/ttkbdd.c`](../src/ttkbdd.c) | TT daemon: WiFi listener or raw serial (`-S` on stdin, `-s DEV`, `-v` hex dump), handshake, XChaCha20-Poly1305 frames, inject via the kbdvec slot, key-table swap, key-repeat off for the session, release on end / signal / 3 s silence; `--release` recovery; `-f FILE` replay; `--bench N` |
 | [`../scripts/ttkbd-session.sh`](../scripts/ttkbd-session.sh) | one-command session on fractal: serial (default) or `--wifi`; restores the console on the stop chord |
-| [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | fractal sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`; Linux keycode → Atari scancode map |
+| [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | fractal sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`, `latency N`; Linux keycode → Atari scancode map |
 | [`../scripts/test_ttkbd_send.py`](../scripts/test_ttkbd_send.py) | checks the map against the TT's own `en_uk.tbl` and the key-pump rules |
 | [`../src/kbdinj.c`](../src/kbdinj.c) | Phase 0 spike and test tool: inject raw scancodes, read the BIOS queue back (`-r`), swap the table (`-k`) |
 | `../staging/HD10_OVERLAY/etc/rc.ttkbdd` | boot script: `ttkbdd --release`, then the WiFi listener — **installed on the card 2026-09-23**, verified by a reboot |
@@ -57,6 +57,7 @@ against Monocypher byte for byte.
 | Release on SIGTERM, `kill -9` + `--release`, 3 s silence | no key left held in any case |
 | 2,700 keys at 15 keys/s over WiFi (NFR-2) | shipped pacing: **2,700 / 2,700 once, 2,699 / 2,700 once** — about 1 key in 2,700 still lost intermittently, cause not found |
 | ttkbdd's own CPU (NFR-3) | idle 0 %; **10.8–11.2 % at 10 keys/s** with the shipped pacing (limit 10 %) |
+| Key latency (NFR-1), send → TT ack after inject, 50 Shift taps | **WiFi median 32.4 ms, p95 65.2 ms** (ping avg ≈ 95 ms same session) · **serial median 6.0 ms, p95 7.0 ms** |
 | Connect | 4–10 s wait; the handshake costs **12.6 s of 68030 CPU** (X25519 + Ed25519) |
 | Per frame (`--bench`) | decrypt 2.5 ms, `Supexec` inject 0.65 ms, a 5 ms `usleep` 5.2 ms CPU (it rounds up to 20 ms wall) |
 
