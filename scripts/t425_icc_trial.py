@@ -62,6 +62,8 @@ KERNEL_FILES = {
     "sox": ["*/rate.c", "*/resample.c", "*/filter.c", "*/band.c"],
     "gsm": ["*/src/long_term.c", "*/src/short_term.c", "*/src/lpc.c", "*/src/rpe.c", "*/src/add.c"],
     "libmad": ["*/fixed.c", "*/layer3.c", "*/synth.c", "*/huffman.c"],
+    "xz": ["*/src/liblzma/lz/lz_encoder.c", "*/src/liblzma/lzma/lzma_encoder.c",
+           "*/src/liblzma/lzma/lzma_decoder.c", "*/src/liblzma/rangecoder/price_table.c"],
 }
 # Stub system headers icc lacks, so the trial reaches the kernel code instead of stopping at the first
 # #include. 32-bit types only: code that needs a 64-bit type still fails, and is classed 64bit.
