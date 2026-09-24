@@ -62,6 +62,33 @@ Hatari had estimated the 68030 at 137 KB/s — **the real machine is half that**
 offload candidate is unaffected: an Ed25519 *signature* check is a tiny payload, where the T425's
 measured 1.44× still applies.
 
+## Rev. 7: compression on the T425 (2026-09-24)
+
+Operator: packages that have to be built or ported should use the transputer by default — measure
+first. `compbench` (68030) and `compserv` (T425) run the **same** zlib 1.3.2 / bzip2 1.0.8 C
+(`src/compkern.c`; T425 build `t4compress.sh`, `make comp`) on the first 256 KB of a file. Every
+T425 output was **byte-identical** to the 68030's. Real TT, times include sending the input and
+receiving the output over the link:
+
+| Input (256 KB) | Kernel | 68030 | T425 incl. transfer | T425 / 68030 |
+|---|---|---|---|---|
+| `/etc/termcap` (text) | deflate -1 | 6,240 ms | 4,655 ms | 0.74 |
+| | deflate -6 | 11,050 ms | 8,475 ms | 0.76 |
+| | bzip2 -1 | 23,340 ms | 16,545 ms | 0.70 |
+| `/bin/bash` (binary) | deflate -1 | 9,445 ms | 6,315 ms | 0.66 |
+| | deflate -6 | 17,170 ms | 11,945 ms | 0.69 |
+| | bzip2 -1 | 24,955 ms | 20,215 ms | 0.81 |
+
+64 KB of `index.tsv`: 0.66 / 0.62 / 0.74. So for compression-class work the T425 is **1.2–1.6×**
+faster *including* the link, unlike SHA-256 (1.0×), because compression does more work per byte
+moved. One run per input (n = 1), not a distribution.
+
+**Link finding:** the T425 streaming a ~96 KB result in one burst reached the TT **damaged** (the
+T425's own adler32 of it was right), and the stream then misaligned. The TT-paced 4 KB exchange is
+always clean, so `compserv` sends each 4 KB chunk only when the TT asks. Any T425 server that
+returns more than a few KB needs the same pacing. `bzip2 -1` on 256 KB also needs
+`IBOARDSIZE #400000` (4 MB); the `t4` emulator runs out of memory at that size.
+
 ## Layout
 
 ```
