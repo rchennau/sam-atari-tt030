@@ -9,7 +9,7 @@
  * usage: kbdinj [hex | -r | -k FILE]...   run in order, e.g. kbdinj 1e 9e -r
  *   hex: inject that scancode (make; |0x80 = break)   -r: read back the BIOS keyboard queue
  *   -k FILE: Ssystem(S_LOADKBD, FILE) — swap the key table at runtime (root)
- *   no arguments: types "ab" + Shift+a (1e 9e 30 b0 2a 1e 9e aa) and reads back
+ *   no arguments: usage error (there is deliberately no default action)
  *
  * ponytail: spike only — no network, no table swap; ttkbdd replaces it in Phase 1.
  */
@@ -77,16 +77,15 @@ static void inject(unsigned char c)
  * -k FILE = Ssystem(S_LOADKBD) — reload the key table at runtime (root; D2 swap). */
 int main(int argc, char **argv)
 {
-	static const unsigned char deflt[] = {0x1e, 0x9e, 0x30, 0xb0, 0x2a, 0x1e, 0x9e, 0xaa};
 	int i;
 
 	Supexec(setup);
 	printf("kbdinj: kbdvec=%08lx iorec=%08lx\n", (unsigned long)kbdvec, (unsigned long)kbd_iorec);
+	/* No default action: an empty argument list (a caller's mapping failed) once typed "abA" and hung
+	 * the TT at 100 % CPU in the read-back loop, twice (2026-09-23). */
 	if (argc < 2) {
-		for (i = 0; i < (int)sizeof deflt; i++)
-			inject(deflt[i]);
-		readback();
-		return 0;
+		fprintf(stderr, "usage: kbdinj [hex | -r | -k FILE]...\n");
+		return 2;
 	}
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-r"))
