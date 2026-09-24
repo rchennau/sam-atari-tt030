@@ -3,11 +3,11 @@
  *   TT -> T425  op (1) || level (1) || len (4, little-endian) || len bytes
  *   op 'E': each 4096-byte chunk echoed back at once                     (link throughput)
  *   op 'z' | 'g' | 'b': ck_compress(op, level) on the buffer, then
- *   T425 -> TT  outlen (4, little-endian; 0xffffffff = failed) || adler32(out) (4), then per 4096-byte
- *               chunk: TT -> T425 one byte ("send"), T425 -> TT the chunk.
- * Measured 2026-09-24: the T425 streaming a ~96 KB result in one go reached the TT DAMAGED (its adler32
- * right, the bytes wrong, the stream then misaligned), while the TT-paced 4 KB echo is always clean. So
- * the TT paces every chunk; the checksum still tells a wrong result from a damaged transfer.
+ *   T425 -> TT  outlen (4, little-endian; 0xffffffff = failed) || adler32(out) (4) || outlen bytes
+ * The checksum tells a wrong result from a damaged transfer. It found one on 2026-09-24: a ~96 KB result
+ * arrived damaged because the TT asked the driver for it in ONE read call, over the driver's 0x7FFF
+ * limit — not an FPGA or T425 fault. atwboot's link_read now caps each call (A/B on the same server:
+ * uncapped damaged, capped byte-identical), so this streams again; a TT-paced 4 KB workaround is gone.
  * Needs IBOARDSIZE #400000: bzip2 -1 wants ~1.2 MB beside the in/out buffers (atwboot answers it).
  */
 #include <channel.h>
@@ -58,11 +58,7 @@ int main(void)
         put4(olen < 0 ? 0xffffffffUL : (unsigned long)olen);
         if (olen > 0) {
             put4(adler32(adler32(0L, Z_NULL, 0), out, (uInt)olen));
-            for (i = 0; i < (unsigned long)olen; i += n) {
-                n = (unsigned long)olen - i > CHUNK ? CHUNK : (unsigned long)olen - i;
-                ChanIn(LINK0IN, (char *)hdr, 1);
-                ChanOut(LINK0OUT, (char *)out + i, (int)n);
-            }
+            ChanOut(LINK0OUT, (char *)out, (int)olen);
         }
         free(in);
         free(out);

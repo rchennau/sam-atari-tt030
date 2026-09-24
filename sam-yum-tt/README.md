@@ -83,10 +83,16 @@ receiving the output over the link:
 faster *including* the link, unlike SHA-256 (1.0×), because compression does more work per byte
 moved. One run per input (n = 1), not a distribution.
 
-**Link finding:** the T425 streaming a ~96 KB result in one burst reached the TT **damaged** (the
-T425's own adler32 of it was right), and the stream then misaligned. The TT-paced 4 KB exchange is
-always clean, so `compserv` sends each 4 KB chunk only when the TT asks. Any T425 server that
-returns more than a few KB needs the same pacing. `bzip2 -1` on 256 KB also needs
+**Link finding (root cause found the same day):** a ~96 KB T425 result reached the TT **damaged**
+(the T425's own adler32 of it was right) and the stream then misaligned. It first looked like an
+FPGA burst limit and was worked around with TT-paced 4 KB chunks. **The cause was on the TT side:**
+the reader asked the fpgabios driver for the whole ~96 KB in one `OP_READ` (106) call, and the
+driver takes at most `0x7FFF` bytes per call (iserver's `ReadLink` refuses more). A/B against the
+same unpaced server: uncapped read → damaged, then no reply; capped at `0x7000` → byte-identical on
+all three kernels. `atwboot.c`'s `link_read` now caps every call, like `link_write` always did, and
+the pacing is gone (it had cost nothing measurable either). Other link clients (Dropbear's X25519
+offload, `sam_scp_tt`, `atwxserv`, `xclient`) never read more than 1,024 bytes per call.
+`bzip2 -1` on 256 KB also needs
 `IBOARDSIZE #400000` (4 MB); the `t4` emulator runs out of memory at that size.
 
 ### First user: `tgzip` / `tbzip2` (`t425-compress` RPM, 2026-09-24)
@@ -95,7 +101,7 @@ returns more than a few KB needs the same pacing. `bzip2 -1` on 256 KB also need
 `scripts/build_t425_compress.sh`). The input goes to the T425 in 256 KB pieces, each returned as a
 gzip member / bzip2 stream (they concatenate, so stock `gunzip` / `bunzip2` read the file). A piece
 falls back to the 68030 (same code) when fpgabios is absent, `/tmp/t425.lock` names a live pid, or
-a piece fails or arrives damaged, and the fallback is printed. Separate names, not a replacement
+a piece fails or arrives damaged (adler32 check), and the fallback is printed. Separate names, not a replacement
 for SpareMiNT's `gzip`: `tar -z` and rpm scripts rely on its full flag set.
 
 | Real TT | stock | T425 | output |

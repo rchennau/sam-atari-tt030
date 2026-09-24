@@ -88,12 +88,9 @@ int main(int argc, char **argv)
             printf("T425 %s: failed (length %ld)\n", NAMES[k], t4len);
             return 1;
         }
-        for (i = 0; i < t4len; i += n) {       /* TT-paced 4 KB chunks: see compserv.c */
-            n = t4len - i > 4096 ? 4096 : t4len - i;
-            if (link_write((const unsigned char *)"s", 1) != 1 || link_read(t4out + i, n, 5000) != n) {
-                printf("T425 %s: chunk at %ld lost\n", NAMES[k], i);
-                return 1;
-            }
+        if (link_read(t4out, t4len, 60000) != t4len) {
+            printf("T425 %s: short read\n", NAMES[k]);
+            return 1;
         }
         ms = ms_since(t0);
         sum = a[0] | ((unsigned long)a[1] << 8) | ((unsigned long)a[2] << 16) | ((unsigned long)a[3] << 24);

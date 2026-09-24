@@ -10,7 +10,7 @@
  *
  * A piece is compressed on the 68030 instead, with the same compkern code, when: fpgabios is not
  * resident, the T425 is busy (/tmp/t425.lock names a live pid), or a piece fails or arrives damaged
- * (compserv sends its adler32; a burst of ~96 KB once arrived damaged, so the TT paces 4 KB chunks).
+ * (compserv sends its adler32 of each piece; see compserv.c for the one damage ever seen, and its fix).
  * After a failure the rest of the run stays on the 68030: the link may be out of step. Each fallback
  * is said on stderr. Booting compserv resets the T425, so Dropbear's X25519 offload restarts at the
  * next SSH login.
@@ -99,7 +99,7 @@ static unsigned long get4(const unsigned char *b)
 static long t4_piece(const unsigned char *in, long n, unsigned char *out)
 {
     unsigned char h[4], a[4];
-    long len, i, c;
+    long len;
 
     if (!t4_up())
         return -1;
@@ -112,12 +112,9 @@ static long t4_piece(const unsigned char *in, long n, unsigned char *out)
         note("failed a piece");
         return -1;
     }
-    for (i = 0; i < len; i += c) {
-        c = len - i > 4096 ? 4096 : len - i;
-        if (link_write((const unsigned char *)"s", 1) != 1 || link_read(out + i, c, 5000) != c) {
-            note("lost a chunk");
-            return -1;
-        }
+    if (link_read(out, len, 30000) != len) {
+        note("sent a short piece");
+        return -1;
     }
     if (adler32(adler32(0L, Z_NULL, 0), out, (uInt)len) != get4(a)) {
         note("sent a damaged piece");

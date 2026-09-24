@@ -52,13 +52,21 @@ long link_write(const unsigned char *buf, long len)
     return done;
 }
 
-/* Read exactly len bytes or give up after timeout_ms; returns bytes read. */
+#ifndef ATW_READ_CAP
+#define ATW_READ_CAP 0x7000L
+#endif
+
+/* Read exactly len bytes or give up after timeout_ms; returns bytes read. Each driver call asks for at
+ * most ATW_READ_CAP bytes: iserver's ReadLink refuses more than 0x7FFF (a 16-bit length in the driver).
+ * Asking for ~96 KB in one call returned the right COUNT of wrong bytes and left the stream out of step
+ * (measured 2026-09-24); link_write has always capped its calls, which is why writes were never hit. */
 long link_read(unsigned char *buf, long len, long timeout_ms)
 {
     long got = 0;
     clock_t end = clock() + timeout_ms * CLOCKS_PER_SEC / 1000;
     while (got < len) {
-        long r = trap_1_wll(OP_READ, (long)(buf + got), len - got);
+        long n = len - got > ATW_READ_CAP ? ATW_READ_CAP : len - got;
+        long r = trap_1_wll(OP_READ, (long)(buf + got), n);
         if (r > 0)
             got += r;
         if (clock() > end)
