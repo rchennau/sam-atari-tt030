@@ -19,11 +19,12 @@ def tgzip(tmp_path_factory):
     d = tmp_path_factory.mktemp("tgzip")
     if not (os.path.isdir(Z) and os.path.isdir(B)):
         pytest.skip("zlib/bzip2 sources not unpacked under tools/rpm-src")
-    srcs = [os.path.join(SRC, f) for f in ("tgzip.c", "compkern.c", "atwboot_host.c")]
+    srcs = [os.path.join(SRC, f) for f in ("tgzip.c", "t4call.c", "compkern.c", "atwboot_host.c")]
     srcs += [os.path.join(Z, f) for f in ("adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c")]
     srcs += [os.path.join(B, f) for f in ("blocksort.c", "huffman.c", "crctable.c", "randtable.c",
                                           "decompress.c", "compress.c", "bzlib.c")]
-    subprocess.run(["cc", "-O2", "-w", "-DZ_SOLO", "-DBZ_NO_STDIO", f"-I{SRC}", f"-I{Z}", f"-I{B}",
+    subprocess.run(["cc", "-O2", "-w", "-DZ_SOLO", "-DBZ_NO_STDIO", f'-DT4LOCK="{d}/t425.lock"',
+                    f"-I{SRC}", f"-I{Z}", f"-I{B}",
                     "-o", str(d / "tgzip"), *srcs], check=True)
     os.symlink("tgzip", d / "tbzip2")
     return d
@@ -51,3 +52,21 @@ def test_stdin_empty_and_refuse_overwrite(tgzip, tmp_path):
     (tmp_path / "h.gz").write_bytes(b"old")
     r = subprocess.run([str(tgzip / "tgzip"), str(tmp_path / "h")], capture_output=True, text=True)
     assert r.returncode == 1 and "exists" in r.stderr and (tmp_path / "h.gz").read_bytes() == b"old"
+
+
+def test_lock_live_holder_falls_back_dead_holder_is_reclaimed(tgzip, tmp_path):
+    """t4call's lock (FR-2): a live holder -> 68030 with the reason; a dead pid -> reclaimed, and the
+    run's own lock is removed at exit."""
+    lock = tgzip / "t425.lock"
+    (tmp_path / "f").write_bytes(b"abc" * 1000)
+    lock.write_text(f"{os.getpid()} -\n")                              # this pytest process: alive
+    r = subprocess.run([str(tgzip / "tgzip"), "-k", "-f", str(tmp_path / "f")], capture_output=True, text=True)
+    assert r.returncode == 0 and f"busy (pid {os.getpid()})" in r.stderr
+    assert lock.read_text().startswith(str(os.getpid()))                # someone else's lock is left alone
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    lock.write_text(f"{dead.pid} -\n")                                  # owner gone: stale
+    r = subprocess.run([str(tgzip / "tgzip"), "-k", "-f", str(tmp_path / "f")], capture_output=True, text=True)
+    assert r.returncode == 0 and "did not boot" in r.stderr and "busy" not in r.stderr
+    assert not lock.exists()                                            # taken, then released at exit
+    assert gzip.decompress((tmp_path / "f.gz").read_bytes()) == b"abc" * 1000

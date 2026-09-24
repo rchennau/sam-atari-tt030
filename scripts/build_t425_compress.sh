@@ -9,7 +9,7 @@ CB=/tmp/cb
 sam-yum-tt/t4compress.sh "$CB" > /dev/null
 PATH=$PWD/tools/cross-mint/usr/bin:$PATH m68k-atari-mint-gcc -m68020-60 -O2 -s -w \
     -DZ_SOLO -Dz_off_t=long -DBZ_NO_STDIO -I"$CB" -Isam-yum-tt/src -o build/tgzip \
-    sam-yum-tt/src/tgzip.c sam-yum-tt/src/atwboot.c "$CB"/compkern.c "$CB"/adler32.c "$CB"/crc32.c \
+    sam-yum-tt/src/tgzip.c sam-yum-tt/src/t4call.c sam-yum-tt/src/atwboot.c "$CB"/compkern.c "$CB"/adler32.c "$CB"/crc32.c \
     "$CB"/deflate.c "$CB"/trees.c "$CB"/zutil.c "$CB"/blocksort.c "$CB"/huffman.c "$CB"/crctable.c \
     "$CB"/randtable.c "$CB"/decompress.c "$CB"/bzcompress.c "$CB"/bzlib.c
 python3 - "$V" "$CB" <<'PY'

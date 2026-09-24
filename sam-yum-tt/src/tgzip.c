@@ -19,12 +19,9 @@
  * clamped to 3, which keeps the T425's memory under IBOARDSIZE #400000.
  * ponytail: the input's mode and mtime are not copied to the output; add if anyone needs it.
  */
-#include "atwboot.h"
 #include "compkern.h"
-#include "zlib.h"
+#include "t4call.h"
 #include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,91 +30,20 @@
 #define PIECE (256L * 1024)
 #define CAP (PIECE + PIECE / 2 + 1024)
 #define SERVER "/usr/lib/t425/compserv.btl"
-#define LOCK "/tmp/t425.lock"
 
 static const char *me;
-static int op, level, verbose;
-static int t4state;                              /* 0 not tried, 1 up, -1 not used */
+static int op, level, verbose, t4off;
 static long t4pieces, pieces;
 
-static void note(const char *why)
-{
-    fprintf(stderr, "%s: T425 %s; compressing on the 68030\n", me, why);
-    t4state = -1;
-}
-
-static void unlock(void)
-{
-    unlink(LOCK);
-}
-
-static int t4_up(void)
-{
-    char buf[32];
-    int fd, n;
-    long pid;
-
-    if (t4state)
-        return t4state > 0;
-    fd = open(LOCK, O_WRONLY | O_CREAT | O_EXCL, 0644);
-    if (fd < 0 && errno == EEXIST) {
-        FILE *f = fopen(LOCK, "r");
-        pid = f && fscanf(f, "%ld", &pid) == 1 ? pid : 0;
-        if (f)
-            fclose(f);
-        if (pid > 0 && kill((int)pid, 0) == 0) {
-            sprintf(buf, "busy (pid %ld)", pid);
-            note(buf);
-            return 0;
-        }
-        unlink(LOCK);                            /* stale: its owner is gone */
-        fd = open(LOCK, O_WRONLY | O_CREAT | O_EXCL, 0644);
-    }
-    if (fd < 0) {
-        note("lock unavailable");
-        return 0;
-    }
-    n = sprintf(buf, "%ld\n", (long)getpid());
-    write(fd, buf, n);
-    close(fd);
-    atexit(unlock);
-    atw_verbose = 0;
-    if (atw_boot(SERVER, "#400000")) {
-        note("did not boot (fpgabios resident? " SERVER " present?)");
-        return 0;
-    }
-    t4state = 1;
-    return 1;
-}
-
-static unsigned long get4(const unsigned char *b)
-{
-    return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24);
-}
-
-/* One piece on the T425; -1 = use the 68030 for it (and for the rest of the run). */
+/* One piece on the T425 through the shared runtime (t4call.c); -1 = use the 68030. */
 static long t4_piece(const unsigned char *in, long n, unsigned char *out)
 {
-    unsigned char h[4], a[4];
-    long len;
+    const char *why = NULL;
+    long len = t4call(SERVER, op, level, in, n, out, CAP, &why);
 
-    if (!t4_up())
-        return -1;
-    if (send_op((char)op, level, n) || link_write(in, n) != n || link_read(h, 4, 120000) != 4) {
-        note("did not answer");
-        return -1;
-    }
-    len = (long)get4(h);
-    if (len < 0 || len > CAP || link_read(a, 4, 5000) != 4) {
-        note("failed a piece");
-        return -1;
-    }
-    if (link_read(out, len, 30000) != len) {
-        note("sent a short piece");
-        return -1;
-    }
-    if (adler32(adler32(0L, Z_NULL, 0), out, (uInt)len) != get4(a)) {
-        note("sent a damaged piece");
+    if (len < 0) {
+        fprintf(stderr, "%s: T425 %s; compressing on the 68030\n", me, why);
+        t4off = 1;
         return -1;
     }
     t4pieces++;
@@ -137,7 +63,7 @@ static int squeeze(FILE *in, FILE *out, const char *name)
     }
     while ((n = (long)fread(buf, 1, PIECE, in)) > 0 || first) {
         first = 0;
-        len = t4state >= 0 ? t4_piece(buf, n, res) : -1;
+        len = t4off ? -1 : t4_piece(buf, n, res);
         if (len < 0)
             len = ck_compress(op, level, buf, n, res, CAP);
         if (len < 0) {

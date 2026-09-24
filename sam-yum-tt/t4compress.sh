@@ -17,7 +17,7 @@ cp "$Z"/adler32.c "$Z"/crc32.c "$Z"/deflate.c "$Z"/trees.c "$Z"/zutil.c \
 for f in blocksort huffman crctable randtable decompress bzlib; do cp "$B/$f.c" .; done
 cp "$B/compress.c" bzcompress.c
 cp "$B"/bzlib.h "$B"/bzlib_private.h .
-cp "$R"/sam-yum-tt/src/compkern.[ch] "$R"/sam-yum-tt/src/compserv.c "$R"/sam-yum-tt/src/compt4test.c .
+cp "$R"/sam-yum-tt/src/compkern.[ch] "$R"/sam-yum-tt/src/compserv.c "$R"/sam-yum-tt/src/t4serv.[ch] "$R"/sam-yum-tt/src/compt4test.c .
 python3 - <<'PY'
 import re
 s = open("zutil.h").read()
@@ -35,12 +35,13 @@ sed -i '/^#warning/d' ./*.h ./*.c
 ISEARCH="$D/ $D72UNI/libs/"
 export ISEARCH IBOARDSIZE
 LIB="adler32 crc32 deflate trees zutil blocksort huffman crctable randtable decompress bzcompress bzlib compkern"
-for f in $LIB compserv compt4test; do
+for f in $LIB t4serv compserv compt4test; do
     icc "$f.c" -t4 -dZ_SOLO -dz_off_t=long -dBZ_NO_STDIO -o "$f.t4h" > "$f.log" 2>&1 || { cat "$f.log"; exit 1; }
     grep -E '^(Serious|Error|Fatal)' "$f.log" && exit 1
 done
 for m in compserv compt4test; do
-    { echo "$m.t4h"; for f in $LIB; do echo "$f.t4h"; done; echo '#include startup.lnk'; } > "$m.lnk"
+    extra=; [ "$m" = compserv ] && extra=t4serv.t4h   # the server loop (main) is t4serv.c
+    { echo "$m.t4h"; [ -n "$extra" ] && echo "$extra"; for f in $LIB; do echo "$f.t4h"; done; echo '#include startup.lnk'; } > "$m.lnk"
     ilink -f "$m.lnk" -t4 -h -o "$m.c4h"
     icollect "$m.c4h" -t -o "$m.b4h"
     [ -s "$m.b4h" ] || { echo "t4compress: $m.b4h not built" >&2; exit 1; }
