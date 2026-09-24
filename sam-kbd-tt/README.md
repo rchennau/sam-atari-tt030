@@ -63,7 +63,7 @@ against Monocypher byte for byte.
 | Forged key / tampered / replayed record | nothing typed / session ended / session ended |
 | Release on SIGTERM, `kill -9` + `--release`, 3 s silence | no key left held in any case |
 | 2,700 keys at 15 keys/s over WiFi (NFR-2) | shipped pacing: **2,700 · 2,699 · 2,700 — 1 key in 8,100**; target re-scoped to ≤ 1 in 5,000 (operator) ✅ |
-| ttkbdd's own CPU (NFR-3) | idle 0 %; WiFi **10.2 % at 10 keys/s** (v3 + opt-in acks; limit 10 %); serial **9.3 %** |
+| ttkbdd's own CPU (NFR-3) | idle 0 %; WiFi **10.2 % at 10 keys/s** (v3 + opt-in acks; limit 10 %, accepted); serial **9.3 %** |
 | Key latency (NFR-1), send → TT ack after inject, 50 Shift taps | **WiFi median 32.4 ms, p95 65.2 ms** (ping avg ≈ 95 ms same session) · **serial median 6.0 ms, p95 7.0 ms** |
 | Connect | 4–10 s wait; the handshake costs **12.6 s of 68030 CPU** (X25519 + Ed25519) |
 | Per frame (`--bench`) | decrypt 2.5 ms, `Supexec` inject 0.65 ms, a 5 ms `usleep` 5.2 ms CPU (it rounds up to 20 ms wall) |

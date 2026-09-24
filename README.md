@@ -155,7 +155,7 @@ flowchart LR
 | Injection path | `src/kbdinj.c` (spike), `src/ttkbdd.c` | ✅ same path as the hardware key; both keyboards merge |
 | Key table swap (remote `;` `[`) | `Ssystem(S_LOADKBD)` in `ttkbdd` | ✅ unpatched UK table during a session, space remap restored after |
 | Encrypted session | `ttkbdd` listener + `scripts/ttkbd_send.py` | ✅ forged / tampered / replayed input never typed; 3 s silence releases keys |
-| Reliability / CPU | 2,700-key runs at 15 keys/s; ttkbdd CPU at 10 keys/s | ✅ 1 key lost in 8,100 (target ≤ 1 in 5,000); 🟡 WiFi CPU 10.2 % vs 10 % (serial 9.3 %) |
+| Reliability / CPU | 2,700-key runs at 15 keys/s; ttkbdd CPU at 10 keys/s | ✅ 1 key lost in 8,100 (target ≤ 1 in 5,000); ✅ WiFi CPU 10.2 % (accepted vs 10 %), serial 9.3 % |
 | Raw serial (D4) | `ttkbdd -S` exec'd from the Modem 2 console; `ttkbd_send.py --serial` | 🟡 9.3 % CPU; 600/600 keys; 2,690/2,700 at 15 keys/s; latency median 6 ms |
 | Mouse | `mousevec` injection, protocol v3 frames, `--mouse` | ✅ exact motion (4 px/unit), TT hot corner hands back; operator-confirmed live |
 | One command | `scripts/ttkbd-session.sh` (serial default, `--wifi`) | ✅ restores the Modem 2 console on the chord or hot corner |
