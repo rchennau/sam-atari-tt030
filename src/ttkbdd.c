@@ -45,6 +45,7 @@
 #define F_BREAK 1
 #define F_HEARTBEAT 2
 #define S_LOADKBD 27
+#define KBRATE_BOOT 0x0f02	/* delay 15, rate 2 (1/50 s); confirmed on the TT by --bench */
 
 static void (*kbdvec)(void);
 static void *kbd_iorec;
@@ -79,11 +80,14 @@ static long inject_one(void)
 	return 0;
 }
 
+/* One frame per 5 ms kernel tick. ikbd_scan() queues into a 16-entry ring that a root timeout drains
+ * on the next tick and silently drops when full; a network burst injected back to back lost keys
+ * (NFR-2, 2026-09-23: 4 of 2,700, all after a stall), a paced replay of the same frames lost none. */
 static void raw(unsigned char code)
 {
 	cur = code;
 	Supexec(inject_one);
-	Syield();	/* MiNT processes the scan queue in a root timeout */
+	usleep(5000);
 }
 
 /* One frame. Returns 0 if applied, -1 if dropped (bad scancode). */
@@ -121,6 +125,7 @@ static long load_table(const char *path)
 
 static long load_table(const char *path);
 static void release_held(void);
+static void restore_kbrate(void);
 
 /* Clean up inside the handler: a blocked read() on FreeMiNT is restarted after the handler even
  * without SA_RESTART (measured on the real TT 2026-09-23), so a flag alone never ends the session.
@@ -131,6 +136,7 @@ static void on_signal(int sig)
 	(void)sig;
 	stop = 1;
 	release_held();
+	restore_kbrate();
 	load_table(tbl_patched);
 	_exit(0);
 }
@@ -150,14 +156,29 @@ static void readback(void)
 	printf("ttkbdd: %d key(s) read back\n", got);
 }
 
+/* Key repeat comes from the sender during a session: the TT's own repeat fires whenever a break is
+ * late (network stall, busy CPU) and doubled keys (NFR-2, 2026-09-23). Kbrate delay 255 = 5.1 s. */
+static long saved_kbrate = -1;
+
 static int session_begin(void)
 {
-	return load_table(tbl_unpatched) ? -1 : 0;	/* refuse to type with the wrong table */
+	if (load_table(tbl_unpatched))
+		return -1;	/* refuse to type with the wrong table */
+	saved_kbrate = Kbrate(255, -1) & 0xffff;
+	return 0;
+}
+
+static void restore_kbrate(void)
+{
+	if (saved_kbrate >= 0)
+		Kbrate((short)(saved_kbrate >> 8), (short)(saved_kbrate & 0xff));
+	saved_kbrate = -1;
 }
 
 static void session_end(const char *why)
 {
 	release_held();
+	restore_kbrate();
 	load_table(tbl_patched);
 	fprintf(stderr, "ttkbdd: session end (%s)\n", why);
 }
@@ -202,6 +223,7 @@ static int bench(int n)
 	clock_t t0;
 	int i, bad = 0;
 
+	printf("ttkbdd: Kbrate now 0x%04lx (boot default assumed 0x%04x)\n", (long)Kbrate(-1, -1) & 0xffff, KBRATE_BOOT);
 	crypto_aead_lock(ct, mac, key32, nonce, NULL, 0, pt, 2);
 	t0 = clock();
 	for (i = 0; i < n; i++)
@@ -212,7 +234,7 @@ static int bench(int n)
 	for (i = 0; i < n; i++)
 		raw(i & 1 ? 0xaa : 0x2a);
 	raw(0xaa);
-	printf("ttkbdd: inject (Supexec+Syield) %.2f ms/frame\n", (clock() - t0) * 1000.0 / CLOCKS_PER_SEC / n);
+	printf("ttkbdd: inject (Supexec + one tick) %.2f ms/frame\n", (clock() - t0) * 1000.0 / CLOCKS_PER_SEC / n);
 	return bad;
 }
 
@@ -356,6 +378,9 @@ static int release_all(void)
 	for (sc = SC_MIN; sc <= SC_MAX; sc++)
 		raw(sc | 0x80);
 	printf("ttkbdd: released 0x%02x-0x%02x\n", SC_MIN, SC_MAX);
+	/* ponytail: the pre-session rate died with the process; put back the value this TT boots with
+	 * (read by --bench, 2026-09-23). Persist it if the boot value ever changes. */
+	Kbrate(KBRATE_BOOT >> 8, KBRATE_BOOT & 0xff);
 	return load_table(tbl_patched) ? 1 : 0;
 }
 

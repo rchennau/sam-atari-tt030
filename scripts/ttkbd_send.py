@@ -166,8 +166,9 @@ RELEASE_CHORD = {97, 100, 1}                   # Right Ctrl + Right Alt + Esc
 
 
 class KeyPump:
-    """Turns evdev (code, value) events into TT frames. value: 1 down, 0 up, 2 autorepeat (dropped —
-    the TT repeats a held make itself, and forwarding repeats would double keys)."""
+    """Turns evdev (code, value) events into TT frames. value: 1 down, 0 up, 2 autorepeat — sent as
+    another make. ttkbdd turns the TT's own repeat off for the session: it fired on every late break
+    and doubled keys (NFR-2, 2026-09-23), so repeat timing now comes from fractal."""
 
     def __init__(self, send):
         self.send, self.down = send, set()
@@ -175,6 +176,9 @@ class KeyPump:
     def event(self, code, value):
         """-> False when the release chord was pressed (caller ends the session)."""
         if value == 2:
+            sc = EV2ST.get(code)
+            if sc is not None:
+                self.send(sc, 0)
             return True
         if value == 1:
             self.down.add(code)

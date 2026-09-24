@@ -21,10 +21,10 @@ def test_printable_keys_match_en_uk_table():
     assert not bad, bad
 
 
-def test_pump_drops_autorepeat_and_stops_on_chord():
+def test_pump_forwards_autorepeat_and_stops_on_chord():
     sent = []
     p = t.KeyPump(lambda sc, fl: sent.append((sc, fl)))
     assert p.event(e.KEY_A, 1) and p.event(e.KEY_A, 2) and p.event(e.KEY_A, 0)
-    assert sent == [(0x1E, 0), (0x1E, t.F_BREAK)]
+    assert sent == [(0x1E, 0), (0x1E, 0), (0x1E, t.F_BREAK)]
     assert p.event(e.KEY_RIGHTCTRL, 1) and p.event(e.KEY_RIGHTALT, 1)
     assert p.event(e.KEY_ESC, 1) is False
