@@ -15,7 +15,7 @@ set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
 PY=/usr/bin/python3                       # system python: has evdev + cryptography
 PORT=${TTKBD_PORT:-/dev/atari-tt}         # CP2102 null-modem cable to the TT's Modem 2
-TTKBDD=${TTKBDD:-/tmp/ttkbdd.prg}         # path of ttkbdd on the TT (not yet installed at boot)
+TTKBDD=${TTKBDD:-/usr/sbin/ttkbdd}        # installed on the card 2026-09-23; rc.ttkbdd starts the WiFi listener at boot
 TT=192.168.0.30                           # sam.int-exception: the TT has no DNS record
 mode=${1:---serial}
 
@@ -87,5 +87,5 @@ esac
 #   1. Quit frame over the cable:   /usr/bin/python3 scripts/ttkbd_send.py --serial /dev/atari-tt frames 800
 #      (ttkbdd exits; ttygetty respawns the console within a few seconds)
 #   2. Over WiFi, as sam:           ssh atari-tt 'for p in /proc/ttkbdd*; do kill -TERM ${p##*.}; done'
-#   3. A key or the key table stuck: ssh atari-tt '/tmp/ttkbdd.prg --release'
+#   3. A key or the key table stuck: ssh atari-tt '/usr/sbin/ttkbdd --release'
 #   4. Check:                        picocom -b 38400 /dev/atari-tt   then Enter -> "-bash-4.4#"

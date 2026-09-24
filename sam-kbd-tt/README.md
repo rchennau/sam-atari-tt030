@@ -1,6 +1,6 @@
 # SAM KBD TT (`sam-kbd-tt`) — fractal's keyboard as the Atari TT030's keyboard
 
-> **Status: working on the real TT, not yet started at boot; ~1 key in 2,700 can still be lost.** Keys typed on fractal reach XaAES,
+> **Status: working on the real TT and started at boot (2026-09-23); ~1 key in 2,700 can still be lost.** Keys typed on fractal reach XaAES,
 > TeraDesk and TosWin2 exactly as if typed on the TT's own keyboard — including Alt, Control, F-keys
 > and the space bar, which the TT's physical keyboard cannot send (space and M are dead, Alt and Left
 > Control unusable). The attached keyboard keeps working alongside.
@@ -18,7 +18,7 @@ path; `ttkbd_send.py` on fractal captures the keyboard and streams it.
 | [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | fractal sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`; Linux keycode → Atari scancode map |
 | [`../scripts/test_ttkbd_send.py`](../scripts/test_ttkbd_send.py) | checks the map against the TT's own `en_uk.tbl` and the key-pump rules |
 | [`../src/kbdinj.c`](../src/kbdinj.c) | Phase 0 spike and test tool: inject raw scancodes, read the BIOS queue back (`-r`), swap the table (`-k`) |
-| `../staging/HD10_OVERLAY/etc/rc.ttkbdd` | boot script: `ttkbdd --release`, then the listener (staged; **not yet on the card**) |
+| `../staging/HD10_OVERLAY/etc/rc.ttkbdd` | boot script: `ttkbdd --release`, then the WiFi listener — **installed on the card 2026-09-23**, verified by a reboot |
 | iac/fractal `70-atari-tt-kbd-uaccess.rules` (SAM monorepo) | gives the desktop user of fractal read access to the KB104 keyboard, nothing else |
 
 ## How keys get in
@@ -82,8 +82,8 @@ No TCP/IP: `ttkbdd` reads 3-byte frames `{0xA5, scancode, flags}` straight off t
 Modem 2 at 38400 and injects them the same way; no handshake, no crypto (the cable is the trust
 boundary). fractal: `ttkbd_send.py --serial /dev/atari-tt type|frames|grab`.
 
-**Start it from the serial console itself:** at the console's bash prompt, `exec /tmp/ttkbdd.prg -S`
-(or `/usr/sbin/ttkbdd -S`). It takes over the console's line; when it exits, `ttygetty` respawns the
+**Start it from the serial console itself:** at the console's bash prompt, `exec /usr/sbin/ttkbdd -S`
+(`scripts/ttkbd-session.sh` does this for you). It takes over the console's line; when it exits, `ttygetty` respawns the
 console bash. Measured on the real TT: that works; starting `ttkbdd -s /dev/ttyS1` from an SSH session
 does **not** — the port is the console bash's controlling terminal, so any other process that reads it
 is stopped by SIGTTIN (state T) and reads nothing. Six stopped shells found and cleaned up after the
@@ -103,7 +103,7 @@ src/ttkbdd.c              the TT daemon
 src/kbdinj.c              raw-scancode test tool
 scripts/ttkbd_send.py     fractal sender
 scripts/test_ttkbd_send.py
-staging/HD10_OVERLAY/etc/rc.ttkbdd, etc/ttkbd.pub, usr/sbin/ttkbdd   boot install (staged)
+staging/HD10_OVERLAY/etc/rc.ttkbdd, etc/ttkbd.pub, usr/sbin/ttkbdd   boot install (on the card since 2026-09-23)
 tools/monocypher-4.0.3/   crypto (gitignored toolchain dir)
 tools/freemint/           FreeMiNT source at the TT's snapshot 4eb44d14, for reference (gitignored)
 ```
@@ -136,7 +136,7 @@ Manual steps, if you are not using the script:
 1. **Key (once, on fractal, as the user who will type):** `python3 scripts/ttkbd_send.py keygen` writes
    `~/.config/atari-tt/ttkbd.key` (mode 600) and prints the public key; write its 32 raw bytes to the
    TT's `/etc/ttkbd.pub`. The TT accepts exactly one key.
-2. **TT:** `/usr/sbin/ttkbdd` (or `/tmp/ttkbdd.prg`), listening on `192.168.0.30:7590`; log on stderr.
+2. **TT:** the WiFi listener starts at boot (`/etc/rc.ttkbdd` from `mint.cnf`; log `/var/log/ttkbdd.log`).
 3. **fractal, from the desktop session:** `python3 scripts/ttkbd_send.py grab`. Keys stop typing on
    fractal and type on the TT. **Right Ctrl + Right Alt + Esc** stops.
 4. Scripted input: `ttkbd_send.py type "text\n"`; raw frames: `ttkbd_send.py frames 2a 1e 11e 12a`.
