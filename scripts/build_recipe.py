@@ -9,7 +9,7 @@ package with rpm_header.write_rpm. Deterministic by construction: SOURCE_DATE_EP
 dir name, files sorted, header mtimes 0 (NFR-3 checks the stripped-binary SHA across two builds).
 T425 variant (tt030-t425-kernel-ports FR-3): a recipe with a "t425" block, e.g.
   "t425": {"server_build": "sam-yum-tt/t4compress.sh", "server_out": "compserv.b4h", "btl": "<name>.btl"}
-also links the package against libt4call.a (t4call.c + atwboot.c; header t4call.h on CPPFLAGS), builds
+also links the package against libt4call.a (t4call.c + t4lock.c + atwboot.c; header t4call.h on CPPFLAGS), builds
 the T425 server with server_build into a short dir, ships it as /usr/lib/t425/<btl>, and writes a
 second RPM, <name>-t425-on, holding only /etc/t425/enabled/<name>. The package offloads only when that
 file exists (t4_enabled), so the -on RPM is published by hand once the FR-5 gate passes; ttbuildd
@@ -100,11 +100,11 @@ def build(name, out_dir, timeout=600, progress=print):
             lib = os.path.join(work, "t4lib")
             os.makedirs(lib)
             rt = os.path.join(REPO, "sam-yum-tt", "src")
-            for c in ("t4call.c", "atwboot.c"):
+            for c in ("t4call.c", "t4lock.c", "atwboot.c"):
                 run([f"{T}-gcc", "-m68020-60", "-O2", "-c", "-I", rt, "-o", os.path.join(lib, c[:-2] + ".o"),
                      os.path.join(rt, c)], work, env, log, deadline)
-            run([f"{T}-ar", "rcs", os.path.join(lib, "libt4call.a"), os.path.join(lib, "t4call.o"),
-                 os.path.join(lib, "atwboot.o")], work, env, log, deadline)
+            run([f"{T}-ar", "rcs", os.path.join(lib, "libt4call.a")] +
+                [os.path.join(lib, o) for o in ("t4call.o", "t4lock.o", "atwboot.o")], work, env, log, deadline)
             env.update(CPPFLAGS=f"-I{rt}", LDFLAGS=f"-L{lib}", LIBS="-lt4call")
         progress("configure")
         run(["./configure", f"--host={T}", "--prefix=/usr", *r.get("configure_args", [])], src_dir, env, log, deadline)

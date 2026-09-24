@@ -20,9 +20,6 @@ int t4_enabled(const char *pkg);
 /* adler32 of n bytes (RFC 1950), equal to zlib's adler32(1, p, n); used to check every result. */
 unsigned long t4_adler32(const unsigned char *p, long n);
 
-/* Lock helpers, exposed for tests and for Dropbear (FR-6). t4lock_take: 1 = held by us,
- * 0 = held by a live process (*why says which), -1 = could not create. */
-int t4lock_take(const char **why);
-void t4lock_release(void);
+#include "t4lock.h"                              /* t4lock_take / t4lock_release / t4_loaded_* */
 
 #endif

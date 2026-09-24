@@ -19,11 +19,11 @@ def tgzip(tmp_path_factory):
     d = tmp_path_factory.mktemp("tgzip")
     if not (os.path.isdir(Z) and os.path.isdir(B)):
         pytest.skip("zlib/bzip2 sources not unpacked under tools/rpm-src")
-    srcs = [os.path.join(SRC, f) for f in ("tgzip.c", "t4call.c", "compkern.c", "atwboot_host.c")]
+    srcs = [os.path.join(SRC, f) for f in ("tgzip.c", "t4call.c", "t4lock.c", "compkern.c", "atwboot_host.c")]
     srcs += [os.path.join(Z, f) for f in ("adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c")]
     srcs += [os.path.join(B, f) for f in ("blocksort.c", "huffman.c", "crctable.c", "randtable.c",
                                           "decompress.c", "compress.c", "bzlib.c")]
-    subprocess.run(["cc", "-O2", "-w", "-DZ_SOLO", "-DBZ_NO_STDIO", f'-DT4LOCK="{d}/t425.lock"',
+    subprocess.run(["cc", "-O2", "-w", "-DZ_SOLO", "-DBZ_NO_STDIO", f'-DT4LOCK="{d}/t425.lock"', f'-DT4LOADED="{d}/t425.loaded"',
                     f"-I{SRC}", f"-I{Z}", f"-I{B}",
                     "-o", str(d / "tgzip"), *srcs], check=True)
     os.symlink("tgzip", d / "tbzip2")
@@ -78,10 +78,23 @@ def test_t4_adler32_matches_zlib_and_t4_enabled(tmp_path):
     import zlib
     so = tmp_path / "t4call.so"
     subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-w", f"-I{SRC}", "-o", str(so),
-                    os.path.join(SRC, "t4call.c"), os.path.join(SRC, "atwboot_host.c")], check=True)
+                    os.path.join(SRC, "t4call.c"), os.path.join(SRC, "t4lock.c"),
+                    os.path.join(SRC, "atwboot_host.c")], check=True)
     lib = ctypes.CDLL(str(so))
     lib.t4_adler32.restype = ctypes.c_ulong
     lib.t4_adler32.argtypes = [ctypes.c_char_p, ctypes.c_long]
     for data in (b"", b"a", os.urandom(5552), os.urandom(5553), bytes(200000), os.urandom(300000)):
         assert lib.t4_adler32(data, len(data)) == zlib.adler32(data)
     assert lib.t4_enabled(b"surely-not-a-package") == 0
+
+
+def test_loaded_marker(tmp_path):
+    """t4_loaded_set/is (FR-6): the booted server is recorded so the next user skips a blind probe."""
+    import ctypes
+    so = tmp_path / "t4lock.so"
+    subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-w", f"-I{SRC}", f'-DT4LOADED="{tmp_path}/loaded"',
+                    "-o", str(so), os.path.join(SRC, "t4lock.c")], check=True)
+    lib = ctypes.CDLL(str(so))
+    assert lib.t4_loaded_is(b"xserv.btl") == -1                          # nothing recorded: unknown
+    lib.t4_loaded_set(b"compserv.btl")
+    assert lib.t4_loaded_is(b"compserv.btl") == 1 and lib.t4_loaded_is(b"xserv.btl") == 0

@@ -11,6 +11,10 @@
  *
  * Any failure (no fpgabios, no image, no reply) marks the offload failed for this process and the caller
  * falls back to Monocypher on the 68030. DROPBEAR_NO_ATW (set to anything) disables it, for A/B timing.
+ * FR-6 (tt030-t425-kernel-ports, 2026-09-24): every T425 call holds /tmp/t425.lock for its duration, so a
+ * login during a kernel run (tgzip ...) takes the 68030 instead of resetting the board mid-run; and the
+ * /tmp/t425.loaded marker says which server is on the board, so after a kernel run Dropbear boots xserv
+ * at once instead of probing compserv and waiting out a 10 s read timeout (13,630 ms first X25519).
  * ponytail: boots the T425 once per Dropbear process (one per login, ~1.2 s); upgrade path is a server
  * booted at system start plus a liveness check. Two simultaneous logins would contend for the one link;
  * the loser times out and falls back. MiNT only: other builds get a stub that always declines.
@@ -22,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "t4lock.c"                     /* the T425 lock + loaded marker shared with t4call (FR-6) */
 
 #define ATW_IMAGE "/etc/dropbear/xserv.btl"   /* xserv2 build: X25519 + Ed25519 verify */
 #define ATW_OP_CHECK 100
@@ -174,27 +179,53 @@ static int atw_offline(void)
     return atw_state < 0;
 }
 
-/* q = X25519(n, p) on the T425. 0 = done, -1 = compute it on the 68030. */
-static int atw_x25519(unsigned char *q, const unsigned char *n, const unsigned char *p)
-{
-    unsigned char out[32];
-    const char *why;
+#define ATW_SERVER "xserv.btl"
 
-    if (atw_offline())
-        return -1;
-    if (atw_request(out, n, p) != 0) {                     /* no running server: boot one, retry once */
+/* Claim the board for one call: 0 = ours, -1 = busy (a kernel run holds it), use the 68030 this time. */
+static int atw_claim(const char *what)
+{
+    const char *why = "";
+    if (t4lock_take(&why) > 0)
+        return 0;
+    dropbear_log(LOG_INFO, "atw: T425 %s, %s on the 68030", why, what);
+    return -1;
+}
+
+/* The X25519 call proper, with the lock held by the caller. 0 = out filled, -1 = use the 68030. */
+static int atw_x25519_locked(unsigned char *out, const unsigned char *n, const unsigned char *p)
+{
+    const char *why = "";
+    /* a known other server on the board: don't probe it (it would misread our request) */
+    int probe = t4_loaded_is(ATW_SERVER) != 0;
+
+    if (!probe || atw_request(out, n, p) != 0) {           /* no running server: boot one, retry once */
         if (atw_boot(&why) != 0 || atw_request(out, n, p) != 0) {
             atw_state = -1;
             dropbear_log(LOG_WARNING, "atw: T425 not answering, falling back to the 68030 (%s)", why);
             return -1;
         }
-        dropbear_log(LOG_INFO, "atw: offload active (booted the server)");
+        t4_loaded_set(ATW_SERVER);
+        dropbear_log(LOG_INFO, "atw: offload active (booted the server%s)", probe ? "" : ", another was loaded");
     } else if (atw_state == 0) {
         dropbear_log(LOG_INFO, "atw: offload active (server already running)");
     }
     atw_state = 1;
-    memcpy(q, out, 32);
     return 0;
+}
+
+/* q = X25519(n, p) on the T425. 0 = done, -1 = compute it on the 68030. */
+static int atw_x25519(unsigned char *q, const unsigned char *n, const unsigned char *p)
+{
+    unsigned char out[32];
+    int r;
+
+    if (atw_offline() || atw_claim("x25519"))
+        return -1;
+    r = atw_x25519_locked(out, n, p);
+    t4lock_release();
+    if (r == 0)
+        memcpy(q, out, 32);
+    return r;
 }
 
 /* Ed25519 verify on the T425. Returns 1 valid, 0 invalid, -1 = verify on the 68030 instead. */
@@ -204,16 +235,19 @@ static int atw_ed25519_verify(const unsigned char *sig, const unsigned char *pub
     const char *why;
     int r;
 
-    if (atw_offline() || mlen > ATW_MSG_MAX)
+    if (atw_offline() || mlen > ATW_MSG_MAX || atw_claim("ed25519 verify"))
         return -1;
-    r = atw_verify_request(sig, pub, msg, mlen);
+    r = t4_loaded_is(ATW_SERVER) != 0 ? atw_verify_request(sig, pub, msg, mlen) : -1;
     if (r < 0) {                                           /* no running server: boot one, retry once */
         if (atw_boot(&why) != 0 || (r = atw_verify_request(sig, pub, msg, mlen)) < 0) {
             atw_state = -1;
+            t4lock_release();
             dropbear_log(LOG_WARNING, "atw: T425 not answering ed25519, verifying on the 68030");
             return -1;
         }
+        t4_loaded_set(ATW_SERVER);
     }
+    t4lock_release();
     atw_state = 1;
     return r;
 }
