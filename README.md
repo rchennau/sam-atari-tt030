@@ -7,7 +7,7 @@ Management, drivers, custom software, and hardware acceleration utilities for th
 ## Hardware & System Overview
 
 ### Atari TT030 Workstation
-The Atari TT030 is a 32-bit Motorola 68030-based workstation running at 32 MHz with an MC68882 FPU, 4 MB ST-RAM, and 64 MB TT-RAM. Equipped with BlueSCSI v2 (Pico 2) storage and BlueSCSI DaynaPORT WiFi local networking, the machine serves as a live node within the SAM architecture running TOS 3.06 and FreeMiNT 1.19.
+The Atari TT030 is a 32-bit Motorola 68030-based workstation running at 32 MHz with an MC68882 FPU, 4 MB ST-RAM, and 64 MB TT-RAM. Equipped with BlueSCSI v2 (Pico 2) storage, BlueSCSI DaynaPORT WiFi local networking, the internal floppy drive and a serial-to-USB link on Modem 2 (38400 baud to fractal: serial console and ZMODEM transfers), the machine serves as a live node within the SAM architecture running TOS 3.06 and FreeMiNT 1.19.
 
 ### ATW800/2 Transputer Co-Processor
 The ATW800/2 is an expansion board housing an INMOS T425 32-bit RISC Transputer running at 40 MHz (implemented via FPGA). The transputer features parallel hardware links, hardware process scheduling, and dedicated SRAM.
