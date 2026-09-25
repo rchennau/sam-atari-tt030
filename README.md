@@ -27,6 +27,7 @@ Each custom software component contains its own dedicated project directory, REA
 6. **[`ttmqtt`](src/ttmqtt.c)**: Minimal MQTT 3.1.1 `pub` / `sub -W secs` for shell scripts (113 KB). `sub` prints the first message's topic and payload; exit 0 message, 1 timeout, 2 error. Broker by name (`mqtt.sam.int`, pinned in the TT's `/etc/hosts`). Carries build-on-miss requests and replies.
 7. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
 8. **[`sam-kbd-tt`](sam-kbd-tt/README.md)** — **complete: keyboard and mouse working on the real TT, started at boot**: fractal's keyboard and mouse drive the TT as if they were its own (XaAES, TeraDesk, TosWin2), alongside the physical keyboard. `ttkbdd` injects through FreeMiNT's kbdvec / mousevec paths over a raw serial link or a signed, XChaCha20-Poly1305-encrypted TCP session; one command on fractal, `scripts/ttkbd-session.sh`; the TT's top-right corner hands control back (track `tt030-remote-keyboard`).
+9. **[`sam-t425-ports`](sam-t425-ports/README.md)** — faster SpareMiNT userland: CPU-heavy programs rebuilt for the 68030 and, where it measurably wins, offloaded to the T425 (`tbc` 0.19–0.25 of stock bc, `djpeg` 0.37, `lha` 0.46–0.51); every port gated on the real TT, losses recorded.
 ---
 
 ## Software Stack & Subsystem Directory
