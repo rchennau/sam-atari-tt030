@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """wcpu_repack.py — a W-CPU rebuild as an update of the stock package (tt030-t425-kernel-ports FR-8).
 
-  wcpu_repack.py STOCK.rpm OUT_DIR PATH=NEWFILE [PATH=NEWFILE ...]
+  wcpu_repack.py STOCK.rpm OUT_DIR PATH=NEWFILE [PATH=NEWFILE ...] [--drop PATH ...]
       -> OUT_DIR/<name>-<version>-<release>.sam1.m68kmint.rpm
 
 Takes SpareMiNT's own RPM and swaps in only the rebuilt executables (same SRPM, same version, only the
@@ -9,7 +9,8 @@ CPU flags changed), so docs, man pages, file modes, symlinks and dependencies st
 gains ".sam1", which rpmvercmp orders after the stock release, so `yum update` installs it and
 `rpm -U --oldpackage STOCK.rpm` restores stock. Hard links in the stock payload (gzip/gunzip share one
 inode, the body travels with the last) are written as separate copies.
-Refuses a package with %config files: write_rpm does not carry file flags, and rpm would then overwrite a
+--drop removes a stock file that collides with or shadows another installed package (gawk's /usr/bin/awk
+and /bin/awk links against mawk, which yum needs; operator 2026-09-25: `awk` stays mawk). Refuses a package with %config files: write_rpm does not carry file flags, and rpm would then overwrite a
 configuration file on update. ponytail: pass FILEFLAGS through write_rpm if a W-CPU package needs one.
 Exit 0 written · 1 refused or bad input.
 """
@@ -62,8 +63,17 @@ def main(argv):
     if any(f & RPMFILE_CONFIG for f in (main_.get(R.FILEFLAGS) or [])):
         print(f"wcpu_repack: {argv[1]} has %config files; refusing (see the docstring)", file=sys.stderr)
         return 1
-    swap = dict(a.split("=", 1) for a in argv[3:])
+    args, drop = argv[3:], set()
+    while "--drop" in args:
+        i = args.index("--drop")
+        drop.add(args[i + 1])
+        del args[i:i + 2]
+    swap = dict(a.split("=", 1) for a in args)
     files = cpio(payload(data, off))
+    if drop - {e[0] for e in files}:
+        print(f"wcpu_repack: --drop not in the stock package: {sorted(drop - {e[0] for e in files})}", file=sys.stderr)
+        return 1
+    files = [e for e in files if e[0] not in drop]
     seen = set()
     for e in files:
         if e[0] in swap:

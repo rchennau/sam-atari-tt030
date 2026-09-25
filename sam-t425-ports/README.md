@@ -79,7 +79,16 @@ release of the stock package (`…sam1`): `yum update` installs it, `rpm -U --ol
 | | `lowp 2000` | 157.5 s | 157.3 s | 26.7 s | **0.17** | identical |
 | `gsm` 1.0.10 (`toast`) | 2 s of 8 kHz audio, encode | 118.2 s | 127.8 s | 22.0 s | **0.19** | identical |
 | | decode | 2.4 s | 2.7 s | 2.3 s | ≈ 1.0 | identical |
+| `gawk` 3.0.6 | sqrt/sin/exp loop | 358.1 s | 351.6–376.3 s | 58.8 s | **0.16** | last digit differs (1.4e-15) |
+| | `printf` formatting | 101.3–111.9 s | 99.5–100.5 s | 66.2–66.8 s | **0.62** | identical |
+| | word count | 56.6 s | 52.7 s | 50.7 s | **0.90** | identical |
 | `gzip` 1.3 | 429–542 KB, `-6` / `-d` | 21.6–35.7 / 7.4–9.1 s | ≈ stock | ≈ stock | 0.97–1.07 | declined |
+
+**Float rule** (operator decision 2026-09-25): output must be byte-identical to stock, except that a
+floating-point program may differ in its final printed digits — the 68882 computes in extended precision
+where stock's 68000 build uses software maths. Each such difference is measured and listed here. `gawk`
+ships without stock's `awk` links so that `awk` stays `mawk` (which `yum` uses); stock gawk could not be
+installed beside mawk at all.
 
 The pattern: floating-point and multiply/divide-heavy code gains most (sox's effects are float, and
 gsm's encoder multiplies in float — both done in software on a 68000 build); byte-oriented code like gzip gains nothing.
