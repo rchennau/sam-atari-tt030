@@ -1,15 +1,15 @@
 #!/bin/sh
 # lha 1.14i with its -lh5-/6-/7- encoder on the T425 (tt030-t425-kernel-ports W1), as two RPMs:
-#   build/lha-1.14i-2.m68kmint.rpm          /usr/bin/lha + /usr/lib/t425/lha.btl   (replaces SpareMiNT 1.14i-1)
-#   build/lha-t425-on-1.14i-2.m68kmint.rpm  /etc/t425/enabled/lha                 (held until the FR-5 gate)
+#   build/lha-1.14i-3.m68kmint.rpm          /usr/bin/lha + /usr/lib/t425/lha.btl   (replaces SpareMiNT 1.14i-1)
+#   build/lha-t425-on-1.14i-3.m68kmint.rpm  /etc/t425/enabled/lha                 (held until the FR-5 gate)
 # Source: SpareMiNT's lha-1.14i-1 SRPM (tools/rpm-src/x/), its two patches, and its spec's switches:
 # OPTIMIZE is REPLACED (the spec passes OPTIMIZE="$RPM_OPT_FLAGS -DHAVE_NO_LCHOWN"), so there is no
 # SUPPORT_LH7. With it, lha defaults to -lh7- and SpareMiNT's lha cannot read the archives ("make_table()
 # Bad table", found by the interop check 2026-09-24); it also changes lh5's window (MAX_DICBIT).
 # -std=gnu89 and -include time.h: the cross gcc is C23 (K&R `f()` = no arguments) and modern mintlib's
 # <sys/time.h> no longer pulls in <time.h>.
-# T425 patch (append.c, encode_lzhuf): with the switch on and the file <= 1.5 MB (in + out must fit the
-# T425's 4 MB), the whole file goes to lha.btl in one t4call (a member's stream cannot be split); any
+# T425 patch (append.c, encode_lzhuf): with the switch on and the file between 16 KB (below that the
+# ~1 s boot loses; measured) and 1.5 MB (in + out must fit the T425's 4 MB), the whole file goes to lha.btl in one t4call (a member's stream cannot be split); any
 # failure seeks the input back and runs lha's own encode() on the 68030, saying why once.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -30,6 +30,8 @@ s = s.replace(inc, inc + '''
 #ifdef T425
 #include "t4call.h"
 #define LHA_T4_MAX (1536L * 1024)	/* in + out must fit the T425's 4 MB board */
+#define LHA_T4_MIN (16L * 1024)		/* measured break-even, 2026-09-24: 4 KB 1.04 -> 1.78 s,
+					   16 KB 2.42 -> 2.44 s, 64 KB 8.07 -> 5.34 s (boot ~1 s) */
 #define LHA_T4_BTL "/usr/lib/t425/lha.btl"
 /* Encode all of infp on the T425 (tt030-t425-kernel-ports). 0 = done, -1 = run encode() here. */
 static int
@@ -40,7 +42,7 @@ t4_encode(FILE *infp, FILE *outfp, long size, int method, long *packed)
 	const char *why = "failed";
 	long pos = ftell(infp), len = -1;
 
-	if (method < 5 || size <= 0 || size > LHA_T4_MAX || !t4_enabled("lha"))
+	if (method < 5 || size < LHA_T4_MIN || size > LHA_T4_MAX || !t4_enabled("lha"))
 		return -1;
 	in = (unsigned char *) malloc(size);
 	out = (unsigned char *) malloc(size + 66);
@@ -104,13 +106,13 @@ import sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
 lha, btl = sys.argv[1], sys.argv[2]
-open("build/lha-1.14i-2.m68kmint.rpm", "wb").write(R.write_rpm("lha", "1.14i", "2", [
+open("build/lha-1.14i-3.m68kmint.rpm", "wb").write(R.write_rpm("lha", "1.14i", "3", [
     ("/usr/bin/lha", 0o100755, open(lha, "rb").read()),
     ("/usr/lib/t425/lha.btl", 0o100644, open(btl, "rb").read()),
 ], summary="LHa 1.14i; -lh5/6/7- encoding offloads to the ATW800/2 T425 when lha-t425-on is installed (sam)",
     provides=["lha"]))
-open("build/lha-t425-on-1.14i-2.m68kmint.rpm", "wb").write(R.write_rpm("lha-t425-on", "1.14i", "2", [
+open("build/lha-t425-on-1.14i-3.m68kmint.rpm", "wb").write(R.write_rpm("lha-t425-on", "1.14i", "3", [
     ("/etc/t425/enabled/lha", 0o100644, b""),
 ], summary="turn on T425 offload for lha (after its FR-5 gate)", requires_=["lha"]))
-print("build/lha-1.14i-2.m68kmint.rpm build/lha-t425-on-1.14i-2.m68kmint.rpm")
+print("build/lha-1.14i-3.m68kmint.rpm build/lha-t425-on-1.14i-3.m68kmint.rpm")
 PY
