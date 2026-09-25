@@ -7,4 +7,7 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
 /* Worst-case output for this request (the payload is already read, so a decoder can take its size from
  * it); the server allocates this much. <= 0 refuses the request. */
 long t4_out_cap(int op, int level, const unsigned char *in, long n);
+/* t4_out_cap may return this instead: the kernel writes its result over the request buffer (out == in,
+ * cap == n), for a kernel whose output fits its input and whose memory is tight (ppmquant). */
+#define T4_IN_PLACE (-2L)
 #endif

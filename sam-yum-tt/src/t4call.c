@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 
+long t4call_timeout_ms = 120000L;               /* see t4call.h */
 static int state;                                /* 0 not tried, 1 up, -1 off for this process */
 static char booted[256];
 static const char *lastwhy;
@@ -58,13 +59,13 @@ long t4call(const char *btl, int op, int level, const void *in, long n, void *ou
             atexit(unlock_at_exit);
         }
         atw_verbose = 0;
-        if (atw_boot(btl, "#400000"))
+        if (atw_boot(btl, "#500000"))   /* 5 MB: measured usable (4.94 MB heap); 5.25 MB hangs */
             return off("did not boot (fpgabios resident? server present?)", why);
         strncpy(booted, btl, sizeof booted - 1);
         t4_loaded_set(strrchr(btl, '/') ? strrchr(btl, '/') + 1 : btl);
         state = 1;
     }
-    if (send_op((char)op, level, n) || link_write(in, n) != n || link_read(h, 4, 120000) != 4)
+    if (send_op((char)op, level, n) || link_write(in, n) != n || link_read(h, 4, t4call_timeout_ms) != 4)
         return off("did not answer", why);
     len = (long)get4(h);
     if (len < 0 || len > cap)                    /* 0xffffffff reads as > cap on a 32-bit long */

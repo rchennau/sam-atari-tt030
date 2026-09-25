@@ -8,6 +8,10 @@
 #ifndef T4CALL_H
 #define T4CALL_H
 
+/* How long t4call waits for a kernel's reply (ms). 2 minutes suits kernels that take seconds; a caller
+ * whose kernel runs for minutes (tppmquant: ~5-10 min) raises it before its first call. */
+extern long t4call_timeout_ms;
+
 /* Run op/level on n bytes of in on the T425; result into out (cap bytes). Returns its length, or -1. */
 long t4call(const char *btl, int op, int level, const void *in, long n, void *out, long cap,
             const char **why);

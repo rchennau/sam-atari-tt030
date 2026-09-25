@@ -53,6 +53,8 @@ int main(int argc, char **argv)
     printf("Q before -> %ld%s\n", r, r == 8 ? " (server answers)" : "");
     r = ask(argv[3][0], argc > 4 ? atoi(argv[4]) : 0, in, n, out, 3L * 1024 * 1024);
     printf("op %c on %ld bytes -> %ld\n", argv[3][0], n, r);
+    if (r == 8 && argv[3][0] == 'M')
+        printf("memory: allocated %ld bytes, verified %ld bytes\n", (long)g4(out), (long)g4(out + 4));
     if (r == 12 && !memcmp(out, "ERR", 3) && out[3] != '!')
         printf("t4serv says: %s NULL, cap %ld, len %ld\n", out[3] == 'I' ? "in" : out[3] == 'O' ? "out" : "?",
                (long)g4(out + 4), (long)g4(out + 8));
