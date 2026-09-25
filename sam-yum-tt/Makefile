@@ -14,6 +14,7 @@ comp:
 	./t4compress.sh $(CB) && cp $(CB)/compserv.b4h build/compserv.btl
 	$(CROSS) -m68020-60 -O2 -w -s -DZ_SOLO -Dz_off_t=long -DBZ_NO_STDIO -I$(CB) -Isrc -o build/compbench.ttp \
 	  src/compbench.c src/atwboot.c $(addprefix $(CB)/,compkern.c adler32.c crc32.c deflate.c trees.c zutil.c \
+	  inflate.c inftrees.c inffast.c \
 	  blocksort.c huffman.c crctable.c randtable.c decompress.c bzcompress.c bzlib.c)
 
 host: build/sha256test

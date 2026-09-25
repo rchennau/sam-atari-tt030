@@ -26,6 +26,8 @@ int main(int argc, char **argv)
     long kb = argc > 3 ? atol(argv[3]) : 256, len, cap, i, n, ms, olen[3], ms68[3], t4len;
     unsigned char *buf, *back, *out[3], *t4out, h[4], a[4];
     unsigned long sum, want;
+    unsigned char *ipay, *idec;
+    long iplen, ms68i;
     clock_t t0;
     FILE *f;
     int k, bad = 0;
@@ -58,6 +60,24 @@ int main(int argc, char **argv)
         sprintf(what, "68030 %s", NAMES[k]);
         rate(what, kb, ms68[k]);
         printf("  -> %ld bytes (%ld%%)\n", olen[k], len ? olen[k] * 100 / len : 0);
+    }
+    /* inflate (unzip / gunzip's kernel): raw-deflate the input once, then time op 'i' */
+    {
+        long r = ck_compress('r', 6, buf, len, t4out, cap);
+        if (r < 2 || !(ipay = malloc(r + 3)) || !(idec = malloc(len + 64)))
+            return 1;
+        ipay[0] = (unsigned char)len;
+        ipay[1] = (unsigned char)(len >> 8);
+        ipay[2] = (unsigned char)(len >> 16);
+        ipay[3] = (unsigned char)(len >> 24);
+        memcpy(ipay + 4, t4out + 1, r - 1);
+        iplen = r + 3;
+        t0 = clock();
+        n = ck_compress('i', 0, ipay, iplen, idec, len + 64);
+        ms68i = ms_since(t0);
+        rate("68030 inflate", kb, ms68i);
+        printf("  -> %s (%ld bytes in)\n", n == len && !memcmp(idec, buf, len) ? "matches the input" : "WRONG",
+               iplen);
     }
     if (!strcmp(argv[1], "-"))
         return 0;
@@ -107,6 +127,22 @@ int main(int argc, char **argv)
         printf("  -> output %s the 68030's; T425/68030 time %ld.%02ld\n", n ? "matches" : "DIFFERS from",
                ms68[k] ? ms / ms68[k] : 0, ms68[k] ? ms * 100 / ms68[k] % 100 : 0);
     }
+    t0 = clock();
+    if (send_op('i', 0, iplen) || link_write(ipay, iplen) != iplen || link_read(h, 4, 300000) != 4) {
+        printf("T425 inflate: no reply\n");
+        return 1;
+    }
+    t4len = h[0] | ((long)h[1] << 8) | ((long)h[2] << 16) | ((long)h[3] << 24);
+    if (t4len != len || link_read(a, 4, 5000) != 4 || link_read(t4out, t4len, 60000) != t4len) {
+        printf("T425 inflate: failed (length %ld)\n", t4len);
+        return 1;
+    }
+    ms = ms_since(t0);
+    rate("T425 inflate incl. transfer", kb, ms);
+    n = !memcmp(t4out, buf, len);
+    bad |= !n;
+    printf("  -> output %s the input; T425/68030 time %ld.%02ld\n", n ? "matches" : "DIFFERS from",
+           ms68i ? ms / ms68i : 0, ms68i ? ms * 100 / ms68i % 100 : 0);
     printf("(%ld short driver writes)\n", short_writes);
     return bad;
 }

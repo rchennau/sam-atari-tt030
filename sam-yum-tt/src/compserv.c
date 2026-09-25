@@ -10,8 +10,8 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
 
 long t4_out_cap(int op, int level, const unsigned char *in, long n)
 {
-    (void)op;
     (void)level;
-    (void)in;
+    if (op == 'i')                               /* inflate: the original size leads the payload */
+        return n >= 4 ? (in[0] | ((long)in[1] << 8) | ((long)in[2] << 16) | ((long)in[3] << 24)) + 64 : 0;
     return n + n / 2 + 1024;
 }

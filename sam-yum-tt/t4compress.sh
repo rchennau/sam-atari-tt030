@@ -12,8 +12,9 @@ D=${1:-/tmp/cb}
 Z=$R/tools/rpm-src/zlib-1.3.2
 B=$R/tools/rpm-src/bzip2-1.0.8
 rm -rf "$D" && mkdir -p "$D" && cd "$D"
-cp "$Z"/adler32.c "$Z"/crc32.c "$Z"/deflate.c "$Z"/trees.c "$Z"/zutil.c \
-   "$Z"/zlib.h "$Z"/zconf.h "$Z"/deflate.h "$Z"/zutil.h "$Z"/crc32.h "$Z"/trees.h .
+cp "$Z"/adler32.c "$Z"/crc32.c "$Z"/deflate.c "$Z"/trees.c "$Z"/zutil.c "$Z"/inflate.c "$Z"/inftrees.c \
+   "$Z"/inffast.c "$Z"/zlib.h "$Z"/zconf.h "$Z"/deflate.h "$Z"/zutil.h "$Z"/crc32.h "$Z"/trees.h \
+   "$Z"/inflate.h "$Z"/inftrees.h "$Z"/inffast.h "$Z"/inffixed.h .
 for f in blocksort huffman crctable randtable decompress bzlib; do cp "$B/$f.c" .; done
 cp "$B/compress.c" bzcompress.c
 cp "$B"/bzlib.h "$B"/bzlib_private.h .
@@ -34,7 +35,7 @@ sed -i '/^#warning/d' ./*.h ./*.c
 . "$R/tools/d72uni-env.sh"
 ISEARCH="$D/ $D72UNI/libs/"
 export ISEARCH IBOARDSIZE
-LIB="adler32 crc32 deflate trees zutil blocksort huffman crctable randtable decompress bzcompress bzlib compkern"
+LIB="adler32 crc32 deflate trees zutil inflate inftrees inffast blocksort huffman crctable randtable decompress bzcompress bzlib compkern"
 for f in $LIB t4serv t4adler compserv compt4test; do
     icc "$f.c" -t4 -dZ_SOLO -dz_off_t=long -dBZ_NO_STDIO -o "$f.t4h" > "$f.log" 2>&1 || { cat "$f.log"; exit 1; }
     grep -E '^(Serious|Error|Fatal)' "$f.log" && exit 1

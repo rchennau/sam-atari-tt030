@@ -47,10 +47,38 @@ static long deflate_buf(int level, int bits, const unsigned char *in, long n, un
     return r == Z_STREAM_END ? len : -1;
 }
 
+/* Raw inflate (the inverse of op 'r'): payload = original size (4, LE) || raw deflate stream. */
+static long inflate_raw(const unsigned char *in, long n, unsigned char *out, long cap)
+{
+    z_stream s;
+    long want;
+    int r;
+
+    if (n < 4)
+        return -1;
+    want = in[0] | ((long)in[1] << 8) | ((long)in[2] << 16) | ((long)in[3] << 24);
+    if (want > cap)
+        return -1;
+    s.zalloc = z_alloc;
+    s.zfree = z_free;
+    s.opaque = 0;
+    s.next_in = (Bytef *)in + 4;
+    s.avail_in = (uInt)(n - 4);
+    if (inflateInit2(&s, -15) != Z_OK)
+        return -1;
+    s.next_out = out;
+    s.avail_out = (uInt)cap;
+    r = inflate(&s, Z_FINISH);
+    inflateEnd(&s);
+    return r == Z_STREAM_END && (long)s.total_out == want ? want : -1;
+}
+
 long ck_compress(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap)
 {
     unsigned int len = (unsigned int)cap;
 
+    if (op == 'i')
+        return inflate_raw(in, n, out, cap);
     if (level < 1 || level > 9)
         return -1;
     if (op == 'z')
