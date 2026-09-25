@@ -17,8 +17,7 @@ long t4call(const char *btl, int op, int level, const void *in, long n, void *ou
  * that was measured is the binary that ships, and enabling it needs no rebuild (plan FR-3). */
 int t4_enabled(const char *pkg);
 
-/* adler32 of n bytes (RFC 1950), equal to zlib's adler32(1, p, n); used to check every result. */
-unsigned long t4_adler32(const unsigned char *p, long n);
+#include "t4adler.h"                             /* t4_adler32 */
 
 #include "t4lock.h"                              /* t4lock_take / t4lock_release / t4_loaded_* */
 

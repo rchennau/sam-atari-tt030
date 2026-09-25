@@ -1,6 +1,7 @@
 /* t4call — see t4call.h. Extracted from tgzip.c (t425-compress 1.1), which was the first user. */
 #include "t4call.h"
 #include "t4lock.h"
+#include "t4adler.h"
 #include "atwboot.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -25,25 +26,6 @@ static long off(const char *why, const char **out)
     *out = lastwhy = why;
     state = -1;
     return -1;
-}
-
-/* adler32 (RFC 1950), so a package links t4call without zlib; must match t4serv.c's zlib adler32. */
-unsigned long t4_adler32(const unsigned char *p, long n)
-{
-    unsigned long a = 1, b = 0;
-    long k;
-
-    while (n > 0) {
-        k = n < 5552 ? n : 5552;                 /* largest block before b can overflow 32 bits */
-        n -= k;
-        while (k--) {
-            a += *p++;
-            b += a;
-        }
-        a %= 65521UL;
-        b %= 65521UL;
-    }
-    return (b << 16) | a;
 }
 
 int t4_enabled(const char *pkg)

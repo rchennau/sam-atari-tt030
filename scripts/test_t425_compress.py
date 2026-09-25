@@ -19,7 +19,7 @@ def tgzip(tmp_path_factory):
     d = tmp_path_factory.mktemp("tgzip")
     if not (os.path.isdir(Z) and os.path.isdir(B)):
         pytest.skip("zlib/bzip2 sources not unpacked under tools/rpm-src")
-    srcs = [os.path.join(SRC, f) for f in ("tgzip.c", "t4call.c", "t4lock.c", "compkern.c", "atwboot_host.c")]
+    srcs = [os.path.join(SRC, f) for f in ("tgzip.c", "t4call.c", "t4lock.c", "t4adler.c", "compkern.c", "atwboot_host.c")]
     srcs += [os.path.join(Z, f) for f in ("adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c")]
     srcs += [os.path.join(B, f) for f in ("blocksort.c", "huffman.c", "crctable.c", "randtable.c",
                                           "decompress.c", "compress.c", "bzlib.c")]
@@ -78,7 +78,7 @@ def test_t4_adler32_matches_zlib_and_t4_enabled(tmp_path):
     import zlib
     so = tmp_path / "t4call.so"
     subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-w", f"-I{SRC}", "-o", str(so),
-                    os.path.join(SRC, "t4call.c"), os.path.join(SRC, "t4lock.c"),
+                    os.path.join(SRC, "t4call.c"), os.path.join(SRC, "t4lock.c"), os.path.join(SRC, "t4adler.c"),
                     os.path.join(SRC, "atwboot_host.c")], check=True)
     lib = ctypes.CDLL(str(so))
     lib.t4_adler32.restype = ctypes.c_ulong

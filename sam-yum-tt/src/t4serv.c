@@ -4,14 +4,15 @@
  *   op 'E': each 4096-byte chunk echoed back at once (link throughput, every server has it)
  *   other : t4_kernel(op, level) on the buffer, then
  *   T425 -> TT  outlen (4, LE; 0xffffffff = failed) || adler32(out) (4) || outlen bytes
- * The adler32 tells a wrong result from a damaged transfer. A family links this with its t4_kernel()
+ * The adler32 (t4adler.c, no zlib needed) tells a wrong result from a damaged transfer.
+ * A family links this with its t4_kernel()
  * and t4_out_cap() (compserv.c). Needs IBOARDSIZE #400000, which t4call() answers at boot.
  * History: this loop was compserv.c (Rev. 7 benchmark), extracted 2026-09-24.
  */
 #include <channel.h>
 #include <stdlib.h>
 #include "t4serv.h"
-#include "zlib.h"
+#include "t4adler.h"
 
 #define CHUNK 4096
 
@@ -55,7 +56,7 @@ int main(void)
         olen = in && out ? t4_kernel(hdr[0], hdr[1], in, (long)len, out, cap) : -1;
         put4(olen < 0 ? 0xffffffffUL : (unsigned long)olen);
         if (olen > 0) {
-            put4(adler32(adler32(0L, Z_NULL, 0), out, (uInt)olen));
+            put4(t4_adler32(out, olen));
             ChanOut(LINK0OUT, (char *)out, (int)olen);
         }
         free(in);
