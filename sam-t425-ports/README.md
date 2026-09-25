@@ -65,6 +65,24 @@ extract 256 KB–1.5 MB; `zip` 128 KB–1.5 MB; `cjpeg`/`djpeg` from 320×240; `
 pixels; `tpnmtopng` from 224 KB. `tbc` offloads every run (its cost is not known in advance): `2+2`
 takes 1.6 s instead of 0.45 s.
 
+## Results — 68030 + 68882 rebuilds (no T425)
+
+The same SpareMiNT source and patches, rebuilt with `-m68020-60` (68030 code, hard float on the 68882). A
+`-m68000` build with the same compiler is the control, so the gain can be attributed. Shipped as a higher
+release of the stock package (`…sam1`): `yum update` installs it, `rpm -U --oldpackage` restores stock.
+
+| Program | Workload | Stock | 68000 control | 68030 + 68882 | vs stock | Output |
+|---|---|---|---|---|---|---|
+| `sox` 12.17.3 | 5 s stereo, `vol 0.5` | 69.2 s | 66.4 s | 23.3 s | **0.34** | identical |
+| | `echo` | 276.8 s | 274.3 s | 36.2 s | **0.13** | identical |
+| | `lowp 2000` | 157.5 s | 157.3 s | 26.7 s | **0.17** | identical |
+| `gsm` 1.0.10 (`toast`) | 2 s of 8 kHz audio, encode | 118.2 s | 127.8 s | 22.0 s | **0.19** | identical |
+| | decode | 2.4 s | 2.7 s | 2.3 s | ≈ 1.0 | identical |
+| `gzip` 1.3 | 429–542 KB, `-6` / `-d` | 21.6–35.7 / 7.4–9.1 s | ≈ stock | ≈ stock | 0.97–1.07 | declined |
+
+The pattern: floating-point and multiply/divide-heavy code gains most (sox's effects are float, and
+gsm's encoder multiplies in float — both done in software on a 68000 build); byte-oriented code like gzip gains nothing.
+
 ## Results — measured and declined
 
 | Kernel | Why it lost |
