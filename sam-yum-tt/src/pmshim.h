@@ -9,6 +9,9 @@ long ps_time(long *t);
 int ps_getpid(void);
 void ps_srand(unsigned s);
 int ps_rand(void);
+#include <stdio.h>
+size_t ps_fread(void *buf, size_t size, size_t n, FILE *file);
 void ps_qsort(void *base, size_t n, size_t size, int (*cmp)(const void *, const void *));
-long ps_run(int ncolors, const unsigned char *ppm, long n, unsigned char *out, long cap);
+long ps_run(int (*prog_main)(int, char **), int argc, char **argv, const unsigned char *in, long n,
+            unsigned char *out, long cap);
 #endif

@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "pmshim.h"
+#include "ppmqrun.h"
 #include "t4call.h"
 
 #define T4Q_BTL "/usr/lib/t425/tppmquant.btl"
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "tppmquant: T425 %s; quantizing on the 68030\n", why);
     }
     if (len < 0) {                               /* the same kernel here, in place */
-        len = ps_run((int)colors, buf + 4, n, buf + 4, n);
+        len = pq_run((int)colors, buf + 4, n, buf + 4, n);
         if (len < 0) {
             fprintf(stderr, "tppmquant: need a raw PPM (P6, maxval <= 255, no comments); else use ppmquant\n");
             return 1;

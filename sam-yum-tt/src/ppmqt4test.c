@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "pmshim.h"
+#include "ppmqrun.h"
 
 #define W 200L
 #define H 150L
@@ -27,7 +27,7 @@ int main(void)
                 b[i + 2] = (unsigned char)((x * 7 + y * 13 + (x * y) % 17) & 255);
             }
         n = hdr + W * H * 3;
-        r = ps_run(nc[k], b, n, b, n);
+        r = pq_run(nc[k], b, n, b, n);
         for (s = 0, i = 0; i < r; i++)
             s = s * 31 + b[i];
         printf("colors %d -> %ld %08lx\n", nc[k], r, s & 0xffffffffUL);

@@ -11,8 +11,8 @@ D=${1:-/tmp/pq}
 N=$R/tools/rpm-src/x/netpbm-9.5-1/netpbm-9.5
 rm -rf "$D" && mkdir -p "$D/sys" && cd "$D"
 cp "$N"/ppm/ppmquant.c "$N"/ppm/libppm3.c "$N"/ppm/ppm.h "$N"/ppm/ppmcmap.h "$N"/ppm/libppm.h "$N"/pgm/pgm.h \
-   "$N"/pbm/pbm.h "$N"/pbmplus.h "$N"/shhopt/shhopt.h "$N"/pgm/libpgm.h "$N"/pbm/libpbm.h .
-cp "$R"/sam-yum-tt/src/pmshim.[ch] "$R"/sam-yum-tt/src/ppmqserv.c "$R"/sam-yum-tt/src/ppmqt4test.c \
+   "$N"/pbm/pbm.h "$N"/pnm/pnm.h "$N"/pbmplus.h "$N"/shhopt/shhopt.h "$N"/pgm/libpgm.h "$N"/pbm/libpbm.h .
+cp "$R"/sam-yum-tt/src/pmshim.[ch] "$R"/sam-yum-tt/src/ppmqrun.h "$R"/sam-yum-tt/src/ppmqserv.c "$R"/sam-yum-tt/src/ppmqt4test.c \
    "$R"/sam-yum-tt/src/t4serv.[ch] "$R"/sam-yum-tt/src/t4adler.[ch] .
 printf '/* t4ppmq stub */\ntypedef long off_t;\n' > sys/types.h
 for h in unistd.h sys/stat.h fcntl.h; do printf '/* t4ppmq stub */\n' > "$h"; done
