@@ -7,6 +7,10 @@
  * The adler32 (t4adler.c, no zlib needed) tells a wrong result from a damaged transfer.
  * A family links this with its t4_kernel()
  * and t4_out_cap() (compserv.c). Needs IBOARDSIZE #400000, which t4call() answers at boot.
+ * RULE for every family: nothing linked into a server may call the host runtime (getenv, fopen, printf,
+ * time, exit...). On the T425 those are requests over link 0 to an iserver; after boot the TT answers
+ * none, so the request reads as a garbage reply and the server hangs. The t4 emulator IS a host server
+ * and answers them, so an emulator test cannot catch this (libjpeg's getenv("JPEGMEM"), 2026-09-24).
  * History: this loop was compserv.c (Rev. 7 benchmark), extracted 2026-09-24.
  */
 #include <channel.h>
