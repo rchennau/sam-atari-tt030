@@ -98,3 +98,22 @@ def test_loaded_marker(tmp_path):
     assert lib.t4_loaded_is(b"xserv.btl") == -1                          # nothing recorded: unknown
     lib.t4_loaded_set(b"compserv.btl")
     assert lib.t4_loaded_is(b"compserv.btl") == 1 and lib.t4_loaded_is(b"xserv.btl") == 0
+
+
+def test_compkern_raw_deflate_op_for_zip(tmp_path):
+    """op 'r' (zip's zlib path): 1 data_type byte (1 = text, 0 = binary) + a raw deflate stream."""
+    import ctypes
+    import zlib
+    so = tmp_path / "ck.so"
+    srcs = [os.path.join(SRC, "compkern.c")] + [os.path.join(Z, f) for f in (
+        "adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c")] + [os.path.join(B, f) for f in (
+        "blocksort.c", "huffman.c", "crctable.c", "randtable.c", "decompress.c", "compress.c", "bzlib.c")]
+    subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-w", "-DZ_SOLO", "-DBZ_NO_STDIO", f"-I{SRC}", f"-I{Z}",
+                    f"-I{B}", "-o", str(so), *srcs], check=True)
+    ck = ctypes.CDLL(str(so))
+    ck.ck_compress.restype = ctypes.c_long
+    for data, want in ((b"plain text line\n" * 3000, 1), (bytes(range(256)) * 200, 0)):
+        out = ctypes.create_string_buffer(len(data) * 2 + 1024)
+        n = ck.ck_compress(ord("r"), 6, data, ctypes.c_long(len(data)), out, ctypes.c_long(len(out)))
+        assert n > 1 and out.raw[0] == want
+        assert zlib.decompress(out.raw[1:n], -15) == data

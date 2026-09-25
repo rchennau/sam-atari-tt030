@@ -9,8 +9,8 @@
 
 int main(void)
 {
-    static const char ops[] = "zZb";               /* deflate 1, deflate 6, bzip2 1 */
-    static const int lv[] = { 1, 6, 1 };
+    static const char ops[] = "zZbr";              /* deflate 1, deflate 6, bzip2 1, raw deflate 6 */
+    static const int lv[] = { 1, 6, 1, 6 };
     unsigned char *in = malloc(N), *out = malloc(N + N / 2 + 1024);
     long i, len;
     unsigned long sum;
