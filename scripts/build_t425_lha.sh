@@ -1,7 +1,7 @@
 #!/bin/sh
 # lha 1.14i with its -lh5-/6-/7- encoder on the T425 (tt030-t425-kernel-ports W1), as two RPMs:
-#   build/lha-1.14i-3.m68kmint.rpm          /usr/bin/lha + /usr/lib/t425/lha.btl   (replaces SpareMiNT 1.14i-1)
-#   build/lha-t425-on-1.14i-3.m68kmint.rpm  /etc/t425/enabled/lha                 (held until the FR-5 gate)
+#   build/lha-1.14i-5.m68kmint.rpm          /usr/bin/lha + /usr/lib/t425/lha.btl   (replaces SpareMiNT 1.14i-1)
+#   build/lha-t425-on-1.14i-5.m68kmint.rpm  /etc/t425/enabled/lha                 (held until the FR-5 gate)
 # Source: SpareMiNT's lha-1.14i-1 SRPM (tools/rpm-src/x/), its two patches, and its spec's switches:
 # OPTIMIZE is REPLACED (the spec passes OPTIMIZE="$RPM_OPT_FLAGS -DHAVE_NO_LCHOWN"), so there is no
 # SUPPORT_LH7. With it, lha defaults to -lh7- and SpareMiNT's lha cannot read the archives ("make_table()
@@ -89,6 +89,73 @@ s = s.replace(old, '''		interface.original = size;
 		*original_size_var = interface.original;
 		}''', 1)
 open(p, "w", encoding="latin-1").write(s)
+
+# extract side: lh5/lh6 decode on the T425 (op 'd'); lha checks the returned crc against the header
+p = "src/extract.c"
+s = open(p, encoding="latin-1").read()
+inc = '#include "lha.h"\n'
+assert inc in s, "extract.c: lha.h include not found"
+s = s.replace(inc, inc + '''
+#ifdef T425
+#include "t4call.h"
+#define LHA_T4_DMIN (256L * 1024)	/* original size. Measured 2026-09-24: decode is cheap here, so the
+					   ~1 s boot loses below this (16 KB 0.92 -> 1.82 s); 256 KB text
+					   6.9 -> 5.9 s (0.86), binary 7.9 -> 7.0 s (0.89) */
+#define LHA_T4_DMAX (1536L * 1024)	/* packed + original must fit the T425's 4 MB board */
+/* Decode one member on the T425 (tt030-t425-kernel-ports). 0 = done (crc set), -1 = decode() here. */
+static int
+t4_decode(FILE *infp, FILE *outfp, long original, long packed, int method)
+{
+	static int said;
+	unsigned char *in, *out;
+	const char *why = "failed";
+	long pos = ftell(infp), len = -1;
+
+	if ((method != LZHUFF5_METHOD_NUM && method != LZHUFF6_METHOD_NUM) || verify_mode || text_mode
+	    || outfp == NULL || original < LHA_T4_DMIN || original > LHA_T4_DMAX || packed <= 0
+	    || packed > original + 1024 || !t4_enabled("lha"))
+		return -1;
+	in = (unsigned char *) malloc(packed + 4);
+	out = (unsigned char *) malloc(original + 66);
+	if (!in || !out)
+		why = "had no memory for the member";
+	else if ((long) fread(in + 4, 1, packed, infp) != packed)
+		why = "could not read the member";
+	else {
+		in[0] = (unsigned char) original;
+		in[1] = (unsigned char) (original >> 8);
+		in[2] = (unsigned char) (original >> 16);
+		in[3] = (unsigned char) (original >> 24);
+		len = t4call("/usr/lib/t425/lha.btl", 'd', method, in, packed + 4, out, original + 66, &why);
+	}
+	if (len == original + 2 && (long) fwrite(out + 2, 1, original, outfp) != original) {
+		why = "result not written";
+		len = -1;
+	}
+	if (len != original + 2) {
+		if (!said++)
+			fprintf(stderr, "lha: T425 %s; extracting on the 68030\\n", why);
+		fseek(infp, pos, SEEK_SET);
+	} else
+		crc = out[0] | (out[1] << 8);
+	free(in);
+	free(out);
+	return len == original + 2 ? 0 : -1;
+}
+#endif
+''', 1)
+old = """	interface.packed = packed_size;
+
+	switch (method) {"""
+assert old in s, "extract.c: decode_lzhuf switch not found"
+s = s.replace(old, """	interface.packed = packed_size;
+
+#ifdef T425
+	if (t4_decode(infp, outfp, original_size, packed_size, method) == 0)
+		return crc;
+#endif
+	switch (method) {""", 1)
+open(p, "w", encoding="latin-1").write(s)
 PY
 T4O=
 for c in t4call t4lock t4adler atwboot; do
@@ -106,13 +173,13 @@ import sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
 lha, btl = sys.argv[1], sys.argv[2]
-open("build/lha-1.14i-3.m68kmint.rpm", "wb").write(R.write_rpm("lha", "1.14i", "3", [
+open("build/lha-1.14i-5.m68kmint.rpm", "wb").write(R.write_rpm("lha", "1.14i", "5", [
     ("/usr/bin/lha", 0o100755, open(lha, "rb").read()),
     ("/usr/lib/t425/lha.btl", 0o100644, open(btl, "rb").read()),
-], summary="LHa 1.14i; -lh5/6/7- encoding offloads to the ATW800/2 T425 when lha-t425-on is installed (sam)",
+], summary="LHa 1.14i; -lh5-/-lh6- encoding and decoding offload to the ATW800/2 T425 when lha-t425-on is installed (sam)",
     provides=["lha"]))
-open("build/lha-t425-on-1.14i-3.m68kmint.rpm", "wb").write(R.write_rpm("lha-t425-on", "1.14i", "3", [
+open("build/lha-t425-on-1.14i-5.m68kmint.rpm", "wb").write(R.write_rpm("lha-t425-on", "1.14i", "5", [
     ("/etc/t425/enabled/lha", 0o100644, b""),
 ], summary="turn on T425 offload for lha (after its FR-5 gate)", requires_=["lha"]))
-print("build/lha-1.14i-3.m68kmint.rpm build/lha-t425-on-1.14i-3.m68kmint.rpm")
+print("build/lha-1.14i-5.m68kmint.rpm build/lha-t425-on-1.14i-5.m68kmint.rpm")
 PY

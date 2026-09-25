@@ -8,7 +8,10 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
     return ck_compress(op, level, in, n, out, cap);
 }
 
-long t4_out_cap(long n)
+long t4_out_cap(int op, int level, const unsigned char *in, long n)
 {
+    (void)op;
+    (void)level;
+    (void)in;
     return n + n / 2 + 1024;
 }

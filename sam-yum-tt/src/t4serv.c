@@ -46,13 +46,14 @@ int main(void)
             }
             continue;
         }
-        cap = t4_out_cap((long)len);
         in = malloc(len ? len : 1);
-        out = malloc((size_t)cap);
         for (i = 0; i < len; i += n) {         /* always drain the payload, even with no memory */
             n = len - i > CHUNK ? CHUNK : len - i;
             ChanIn(LINK0IN, in ? (char *)in + i : (char *)chunk, (int)n);
         }
+        /* sized after the payload is in: a decoder's output size is inside it (lhaserv op 'd') */
+        cap = in ? t4_out_cap(hdr[0], hdr[1], in, (long)len) : 0;
+        out = cap > 0 ? malloc((size_t)cap) : NULL;
         olen = in && out ? t4_kernel(hdr[0], hdr[1], in, (long)len, out, cap) : -1;
         put4(olen < 0 ? 0xffffffffUL : (unsigned long)olen);
         if (olen > 0) {

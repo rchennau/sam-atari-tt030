@@ -5,6 +5,8 @@
  *                       member's stream cannot be split
  *   result              crc16 (2 bytes, LE) || packed bytes; packed stops at the input size, as lha's
  *                       putcode does ("unpackable" -> the TT stores the member as -lh0-)
+ *   op 'd', level 5|6   decode: payload = original size (4, LE) || packed bytes; result = crc16 (2) ||
+ *                       the original bytes (lha's own decode(), as extract.c's decode_lzhuf calls it)
  */
 #include <setjmp.h>
 #include <stdarg.h>
@@ -75,13 +77,19 @@ void error(char *msg, char *arg)
     t4_abort(1);
 }
 
+static unsigned long get4(const unsigned char *b)
+{
+    return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24);
+}
+
 long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap)
 {
     static int crctable_made;
-    int method = op - '0';
+    int method = op == 'd' ? level : op - '0';
 
-    (void)level;
     if (method < 5 || method > 6 || cap < 2)   /* lh7 needs SUPPORT_LH7, which the TT build lacks */
+        return -1;
+    if (op == 'd' && n < 4)
         return -1;
     if (setjmp(t4_fail))
         return -1;
@@ -89,8 +97,8 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
         make_crctable();
         crctable_made = 1;
     }
-    lm_in = in;
-    lm_in_len = n;
+    lm_in = op == 'd' ? in + 4 : in;
+    lm_in_len = op == 'd' ? n - 4 : n;
     lm_in_pos = 0;
     lm_out = out + 2;
     lm_out_cap = cap - 2;
@@ -98,6 +106,20 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
     quiet = 1;
     text_mode = 0;
     reading_size = 0;
+    if (op == 'd') {                             /* as extract.c: lh5 dicbit 13, lh6 15 */
+        interface.method = method;
+        interface.dicbit = method == 6 ? 15 : 13;
+        interface.infile = stdin;
+        interface.outfile = stdout;
+        interface.original = (long)get4(in);
+        interface.packed = n - 4;
+        if (interface.original > cap - 2)
+            return -1;
+        decode(&interface);
+        out[0] = (unsigned char)crc;
+        out[1] = (unsigned char)(crc >> 8);
+        return 2 + lm_out_pos;
+    }
     /* lha numbers methods lh0=0 ... lh7=7 (LZHUFF5_METHOD_NUM etc.) */
     interface.method = encode_alloc(method);
     interface.infile = stdin;                    /* never read: fread is t4_fread */
@@ -109,7 +131,10 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
     return 2 + lm_out_pos;
 }
 
-long t4_out_cap(long n)
+long t4_out_cap(int op, int level, const unsigned char *in, long n)
 {
+    (void)level;
+    if (op == 'd')                               /* decode: the original size leads the payload */
+        return n >= 4 ? (long)get4(in) + 2 + 64 : 0;
     return n + 2 + 64;                           /* putcode stops at the input size */
 }
