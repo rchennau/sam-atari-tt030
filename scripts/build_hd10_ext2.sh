@@ -29,6 +29,26 @@ for r in "$RPMS"/*.m68kmint.rpm "$REPO"/staging/SAM_RPMS/*.m68kmint.rpm; do
   [ -e "$r" ] || continue
   7z e -y -o"$WORK/cpio" "$r" >/dev/null
 done
+# HD10_PKGLIST=FILE (one package name per line, e.g. `rpm -qa --queryformat '%{NAME}\n'` from the TT):
+# each name resolves to the mirror's newest RPM (index.tsv lists the newest per name, so the 68030
+# rebuilds `.sam1`, the T425 ports and their `-t425-on` switches win) and is unpacked AFTER the base
+# set, so it overrides it. The RPM files also go into /var/cache/yum.tt/pkgs and /var/lib/rpm gets a
+# marker: at first boot /etc/rc.firstboot registers them with the TT's own rpm (`--justdb`, local, no
+# network) — fractal cannot write rpm 3.0.6's db1 database. Operator 2026-09-26: a fresh card ships
+# with the optimized packages installed instead of reinstalling them over SSH.
+MIRROR=${TT_MIRROR:-/mnt/vault/tt030}
+mkdir -p "$WORK/pkgs"
+if [ -n "${HD10_PKGLIST:-}" ]; then
+  n=0
+  while read -r name; do
+    [ -n "$name" ] || continue
+    path=$(awk -F'\t' -v n="$name" '$1==n {print $5; exit}' "$MIRROR/index.tsv")
+    [ -n "$path" ] || { echo "HD10_PKGLIST: $name is not on the mirror" >&2; exit 1; }
+    cp "$MIRROR/$path" "$WORK/pkgs/"
+    7z e -y -o"$WORK/cpio.extra/$(printf %03d $n)" "$MIRROR/$path" >/dev/null; n=$((n + 1))
+  done < "$HD10_PKGLIST"
+  echo "HD10_PKGLIST: $n packages from $MIRROR" >&2
+fi
 # SSH for fractal -> TT (OpenSSH 5.6 predates ed25519/ecdsa-by-default, so RSA). Host keys are
 # generated once into build/hd10-keys/ (gitignored) so rebuilds keep the same fingerprint; the
 # login key is fractal's ~/.ssh/atari_tt_rsa.pub. Overlay files (passwd, group, resolv.conf) come
@@ -71,6 +91,8 @@ fakeroot sh -c "
   mkdir -p '$WORK/root' && tar xzf '$TGZ' -C '$WORK/root'
   for c in '$WORK'/cpio/*.cpio; do (cd '$WORK/root' && cpio -idmu --quiet --no-absolute-filenames < \"\$c\" 2>/dev/null); done
   python3 '$REPO/scripts/cpio_symlinks.py' '$WORK/root' '$WORK'/cpio/*.cpio
+  for c in '$WORK'/cpio.extra/*/*.cpio; do [ -e \"\$c\" ] || continue; (cd '$WORK/root' && cpio -idmu --quiet --no-absolute-filenames < \"\$c\" 2>/dev/null); python3 '$REPO/scripts/cpio_symlinks.py' '$WORK/root' \"\$c\"; done
+  if [ -n \"\$(ls '$WORK/pkgs' 2>/dev/null)\" ]; then mkdir -p '$WORK/root/var/cache/yum.tt/pkgs' '$WORK/root/var/lib/rpm'; cp '$WORK'/pkgs/*.rpm '$WORK/root/var/cache/yum.tt/pkgs/'; touch '$WORK/root/var/lib/rpm/.firstboot-justdb'; fi
   mkdir -p '$WORK/root/tmp' && chmod 1777 '$WORK/root/tmp'
   cp -a '$WORK/overlay/.' '$WORK/root/'
   chmod 700 '$WORK/root/root/.ssh' '$WORK/root/etc/dropbear' && chmod 600 '$WORK/root/root/.ssh/authorized_keys' '$WORK/root/etc/ssh/ssh_host_rsa_key' '$WORK/root/etc/dropbear/dropbear_ed25519_host_key' && chmod 755 '$WORK/root/usr/sbin/dropbear'

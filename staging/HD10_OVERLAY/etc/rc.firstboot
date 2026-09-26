@@ -1,0 +1,16 @@
+#!/bin/bash
+# First boot of a card built with HD10_PKGLIST (scripts/build_hd10_ext2.sh): the packages are already
+# unpacked; register them in the rpm database with the TT's own rpm (fractal cannot write db1). Local
+# only, no network. Runs once: the marker is removed on success. Log: /var/log/firstboot.log.
+M=/var/lib/rpm/.firstboot-justdb
+[ -f $M ] || exit 0
+export UNIXMODE=/brUs
+{
+  date
+  [ -f /var/lib/rpm/packages.rpm ] || rpm --initdb
+  for p in /var/cache/yum.tt/pkgs/*.rpm; do
+    rpm -i --justdb --nodeps --noscripts --notriggers --force --ignoreos --ignorearch "$p" || echo "FAILED $p"
+  done
+  echo "registered: $(rpm -qa | wc -l) packages"
+  date
+} >> /var/log/firstboot.log 2>&1 && rm -f $M
