@@ -29,7 +29,10 @@
 
 #define PIECE (256L * 1024)
 #define CAP (PIECE + PIECE / 2 + 1024)
-#define SERVER "/usr/lib/t425/compserv.btl"
+#define SERVER "/usr/lib/t425/compserv.btl"    /* deflate: INMOS icc build */
+/* bzip2: the same compkern built with llvm-t800 (0.90 of icc on the TT; deflate is 1.04, so it stays on icc) —
+ * PMS tt030-llvm-t800-adoption FR-5, operator MCQ 2026-09-26 */
+#define BZSERVER "/usr/lib/t425/bzserv.btl"
 
 static const char *me;
 static int op, level, verbose, t4off;
@@ -39,7 +42,7 @@ static long t4pieces, pieces;
 static long t4_piece(const unsigned char *in, long n, unsigned char *out)
 {
     const char *why = NULL;
-    long len = t4call(SERVER, op, level, in, n, out, CAP, &why);
+    long len = t4call(op == 'b' ? BZSERVER : SERVER, op, level, in, n, out, CAP, &why);
 
     if (len < 0) {
         fprintf(stderr, "%s: T425 %s; compressing on the 68030\n", me, why);
