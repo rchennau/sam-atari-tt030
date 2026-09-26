@@ -14,9 +14,20 @@ STAGE=$(mktemp -d); trap 'rm -rf "$STAGE"' EXIT
 cp "$LOCAL" "$STAGE/$NAME"                               # sz sends the basename: stage it under NAME
 want=$(sha256sum "$STAGE/$NAME" | cut -d' ' -f1)
 stty -F "$PORT" 38400 raw -echo -ixon -ixoff -crtscts clocal cread
-printf '\r' > "$PORT"; sleep 1                             # a fresh prompt first
-printf 'cd %s && rz -e -y\r' "$RDIR" > "$PORT"             # -y: overwrite an existing file of that name
-sleep "${TT_RZWAIT:-4}"                                    # rz starts slowly while the 68030 is busy (2 s was too short, 2026-09-26)
+exec 3<>"$PORT"          # hold the port open for the whole run: bytes arriving while nothing has it open are dropped
+# Start rz and wait for its ZRINIT frame (hex header "B01...") in ONE process, on the held-open port: a fixed
+# delay lost the race (2026-09-26, ZMODEM bytes landed in bash), and a separate open missed the frame. Raw
+# bytes, not grep: lrzsz ends the header with CR + 0x8A. rz re-sends ZRINIT, so consuming one is harmless.
+python3 -c 'import os,sys,time,termios
+fd=3; termios.tcflush(fd,termios.TCIFLUSH); os.set_blocking(fd,False)
+os.write(fd,b"\r"); time.sleep(1)
+os.write(fd,("cd %s && rz -e -y\r" % sys.argv[1]).encode()); end=time.time()+float(sys.argv[2]); buf=b""
+while time.time()<end:
+    try: buf+=os.read(fd,256)
+    except BlockingIOError: time.sleep(0.05)
+    if b"B01" in buf: sys.exit(0)
+sys.exit(1)' "$RDIR" "${TT_RZWAIT:-30}" \
+    || { printf '\030\030\030\030\030\r' >&3; echo "tt_zput: rz did not start on the TT console" >&2; exit 1; }
 ( cd "$STAGE" && timeout "${TT_ZTIMEOUT:-1800}" sz -e "$NAME" < "$PORT" > "$PORT" ) 2> "$STAGE/sz.err" \
     || { echo "tt_zput: sz failed:" >&2; tail -3 "$STAGE/sz.err" >&2; exit 1; }
 sleep 1
