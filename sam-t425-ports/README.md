@@ -49,6 +49,10 @@ binary, offload off. **T425** = offload on.
 | `tpnmtopng` | 800×600 RGB / gray / 320×240 | 194.2 / 95.8 / 31.1 s | 202.1 / 72.6 / 33.6 s | 163.1 / 51.9 / 28.1 s | **0.84 / 0.54 / 0.90** |
 | `tbc` (bc) | 500 digits of √2 / 200 of π / 800! / 2^20000 | 19.5 / 62.6 / 37.5 / 97.1 s | 5.9 / 20.0 / 10.9 / 33.5 s | 4.9 / 11.8 / 8.0 / 20.0 s | **0.25 / 0.19 / 0.21 / 0.21** |
 
+Since 2026-09-26 two T425 images are built with **llvm-t800** (clang for the transputer) instead of the INMOS
+compiler, where it measured faster on the real TT: `tbc`'s server (−6 to −8 % against the INMOS build, `-Os`) and
+`tbzip2`'s own server (−10 %). The deflate paths (`tgzip`, `zip`) stay on INMOS: clang is 3–10 % slower there.
+
 **68030-only twins** (the T425 lost its gate; the rebuilt 68030 path won — in-memory I/O plus 68030 code,
 the two not measured separately):
 
@@ -84,6 +88,8 @@ release of the stock package (`…sam1`): `yum update` installs it, `rpm -U --ol
 | | word count | 56.6 s | 52.7 s | 50.7 s | **0.90** | identical |
 | `bash` 2.05a (the login shell) | arithmetic loop / string ops / `case` matching | 351.8 / 102.0 / 847.2 s | 313.3 / 91.9 / 413.4 s | 283.9 / 85.6 / 384.0 s | **0.81 / 0.84 / 0.45** | identical, same builtins and options |
 | `sqlite` 3.2.2 | in-memory DB, 20 000 inserts + queries | 658 s | 602–671 s | 471 s | **0.72** | one query differs — stock's value is wrong (modern sqlite agrees with the rebuild) |
+| `tar` 1.23 | `tar cf - /usr/include` | 2.70 s | — | 1.84–1.93 s | **0.71** | identical |
+| `ls` (fileutils 4.1) | `ls -lR /usr/lib` | 1.03 s | — | 0.86–0.90 s | **0.87** | identical |
 | `gzip` 1.3 | 429–542 KB, `-6` / `-d` | 21.6–35.7 / 7.4–9.1 s | ≈ stock | ≈ stock | 0.97–1.07 | declined |
 
 **Float rule** (operator decision 2026-09-25): output must be byte-identical to stock, except that a
@@ -104,7 +110,8 @@ gsm's encoder multiplies in float — both done in software on a 68000 build); b
 | `pnmscale`, `giftopnm` (T425 path) | on/off 0.80–1.18: shipped as 68030-only twins instead |
 | libtiff LZW decode | bound: decode is ~12 s of `tiffcp`'s 26 s; after 5.7 s of transfer the T425 would need a 3.2× faster decode (measured on this link: 1.2× SHA-256, 1.00 LZW) |
 | libungif (GIF LZW) | same kernel as `giftopnm` |
-| xz, lzip | 64-bit arithmetic / ~94 MB (xz); C++ (lzip) — the INMOS compiler has neither |
+| xz, lzip | 64-bit arithmetic / ~94 MB (xz); C++ (lzip) — the INMOS compiler has neither. llvm-t800 has both, so lzip could be re-opened; xz still needs far more than the T425's 5 MB |
+| `find`, `grep`, `sed`, textutils (68030 rebuild) | 0.91–1.02 on disk/stdio-bound work; `sort` 1.26 and `wc` 1.56 got *slower* with the 2026 C library — kept stock |
 
 Deferred: `arc` (stock binary broken on MiNT), `lzo`, `gmp`/`mpfr`/`mpc` (no program on the mirror
 uses them), `rsync` (no peer to measure), `unarj` (no input). Not a compute kernel: `giftrans`.
