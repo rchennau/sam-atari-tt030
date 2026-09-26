@@ -82,6 +82,7 @@ release of the stock package (`…sam1`): `yum update` installs it, `rpm -U --ol
 | `gawk` 3.0.6 | sqrt/sin/exp loop | 358.1 s | 351.6–376.3 s | 58.8 s | **0.16** | last digit differs (1.4e-15) |
 | | `printf` formatting | 101.3–111.9 s | 99.5–100.5 s | 66.2–66.8 s | **0.62** | identical |
 | | word count | 56.6 s | 52.7 s | 50.7 s | **0.90** | identical |
+| `bash` 2.05a (the login shell) | arithmetic loop / string ops / `case` matching | 351.8 / 102.0 / 847.2 s | 313.3 / 91.9 / 413.4 s | 283.9 / 85.6 / 384.0 s | **0.81 / 0.84 / 0.45** | identical, same builtins and options |
 | `sqlite` 3.2.2 | in-memory DB, 20 000 inserts + queries | 658 s | 602–671 s | 471 s | **0.72** | one query differs — stock's value is wrong (modern sqlite agrees with the rebuild) |
 | `gzip` 1.3 | 429–542 KB, `-6` / `-d` | 21.6–35.7 / 7.4–9.1 s | ≈ stock | ≈ stock | 0.97–1.07 | declined |
 
