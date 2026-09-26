@@ -16,7 +16,7 @@
 
 #define T4S_BTL "/usr/lib/t425/tpnmscale.btl"
 #define T4S_MIN (64L * 1024)                     /* input bytes; below this the ~1 s boot dominates */
-#define T4S_MAX (4400L * 1024)                   /* input + output on the board (~5 MB usable, measured) */
+#define T4S_MAX (4400L * 1024)                   /* input + output on the board; limit unverified, t4serv.c */
 
 static unsigned char *slurp(FILE *f, long *n)
 {

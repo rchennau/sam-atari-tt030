@@ -6,8 +6,12 @@
  *   T425 -> TT  outlen (4, LE; 0xffffffff = failed) || adler32(out) (4) || outlen bytes
  * The adler32 (t4adler.c, no zlib needed) tells a wrong result from a damaged transfer.
  * A family links this with its t4_kernel()
- * and t4_out_cap() (compserv.c). t4call() boots it with IBOARDSIZE #500000: the board has ~5 MB usable
- * (measured with memserv.c, 2026-09-24: 5 MB gives 4.94 MB of heap, 5.25 MB and above hang).
+ * and t4_out_cap() (compserv.c). t4call() boots it with IBOARDSIZE #500000.
+ * UNVERIFIED LIMIT (defect 2026-09-25): memserv.c "measured" 4.94 MB usable by filling T425 memory up to 7 MB,
+ * and that run's pattern was later found at the start of the ATW800/2 video RAM: the HDMI desktop was black
+ * until a power cycle. How T425 memory maps onto the display is not understood. What IS measured: normal ports
+ * (tgzip, tppmquant ~4.2 MB) run at this size without touching the display (camera + atwvid, 2026-09-25).
+ * memserv.c is retired; never fill or probe board memory beyond what a port itself allocates.
  * RULE for every family: nothing linked into a server may call the host runtime (getenv, fopen, printf,
  * time, exit...). On the T425 those are requests over link 0 to an iserver; after boot the TT answers
  * none, so the request reads as a garbage reply and the server hangs. The t4 emulator IS a host server

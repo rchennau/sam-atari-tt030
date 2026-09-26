@@ -59,7 +59,7 @@ long t4call(const char *btl, int op, int level, const void *in, long n, void *ou
             atexit(unlock_at_exit);
         }
         atw_verbose = 0;
-        if (atw_boot(btl, "#500000"))   /* 5 MB: measured usable (4.94 MB heap); 5.25 MB hangs */
+        if (atw_boot(btl, "#500000"))   /* 5 MB: the size the ports were gated at; limit unverified, t4serv.c */
             return off("did not boot (fpgabios resident? server present?)", why);
         strncpy(booted, btl, sizeof booted - 1);
         t4_loaded_set(strrchr(btl, '/') ? strrchr(btl, '/') + 1 : btl);

@@ -15,7 +15,7 @@
 
 #define T4G_BTL "/usr/lib/t425/tgiftopnm.btl"
 #define T4G_MIN (21845L)                         /* pixels (64 KB of RGB); below this the ~1 s boot dominates */
-#define T4G_MAX (4400L * 1024)                   /* bytes on the board (~5 MB usable, measured) */
+#define T4G_MAX (4400L * 1024)                   /* bytes on the board; limit unverified, t4serv.c */
 
 static unsigned char *slurp(FILE *f, long *n)
 {

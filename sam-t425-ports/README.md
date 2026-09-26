@@ -14,7 +14,7 @@ Internal track: `tt030-t425-kernel-ports` (SAM). Results as of **2026-09-25**.
 |---|---|
 | "FreeMiNT **kernel** packages" | No. The **FreeMiNT kernel is not touched.** "Kernel" here means a *compute kernel*: the hot loop of a userland program (compression, image codecs, bignum) that can run as buffer in → buffer out. 35 of the mirror's 420 packages were classified that way. |
 | Recompiling for the TT030 makes programs faster | **Often, not always.** SpareMiNT's binaries are **68000 code**: stock `bc` contains 0 `mul.l`, 0 `div.l`, 0 `extb.l`, 0 FPU instructions (disassembled 2026-09-25). The same `bc` source built `-m68000` vs `-m68020-60`, timed on the TT, output identical: `sqrt(2)` to 500 digits **27.9 → 5.6 s (0.20)**, pi to 200 digits **28.2 → 18.8 s (0.67)**, `2^20000` **34.9 → 34.3–38.2 s (≈ 1.0, no gain)**. Division-heavy work gains most; the gain is per workload and has to be measured. |
-| "The TT030's full system" | = this machine **with its upgrades**: 68030 + 68882 FPU, 64 MB TT-RAM, the ATW800/2 (T425 transputer, ~5 MB of its own, measured usable 4.94 MB, over a link of ~459 KB/s one way), BlueSCSI storage, the floppy drive, and a serial-to-USB link on Modem 2 (38400 baud to fractal: serial console and ZMODEM transfers). The floppy and the serial link are I/O paths, not compute, so they are not levers for these ports. Each is a separate lever, measured separately: the **68030/68882 code** (row above), **TT-RAM** (stock and new binaries already carry all three TT-RAM program flags — fastload, load into TT-RAM, allocate from TT-RAM — so no gain is left there; 1,379 of the mirror's 1,380 executables, scanned 2026-09-25) and the **T425** (wins only where the work per byte moved is high). |
+| "The TT030's full system" | = this machine **with its upgrades**: 68030 + 68882 FPU, 64 MB TT-RAM, the ATW800/2 (T425 transputer, its own memory — the ports use up to ~5 MB; the true limit is unverified, see the note below — over a link of ~459 KB/s one way), BlueSCSI storage, the floppy drive, and a serial-to-USB link on Modem 2 (38400 baud to fractal: serial console and ZMODEM transfers). The floppy and the serial link are I/O paths, not compute, so they are not levers for these ports. Each is a separate lever, measured separately: the **68030/68882 code** (row above), **TT-RAM** (stock and new binaries already carry all three TT-RAM program flags — fastload, load into TT-RAM, allocate from TT-RAM — so no gain is left there; 1,379 of the mirror's 1,380 executables, scanned 2026-09-25) and the **T425** (wins only where the work per byte moved is high). |
 | This makes FreeMiNT **leaner** | **Not in disk or RAM.** The new binaries are larger than stock (they carry the offload runtime and newer libraries; +31 % to +57 % where a stock binary was rebuilt), and each T425 port adds a 35–165 KB server file. The twins read whole files into memory where stock streams them. What gets leaner is **CPU time**. One exception: the 68030 build of `bc` is ~9 % smaller (204 KB vs 224 KB) than the same source built for the 68000. |
 | Everything gets faster | No. Several ports were **measured and declined** (table below): the T425 lost wherever the data is large and the work per byte small (inflate, LZW decode, SHA-256, image scaling). |
 
@@ -124,6 +124,14 @@ yum install tbc tbc-t425-on            # a program and its T425 switch
 yum install tpnmscale                  # 68030-only twins have no switch
 yum list | grep t425-on                # everything that currently offloads
 ```
+
+## Incident 2026-09-25 — HDMI blacked out
+
+A board-memory test (`memserv.c`, 2026-09-24) filled T425 memory up to 7 MB. Its data turned up at the start of
+the ATW800/2 video RAM and the HDMI desktop stayed black until a power cycle. The shipped ports were then run
+on the T425 with the display watched by camera (`tgzip`, `tppmquant` at ~4.2 MB) and left it intact, but how T425
+memory maps onto the display is not understood yet. The memory test is retired, the "4.94 MB usable" figure is
+withdrawn, and offload switches were turned off pending that answer.
 
 ## Where the code lives
 

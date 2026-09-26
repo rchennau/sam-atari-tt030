@@ -3,7 +3,7 @@
  * output is identical either way. A twin of ppmquant, not a replacement: -fs/-floyd and -map stay with
  * stock ppmquant (-fs is time-seeded, so it is not reproducible anyway).
  *   tppmquant [-v] ncolors [ppmfile]        raw P6 (maxval <= 255, no comments) in, quantized P6 out on stdout
- * The T425 takes images of 64 KB .. 1.5 MB of pixels (in place; the board has ~5 MB usable, measured) when
+ * The T425 takes images of 64 KB .. 1.5 MB of pixels (in place; the board: ~5 MB, unverified: see t4serv.c, defect 2026-09-25) when
  * /etc/t425/enabled/tppmquant exists; otherwise, or on any failure, the 68030 runs it and says why. */
 #include <stdio.h>
 #include <stdlib.h>

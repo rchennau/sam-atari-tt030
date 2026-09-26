@@ -2,7 +2,7 @@
  * ppmquant.c + libppm3.c unchanged, run through pmshim.c (the same code tppmquant runs on the 68030).
  *   op 'q'   payload = colors (4, LE) || a raw PPM file (P6, maxval <= 255); result = the quantized PPM
  *            file, written over the request (T4_IN_PLACE: input + pixel array + output would not fit the
- *            board's ~5 MB otherwise). Boot with IBOARDSIZE #500000 (measured usable: 4.94 MB). */
+ *            board's ~5 MB otherwise). Boot with IBOARDSIZE #500000 (unverified: see t4serv.c, defect 2026-09-25). */
 #include "t4serv.h"
 #include "ppmqrun.h"
 

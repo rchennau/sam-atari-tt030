@@ -4,7 +4,7 @@
 # DIR must be SHORT (default /tmp/pq). netpbm 9.5 from the SpareMiNT SRPM, copied, never edited:
 #   ppmquant.c  main -> ppmquant_main, exit -> ps_exit, qsort -> ps_qsort (pmshim.c: same code as tppmquant)
 #   libppm3.c   the colormap/hash functions, qsort -> ps_qsort
-#   PPM_PACKCOLORS  4-byte pixels (the board has ~5 MB usable, measured)
+#   PPM_PACKCOLORS  4-byte pixels (board memory is tight; limit unverified, src/t4serv.c)
 set -eu
 R=$(cd "$(dirname "$0")/.." && pwd)
 D=${1:-/tmp/pq}
