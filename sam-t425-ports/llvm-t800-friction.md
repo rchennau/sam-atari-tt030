@@ -56,9 +56,34 @@ The same sources and workloads, output identical:
 
 `-O3`, `-Os` and `-fno-unroll-loops` give the same result within 0.5 %. The compression code is byte and
 bit-twiddling on `unsigned char`/`unsigned short` arrays (deflate's hash chains, the bzip2 block sort), which
-could be a code-generation case worth a look. The hardware (TT) numbers follow in our perf table once measured.
+could be a code-generation case worth a look.
+
+**On the real T425** (ATW800/2 V0208, 2 MB-video jumper; the call timed after boot, 3 rounds, output identical):
+
+| Workload | icc best ms | clang worst ms | clang / icc |
+|---|---:|---:|---:|
+| bc `scale=500; sqrt(2)` | 3,310 | 2,820 | 0.85 |
+| bc `-l` 200 digits of π | 10,270 | 9,635 | 0.94 |
+| bc `2^20000` | 18,365 | 17,515 | 0.95 |
+| zlib gzip -6, 256 KB text | 8,590 | 8,940 (typical) | 1.04 |
+| zlib raw deflate -6, 256 KB text | 8,370 | 8,705 | 1.04 |
+| bzip2 -3, 256 KB binary | 18,755 | 16,960 | 0.90 |
+
+Deflate (zlib `deflate.c` longest_match / hash insert) is the one case where clang loses to INMOS icc on hardware.
 
 ## F6 — `t4` prints `RESULT 0` for clang programs that return from `main`
 The icc builds under `t4` print only their own output; clang builds add a `RESULT 0` line. It is harmless, but
 it breaks a naive `diff` of the two runs.
 - Suggest: document the line, or print it only with `-si`.
+
+## F7 — `t4` cycle ratios did not predict the hardware ratios
+Same images, same workloads: `t4 -st 0` (with `-sd 0` and `-sd 2`) predicted clang ÷ icc = 0.68 / 0.87 for bc and 1.22
+for the compression test; the real T425 measured 0.85 / 0.94 for bc and 0.90 (bzip2) to 1.04 (deflate). `-sd 2` changed
+the absolute counts but not the ratio. We gate on hardware only, as the plan already says; a note in the README
+that `t4` ratios between compilers are not a hardware predictor would have saved us a wrong expectation.
+Suggest: if the V0208 FPGA's memory timing is known, a `-sd`/`-sm` preset for "ATW800/2 T425" in `t4`.
+
+## F8 — (positive) boot on our own loader
+A `-mhost=none` `.btl` boots on our link loader (raw image down link 0, then wait for the program's first bytes)
+with no start-up traffic at all: our loader logged no iserver packet before the server's `RDY0`. Boot time 975–1,050 ms
+vs 985–1,075 ms for the INMOS-linked image of the same program.
