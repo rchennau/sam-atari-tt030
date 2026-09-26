@@ -2,6 +2,7 @@
 # wbase_gate.sh — W-BASE timing gate on the TT (tt030-t425-kernel-ports FR-8): stock binary vs the -m68020-60
 # rebuild, same input, output compared by md5sum. Run from /ram with the rebuilt binaries in /ram/wb/.
 #   bash wbase_gate.sh RUNS      one line per case and run: "case run stock_s new_s same|DIFF"
+# /usr is a symlink on the TT (-> /f/usr): start points need the trailing slash or find/du walk nothing.
 # Inputs: /ram/big = /etc/termcap x3 (text), /ram/bigs = big sorted. Stock tools are found on PATH.
 cd /ram || exit 1
 [ -f big ] || { cat /etc/termcap /etc/termcap /etc/termcap > big; sort big > bigs; }
@@ -9,7 +10,7 @@ TIMEFORMAT=%R
 N=/ram/wb
 run() {  # name, then the command with @ standing for the tool path
   local name=$1 tool=$2; shift 2
-  local s=$(type -P "$tool") cmd="$*" ts tn a b
+  local s=$(type -p "$tool") cmd="$*" ts tn a b
   if [ $((r % 2)) = 1 ]; then   # alternate who goes first: the first run pays the cold disk cache
     ts=$( { time eval "${cmd//@/$s}" > o.s 2>/dev/null; } 2>&1 )
     tn=$( { time eval "${cmd//@/$N/$tool}" > o.n 2>/dev/null; } 2>&1 )
@@ -31,7 +32,7 @@ for r in $(seq 1 "${1:-2}"); do
   run tr       tr   '@ a-z A-Z < big'
   run uniq     uniq '@ -c bigs'
   run ls-lR    ls   '@ -lR /usr/lib'
-  run du       du   '@ -s /usr'
-  run find     find '@ /usr -name "*.h"'
+  run du       du   '@ -s /usr/'
+  run find     find '@ /usr/ -name "*.h"'
   run tar      tar  '@ cf - /usr/include'
 done

@@ -10,8 +10,7 @@ gains ".sam1", which rpmvercmp orders after the stock release, so `yum update` i
 `rpm -U --oldpackage STOCK.rpm` restores stock. Hard links in the stock payload (gzip/gunzip share one
 inode, the body travels with the last) are written as separate copies.
 --drop removes a stock file that collides with or shadows another installed package (gawk's /usr/bin/awk
-and /bin/awk links against mawk, which yum needs; operator 2026-09-25: `awk` stays mawk). Refuses a package with %config files: write_rpm does not carry file flags, and rpm would then overwrite a
-configuration file on update. ponytail: pass FILEFLAGS through write_rpm if a W-CPU package needs one.
+and /bin/awk links against mawk, which yum needs; operator 2026-09-25: `awk` stays mawk). The stock FILEFLAGS (%config, %doc) are carried over per path, so an update keeps rpm's config-file handling.
 Exit 0 written · 1 refused or bad input.
 """
 import gzip
@@ -23,7 +22,6 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import rpm_header as R  # noqa: E402
 
-RPMFILE_CONFIG = 1
 
 
 def payload(data, off):
@@ -60,9 +58,7 @@ def main(argv):
         return 1
     data = open(argv[1], "rb").read()
     sig, main_, off = R.rpm_header(data)
-    if any(f & RPMFILE_CONFIG for f in (main_.get(R.FILEFLAGS) or [])):
-        print(f"wcpu_repack: {argv[1]} has %config files; refusing (see the docstring)", file=sys.stderr)
-        return 1
+    flags = dict(zip(R.file_paths(main_), main_.get(R.FILEFLAGS) or []))   # %config/%doc carried over
     args, drop = argv[3:], set()
     while "--drop" in args:
         i = args.index("--drop")
@@ -89,7 +85,7 @@ def main(argv):
     open(out, "wb").write(R.write_rpm(
         name, ver, rel, [(p, m, b) for p, m, _, b in files],
         summary=summary + " (sam: rebuilt for the 68030 + 68882)",
-        requires_=R.requires(main_), provides=main_.get(R.PROVIDENAME) or ()))
+        requires_=R.requires(main_), provides=main_.get(R.PROVIDENAME) or (), fileflags=flags))
     print(out)
     return 0
 

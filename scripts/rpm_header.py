@@ -124,7 +124,7 @@ def _cpio(files):
     return out
 
 
-def write_rpm(name, version, release, files, summary="", requires_=(), provides=(), description=""):
+def write_rpm(name, version, release, files, summary="", requires_=(), provides=(), description="", fileflags=None):
     """Build a v3 m68kmint binary RPM. files: list of (abs_path, mode, body).
 
     Symlinks are passed with MiNT's S_IFLNK 0160000 (what SpareMiNT's own payloads use,
@@ -149,7 +149,7 @@ def write_rpm(name, version, release, files, summary="", requires_=(), provides=
          [hashlib.md5(b).hexdigest() if r else "" for (_, _, b), r in zip(files, reg)]),
         (FILELINKTOS, T_STRING_ARRAY,
          [b.decode("latin1") if lk else "" for (_, _, b), lk in zip(files, is_link)]),
-        (FILEFLAGS, T_INT32, [0] * len(files)),
+        (FILEFLAGS, T_INT32, [(fileflags or {}).get(p, 0) for p, _, _ in files]),  # %config=1, %doc=2
         (FILEUSERNAME, T_STRING_ARRAY, ["root"] * len(files)),
         (FILEGROUPNAME, T_STRING_ARRAY, ["root"] * len(files)),
         # without RPMVERSION, rpm 3.0.6 on big-endian verifies with its "broken MD5" and
