@@ -13,6 +13,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 STAGE=$(mktemp -d); trap 'rm -rf "$STAGE"' EXIT
 cp "$LOCAL" "$STAGE/$NAME"                               # sz sends the basename: stage it under NAME
 want=$(sha256sum "$STAGE/$NAME" | cut -d' ' -f1)
+exec 9> /tmp/atari-tt-serial.lock; flock 9   # one user of the line at a time (tt_serial.py takes it too)
+export TT_SERIAL_LOCKED=1                     # our own tt_serial.py call below must not wait on us
 stty -F "$PORT" 38400 raw -echo -ixon -ixoff -crtscts clocal cread
 exec 3<>"$PORT"          # hold the port open for the whole run: bytes arriving while nothing has it open are dropped
 # Start rz and wait for its ZRINIT frame (hex header "B01...") in ONE process, on the held-open port: a fixed

@@ -30,6 +30,12 @@ def open_port(path):
 
 
 def run(cmd, port="/dev/atari-tt", timeout=120.0):
+    # One user of the line at a time: a status command written mid-ZMODEM corrupted an upload (2026-09-26).
+    # tt_zput.sh takes the same lock. Blocks until the line is free.
+    import fcntl
+    lk = open("/tmp/atari-tt-serial.lock", "w")
+    if not os.environ.get("TT_SERIAL_LOCKED"):         # tt_zput.sh already holds it when it calls us
+        fcntl.flock(lk, fcntl.LOCK_EX)
     fd = open_port(port)
     tag = f"{os.getpid()}x{int(time.time())}"
     # printf joins the halves on the TT; the echoed command line holds them apart
