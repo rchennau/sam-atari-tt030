@@ -20,6 +20,11 @@
  */
 #include <channel.h>
 #include <stdlib.h>
+#ifndef LINK0OUT  /* llvm-t800's libt800 names the link channels only in atw800_map.h (tt030-llvm-t800-adoption) */
+#include <atw800_map.h>
+#define LINK0OUT ((Channel *)T8_LINK0_OUT)
+#define LINK0IN  ((Channel *)T8_LINK0_IN)
+#endif
 #include "t4serv.h"
 #include "t4adler.h"
 
