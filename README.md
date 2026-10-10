@@ -102,6 +102,9 @@ flowchart LR
 | Build-on-miss | `scripts/ttbuildd.py` (fractal unit `sam-ttbuildd`), `scripts/build_recipe.py`, `recipes/source-map.json` | ✅ `yum install pv` with pv absent → built + installed, 1 m 47 s; no recipe → queued + board card; build error → `failed`; broker down → exit 1 |
 | Recipes | `pv` 1.7.24, `xz` 5.8.4 | ✅ two clean builds give the same stripped binary (NFR-3) |
 | rpm DB backfill | `scripts/rpm_va_classify.py` | ✅ `rpm -Va` classified: 0 real drift |
+| Offline rpm DB writer | `scripts/tt_rpmdb.py` (`check`, `add`) + `scripts/tt_db1tool.c` (real db1.85) | ✅ 2026-10-10: wrote mintlib + ncurses into card 2 (TT's rpm verified the result in Hatari) |
+| rpm >64 KB fix | `rpm-3.0.6-4.sam2` (`wcpu_repack.py --suffix`, `mint_stack.py` on stripped binaries) | ✅ 2026-10-10: the sam1 rebuild had lost its 256 KB stack; sam2 = 512 KB, on the mirror |
+| Native TOS/GEM → FHS | `scripts/tt_tospkg.py` + `packaging/*.json` (bytes from the card's HD00, never git) | 🟡 2026-10-10: six `/opt/<app>` RPMs on the LAN mirror, Hatari-tested; real TT pending (PMS `tt030-fhs-layout`) |
 | Card image | `scripts/build_hd10_ext2.sh` + `staging/SAM_RPMS/` | ✅ rebuilt with the yum tools; **not boot-tested** (needs an SD flash) |
 
 ### FreeMiNT rpm / yum package management
