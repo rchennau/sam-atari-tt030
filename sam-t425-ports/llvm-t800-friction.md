@@ -95,6 +95,14 @@ so `malloc` returned NULL. Nothing on the console says the heap is exhausted. `-
 ATW800/2's 5 MB) fixed it: output identical to the host build.
 - Suggest: a `t800-run -mmem=SIZE` (as `t800-cc` has), or print the RAM size the image was linked for; a heap-exhausted
   note from libt800's `malloc` under `t4` would also have named it at once.
+- Second half of the same trap (found the same day): `t4` itself emulates **2 MB** unless given `-sm` (man t4: default
+  21 bits), and `t800-run` passes no `-sm` when `__ram_end` is larger. Linking for 5 MB then runs fine until the heap
+  crosses `0x80200000`; above it memory aliases and libt800's free list corrupts. Repro: allocate 520 × 4 KB, free all,
+  allocate again -> hangs in `free` (500 × 4 KB passes; threshold is the 2 MB line, not quadratic: 400 blocks 0.1 s).
+  It looked like a libt800 heap bug until `T800_T4_FLAGS='-sm 23'` made it vanish. ppmquant's test (120k small
+  allocations) hit it.
+- Suggest: `t800-run` derive `-sm` from `__ram_end` (or `-mmem`), or `t4` trap accesses beyond its memory instead of
+  aliasing.
 
 ## F10 — libt800 lacks `<sys/file.h>`, `<sys/dir.h>`, `<dirent.h>`
 Unix-era sources (SpareMiNT lha 1.14i `lha.h`) include them unconditionally even when the kernel uses none of their

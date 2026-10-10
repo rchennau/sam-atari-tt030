@@ -3,7 +3,8 @@
 #   sam-yum-tt/t4clang.sh PORT [DIR]     PORT = lha | jpeg | ppmq | png
 # 1. sam-yum-tt/t4PORT.sh prepares the sources in DIR exactly as the icc build uses them (and builds the icc images).
 # 2. The port's t4 test main is built for the host (gcc) and with clang under t800-run (t4 emulator, 5 MB RAM as
-#    on the ATW800/2: t800-run's default is 256 KB, friction F9); the outputs must be identical.
+#    on the ATW800/2: t800-run links for 256 KB and t4 emulates 2 MB unless told, friction F9); the outputs
+#    must be identical.
 # 3. The server image is built with clang at -O2 and -Os -> DIR/clang/PORTserv-O2.btl, -Os.btl, each confined to
 #    5 MB (NFR-2). These are the FR-5 candidates; the decision is the TT timing gate, never the emulator (F7).
 set -eu
@@ -31,7 +32,7 @@ src() { for f in "$@"; do printf '%s.c ' "$f"; done; }
 H=$C/host && mkdir -p "$H" && cp ./*.c ./*.h "$H"/ && rm -f "$H/dirent.h"   # host: no stubs at all
 (cd "$H" && gcc -w $STD $DEFS -I. -o host_test $(src $TEST $LIB) -lm && ./host_test > host.out)
 LL=$R/tools/llvm-t800/bin
-PATH=$LL:$PATH t800-run -mcpu=t425 -ext -O2 -lc $STD -w --defsym=__ram_end=0x80500000 $DEFS -I. \
+PATH=$LL:$PATH T800_T4_FLAGS='-sm 23' t800-run -mcpu=t425 -ext -O2 -lc $STD -w --defsym=__ram_end=0x80500000 $DEFS -I. \
     $(src $TEST $LIB) -o clang_test > clang.log 2>&1 || { tail -20 clang.log; exit 1; }
 grep -v '^RESULT ' clang.log | grep -v '^T4UNINIT' > clang.out    # t4's own lines (friction F6)
 if ! cmp -s clang.out "$H/host.out"; then
