@@ -2,6 +2,8 @@
 """tt_tospkg — package native TOS/GEM programs from a card's FAT drives as an RPM (PMS tt030-fhs-layout FR-3).
 
     scripts/tt_tospkg.py packaging/<name>.json HD00.hda OUT_DIR
+    scripts/tt_tospkg.py --fat-plan HD00.hda packaging/<a>.json ...   atari_fat16.py "del" plan for exactly the
+                                                                       files those packages carry (after FR-5)
 
 The recipe (JSON, in git) names files only; the bytes come from the HD00 image (gitignored build/), so commercial
 software is never committed (plan C4/C5). Its RPM belongs on the LAN mirror and the card, never on GitHub.
@@ -44,6 +46,17 @@ def excluded(rel, patterns):
                for p in patterns)
 
 
+def fat_plan(hd00, recipes):
+    img = open(hd00, "rb").read()
+    ops = []
+    for recipe in recipes:
+        r = json.load(open(recipe))
+        top = r["dir"].rstrip("\\")
+        ops += [{"op": "del", "path": f"{top}\\{rel.replace('/', chr(92))}"}
+                for rel in sorted(fat_tree(img, r["dir"])) if not excluded(rel, r.get("exclude", []))]
+    print(json.dumps(ops, indent=1))
+
+
 def main(recipe, hd00, out_dir):
     r = json.load(open(recipe))
     tree = fat_tree(open(hd00, "rb").read(), r["dir"])
@@ -83,6 +96,8 @@ def main(recipe, hd00, out_dir):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 2 and sys.argv[1] == "--fat-plan":
+        sys.exit(fat_plan(sys.argv[2], sys.argv[3:]))
     if len(sys.argv) != 4:
         sys.exit(__doc__)
     main(*sys.argv[1:])
