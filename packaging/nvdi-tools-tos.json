@@ -1,0 +1,25 @@
+{
+  "name": "nvdi-tools-tos",
+  "version": "5.0",
+  "release": "1.sam1",
+  "summary": "NVDI 5 utilities (ASSIGN, FONTNAME, INSTPRNT, PRESET, PRINTMON, SHOWME, OVERPTCH, VMG-4000), relocated to /opt/nvdi-tools (sam, local only)",
+  "licence": "proprietary (Behne & Behne); TT-local, not for redistribution",
+  "dir": "D:\\APPS\\NVDITOOL.S",
+  "dest": "/opt/nvdi-tools",
+  "exclude": [
+    "COPS\\",
+    "SLOW_PRN\\",
+    "OVSCANPT.TT\\",
+    "IPRNDEMO\\"
+  ],
+  "commands": {
+    "nvdi-assign": "ASSIGN/ASSIGN.PRG",
+    "fontname": "FONTNAME/FONTNAME.APP",
+    "instprnt": "INSTPRNT/INSTPRNT.APP",
+    "nvdi-preset": "PRESET/PRESET.PRG",
+    "printmon": "PRINTMON/PRINTMON.APP",
+    "showme": "SHOWME/SHOWME.APP",
+    "overptch": "OVERPTCH/OVERPTCH.TTP",
+    "vmg-4000": "VMG4000/VMG-4000.PRG"
+  }
+}

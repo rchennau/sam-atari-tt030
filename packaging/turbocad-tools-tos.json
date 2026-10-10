@@ -1,0 +1,15 @@
+{
+  "name": "turbocad-tools-tos",
+  "version": "3.6",
+  "release": "1.sam1",
+  "summary": "TurboCAD converters 3.6 (Technobox; DXF/HPGL/ASCII/GEM <-> TC2) and TBPARTS, relocated to /opt/turbocad (sam, local only). The .TTP converters read LNG files and their input from the current directory (TOS style): run them in /opt/turbocad, not from /usr/bin.",
+  "licence": "proprietary; TT-local, not for redistribution",
+  "dir": "D:\\APPS\\TOOLS",
+  "dest": "/opt/turbocad",
+  "exclude": [
+    "_TMP_00.XXX"
+  ],
+  "commands": {
+    "tbparts": "TBPARTS.PRG"
+  }
+}
