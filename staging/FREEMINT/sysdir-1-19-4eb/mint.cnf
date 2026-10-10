@@ -471,10 +471,15 @@ echo
 # TT030 (2026-09-12): userland is the ext2 disk at SCSI ID 1 (F:), see scripts/build_hd10_ext2.sh
 sln u:/f/usr u:/usr
 sln u:/f/sbin u:/sbin
+# tt030-fhs-layout FR-1: the rest of the FHS top level on F: (ext2)
+sln u:/f/lib u:/lib
+sln u:/f/home u:/home
+sln u:/f/mnt u:/mnt
+sln u:/f/boot u:/boot
 # BlueSCSI WiFi (DaynaPORT, scsilink.xif -> en0): 192.168.0.30, free per operator + fractal ping/ARP 2026-09-12.
 # Same address as the TOS/STiNG SCSI/Link port (STNGPORT.CPX); only one of TOS or MiNT runs at a time.
-exec u:/c/mint/1-19-4eb/ifconfig en0 addr 192.168.0.30 netmask 255.255.255.0 up
-exec u:/c/mint/1-19-4eb/route add default en0 gw 192.168.0.1
+exec u:/sbin/ifconfig en0 addr 192.168.0.30 netmask 255.255.255.0 up
+exec u:/sbin/route add default en0 gw 192.168.0.1
 # SSH from fractal: ssh atari-tt (SpareMiNT OpenSSH 5.6, RSA key only; sshd forks into the background).
 # -r: without it sshd exits "re-exec requires execution with an absolute path" (argv0 is u:/..., Hatari 2026-09-12)
 #exec u:/usr/sbin/sshd -r   ; off: on the real TT the 1024-bit DH kex did not finish within LoginGraceTime 120 s
