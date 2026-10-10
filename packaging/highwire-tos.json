@@ -1,0 +1,15 @@
+{
+  "name": "highwire-tos",
+  "version": "0.5.0",
+  "release": "1.sam1",
+  "summary": "HighWire 0.5.0 beta (GEM web browser), relocated to /opt/highwire (sam, local only)",
+  "licence": "GPL (HighWire project); packaged from the TT's disk",
+  "dir": "D:\\HIGHWIRE",
+  "dest": "/opt/highwire",
+  "commands": {
+    "highwire": "HW_30-60.APP"
+  },
+  "config": [
+    "EXAMPLE.CFG"
+  ]
+}

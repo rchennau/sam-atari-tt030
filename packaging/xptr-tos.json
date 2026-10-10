@@ -1,0 +1,15 @@
+{
+  "name": "xptr-tos",
+  "version": "1.0",
+  "release": "1.sam1",
+  "summary": "XPTR (68000/68030 GEM, ATW800/2 transputer modules), relocated to /opt/xptr (sam, local only)",
+  "licence": "unknown; treated as proprietary, TT-local",
+  "dir": "D:\\XPTR",
+  "dest": "/opt/xptr",
+  "commands": {
+    "xptr": "XPTR030.PRG"
+  },
+  "config": [
+    "CONFIG.JSN"
+  ]
+}
