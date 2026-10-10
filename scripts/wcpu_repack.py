@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """wcpu_repack.py — a W-CPU rebuild as an update of the stock package (tt030-t425-kernel-ports FR-8).
 
-  wcpu_repack.py STOCK.rpm OUT_DIR PATH=NEWFILE [PATH=NEWFILE ...] [--drop PATH ...]
-      -> OUT_DIR/<name>-<version>-<release>.sam1.m68kmint.rpm
+  wcpu_repack.py STOCK.rpm OUT_DIR PATH=NEWFILE [PATH=NEWFILE ...] [--drop PATH ...] [--suffix .samN]
+      -> OUT_DIR/<name>-<version>-<release>.sam1.m68kmint.rpm  (or the --suffix given)
 
 Takes SpareMiNT's own RPM and swaps in only the rebuilt executables (same SRPM, same version, only the
 CPU flags changed), so docs, man pages, file modes, symlinks and dependencies stay as stock. The release
@@ -59,7 +59,11 @@ def main(argv):
     data = open(argv[1], "rb").read()
     sig, main_, off = R.rpm_header(data)
     flags = dict(zip(R.file_paths(main_), main_.get(R.FILEFLAGS) or []))   # %config/%doc carried over
-    args, drop = argv[3:], set()
+    args, drop, suffix = argv[3:], set(), ".sam1"
+    if "--suffix" in args:                          # a re-release of a sam rebuild: .sam2 orders after .sam1
+        i = args.index("--suffix")
+        suffix = args[i + 1]
+        del args[i:i + 2]
     while "--drop" in args:
         i = args.index("--drop")
         drop.add(args[i + 1])
@@ -79,7 +83,7 @@ def main(argv):
     if missing:
         print(f"wcpu_repack: not in the stock package: {sorted(missing)}", file=sys.stderr)
         return 1
-    name, ver, rel = main_[R.NAME], main_[R.VERSION], main_[R.RELEASE] + ".sam1"
+    name, ver, rel = main_[R.NAME], main_[R.VERSION], main_[R.RELEASE] + suffix
     summary = (main_.get(R.SUMMARY) or [name])[0]
     out = os.path.join(argv[2], f"{name}-{ver}-{rel}.m68kmint.rpm")
     open(out, "wb").write(R.write_rpm(
