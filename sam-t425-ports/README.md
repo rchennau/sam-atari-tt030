@@ -52,6 +52,10 @@ binary, offload off. **T425** = offload on.
 Since 2026-09-26 two T425 images are built with **llvm-t800** (clang for the transputer) instead of the INMOS
 compiler, where it measured faster on the real TT: `tbc`'s server (−6 to −8 % against the INMOS build, `-Os`) and
 `tbzip2`'s own server (−10 %). The deflate paths (`tgzip`, `zip`) stay on INMOS: clang is 3–10 % slower there.
+Candidates for the other ports come from `sam-yum-tt/t4clang.sh lha|jpeg|ppmq|png`: it checks the clang build's
+test output against a host build under the `t4` emulator (5 MB RAM), then writes `-O2`/`-Os` server images for the
+TT timing gate. As of 2026-10-10 lha, libjpeg and pnmtopng match; ppmquant's clang test needs more than the board's
+5 MB (it fits in 8 MB), so it is not a candidate yet.
 
 **68030-only twins** (the T425 lost its gate; the rebuilt 68030 path won — in-memory I/O plus 68030 code,
 the two not measured separately):

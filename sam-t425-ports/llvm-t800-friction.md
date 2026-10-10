@@ -87,3 +87,16 @@ Suggest: if the V0208 FPGA's memory timing is known, a `-sd`/`-sm` preset for "A
 A `-mhost=none` `.btl` boots on our link loader (raw image down link 0, then wait for the program's first bytes)
 with no start-up traffic at all: our loader logged no iserver packet before the server's `RDY0`. Boot time 975–1,050 ms
 vs 985–1,075 ms for the INMOS-linked image of the same program.
+
+## F9 — `t800-run -ext` defaults to a 256 KB RAM; running out looks like a program bug
+lha's encoder (`lhat4test.c` + SpareMiNT `slide.c`, ~400 KB of tables) under `t800-run -mcpu=t425 -ext -O2 -lc` returned
+-1 from every call, identically at -O0/-O2/-Os. Cause: `t800-ext.ld` sizes RAM at 256 KB unless `__ram_end` is defined,
+so `malloc` returned NULL. Nothing on the console says the heap is exhausted. `--defsym=__ram_end=0x80500000` (the
+ATW800/2's 5 MB) fixed it: output identical to the host build.
+- Suggest: a `t800-run -mmem=SIZE` (as `t800-cc` has), or print the RAM size the image was linked for; a heap-exhausted
+  note from libt800's `malloc` under `t4` would also have named it at once.
+
+## F10 — libt800 lacks `<sys/file.h>`, `<sys/dir.h>`, `<dirent.h>`
+Unix-era sources (SpareMiNT lha 1.14i `lha.h`) include them unconditionally even when the kernel uses none of their
+contents. We add empty stubs (as for the INMOS toolset). Minor; empty headers in libt800 would let such code build as is.
+Note the reverse trap: a stub `<sys/types.h>` written for icc shadows libt800's own and breaks `<signal.h>` (`pid_t`).
