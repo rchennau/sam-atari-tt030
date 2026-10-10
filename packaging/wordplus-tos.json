@@ -1,0 +1,30 @@
+{
+  "name": "wordplus-tos",
+  "version": "3.20",
+  "release": "1.sam1",
+  "summary": "1st Word Plus 3.20 (GEM word processor), relocated to /opt/wordplus (sam, local only)",
+  "licence": "proprietary (GST/Atari); TT-local, not for redistribution",
+  "dir": "D:\\APPS\\WORDPLUS",
+  "dest": "/opt/wordplus",
+  "exclude": [
+    "INSTALL\\",
+    "*.ACC",
+    "TOOLS.1A\\KEYCODE.TOS"
+  ],
+  "commands": {
+    "wordplus": "WORDPLUS.PRG"
+  },
+  "replace": {
+    "WORDPLUS.INF": [
+      [
+        "D:\\WORDPLUS\\",
+        "F:\\OPT\\WORDPLUS\\"
+      ]
+    ]
+  },
+  "config": [
+    "WORDPLUS.INF",
+    "DESKTOP.INF",
+    "PRINTER.CFG"
+  ]
+}
