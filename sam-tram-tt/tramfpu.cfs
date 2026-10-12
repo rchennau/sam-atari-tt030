@@ -1,0 +1,21 @@
+/* ATW800/2 TRAM probe, measured 2026-10-12: T425 link 1 <-> Slot-1 TRAM link 3; Slot-1 link 1 <-> 2nd transputer. */
+val BootLink 0;
+T425 (memory = 2M) Root;
+T800 (memory = 4M) Tram;
+connection RootToHost, RootToTram;
+connect Root.link[BootLink] to host by RootToHost;
+connect Root.link[1] to Tram.link[3] by RootToTram;
+process (stacksize = 2K, heapsize = 16k, interface (input HostInput, output HostOutput, input FromTram)) RootF;
+process (stacksize = 2K, heapsize = 4k, interface (output Up, int UpLink = 3)) TramF;
+input HostInput;
+output HostOutput;
+connection HI, HO;
+connect RootF.HostInput to HostInput by HI;
+connect RootF.HostOutput to HostOutput by HO;
+place HI on RootToHost;
+place HO on RootToHost;
+connect TramF.Up to RootF.FromTram;
+use "rootf.lku" for RootF;
+place RootF on Root;
+use "tramf.lku" for TramF;
+place TramF on Tram;
