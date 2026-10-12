@@ -29,3 +29,4 @@ staging/TRANSPUTER/
 
 /sam-rom-tt/build/*
 !/sam-rom-tt/build/.gitkeep
+/sam-tram-tt/build/
