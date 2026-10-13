@@ -46,3 +46,14 @@ header)**, ~5× lower fixed cost; per direction at 16 KB 436 → 462 KB/s (the p
 **T425 `0x80600000`–`0x807FFFFF`**, repeating every 2 MB — T425 RAM beyond 6 MB is VRAM, which explains the
 2026-09-25 memserv blackout. 68030 copies: **3.77 MB/s into SharedMem, 2.93 MB/s out** (32 KB × 50, supervisor
 memcpy), 8× / 6× the link's 462 KB/s. SharedMem is 39 KB (`0xFEDF4000`–`0xFEDFDBFF`), saved and restored by the probe.
+
+**SharedMem coherency (2026-10-12, `sam-yum-tt/src/shmab.c` + `shmserv.c`, `shmwhere.c`, `shmrt.c`):** T425 writes
+to SharedMem land where the 68030 reads them (`shmwhere`: marker at `0xFEDF4000` as written). T425 reads 3.9 MB/s,
+writes 3.9 MB/s. But **the T425 side keeps a stale copy of video memory it has already read: after the 68030
+rewrites a block the T425 read before, the T425 reads the old bytes** (diagnostic: "68030 before 0512, T425 before
+faed"). Not a 68030 effect — clearing the 68030 data cache, waiting up to 200 ms, or a 68030 flush write changed
+nothing; reading through the 2 MB alias changed nothing. **Reading other video memory first fixes it:** 64-byte
+mailbox, wrong rounds of 20 by eviction-read size: ≤4 KB 19–20, 8 KB 9, 16 KB 3, **32 KB 0** (~8 ms), 64 KB 0
+(~16 ms). So the stale copy is 16–32 KB. Design rule: before the T425 reads a 68030-written block, read 32 KB of
+other video memory (read-only, from `0x80600000`), or accept that only never-before-read addresses are fresh.
+Each half of a mailbox is written by one side only.

@@ -25,6 +25,15 @@ tt: build/shabench.ttp
 build/shmprobe.ttp: src/shmprobe.c src/atwboot.c src/atwboot.h
 	$(CROSS) -m68020-60 -O2 -Wall -o $@ src/shmprobe.c src/atwboot.c
 
+build/shmrt.ttp: src/shmrt.c src/atwboot.c src/atwboot.h
+	$(CROSS) -m68020-60 -O2 -Wall -o $@ src/shmrt.c src/atwboot.c
+
+build/shmwhere.ttp: src/shmwhere.c src/atwboot.c src/atwboot.h
+	$(CROSS) -m68020-60 -O2 -Wall -o $@ src/shmwhere.c src/atwboot.c
+
+build/shmab.ttp: src/shmab.c src/atwboot.c src/atwboot.h
+	$(CROSS) -m68020-60 -O2 -Wall -o $@ src/shmab.c src/atwboot.c
+
 build/linkrt.ttp: src/linkrt.c src/atwboot.c src/atwboot.h
 	$(CROSS) -m68020-60 -O2 -Wall -o $@ src/linkrt.c src/atwboot.c
 
