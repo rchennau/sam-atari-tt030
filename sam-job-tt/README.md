@@ -52,3 +52,7 @@ round-trip. Result: **1,000 jobs × 7 ops identical, 0 failures**. Mutation chec
 (`EMU_MUTANT=1`) fails the diff; a fault shared by both builds fails the known-answer check — the first mutation
 attempt (shared fault, no known answers) passed the diff, which is why the known answers exist. Not covered here:
 the real link driver, FreeMiNT, the TRAMs' missing FPU (t4 emulates an FPU), timings.
+
+**CI (2026-10-13, FR-9):** every commit in this repo (and 03:40 nightly) runs `scripts/ci.sh` on fractal via
+`sam-tt030-ci.{path,timer,service}` (`iac/fractal`). Result: `~sam/.local/state/tt030-ci/last.txt`, full log
+`last.log` alongside, and the `tt030.ci.run` event in the central log; `journalctl -u sam-tt030-ci`.
