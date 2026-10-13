@@ -43,3 +43,12 @@ via `ttjobd` vs 196 s on the 68030 (0.62×)**; bzip2 -1 **201 s vs 359 s (0.56×
 level 9 now reports "kernel failed on the T425" (`ST_FAILED`) and falls back. Host test `test_libttjob.c` (fake
 `ttjobd`): no daemon, out-of-order collection, poll, cap too small, damaged checksum, bad op, lost connection —
 all pass; a mutant without the reply-checksum check aborts.
+
+**Emulated test lane (2026-10-13, `emu/run_emu_tests.sh`, fractal only, ~2 min at 1,000 jobs):** (1) `test_libttjob`;
+(2) `emu/jobtest.c` — JOBS pseudo-random jobs per op through `t4/jobexec.c` (the op code the resident image runs,
+factored out of `jobnode.c`), built with host gcc and with INMOS icc `-t4` under the `t4` emulator (`-sm 23`); the
+digest listings must be identical, every job must succeed, SHA-256 known answers must match, inflate and bzip2 must
+round-trip. Result: **1,000 jobs × 7 ops identical, 0 failures**. Mutation checks: a T425-only SHA fault
+(`EMU_MUTANT=1`) fails the diff; a fault shared by both builds fails the known-answer check — the first mutation
+attempt (shared fault, no known answers) passed the diff, which is why the known answers exist. Not covered here:
+the real link driver, FreeMiNT, the TRAMs' missing FPU (t4 emulates an FPU), timings.

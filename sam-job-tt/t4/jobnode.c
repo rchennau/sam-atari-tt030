@@ -1,11 +1,8 @@
 /* jobnode — executes or forwards one jobwire request. No host runtime calls (linked with startrd). */
 #include "jobnode.h"
 #include "../jobwire.h"
-#include "sha256.h"
 #include "t4adler.h"
-#ifdef JOB_COMPRESS
-#include "compkern.h"
-#endif
+#include "jobexec.h"
 static unsigned char in_buf[JOB_MAX], out_buf[JOB_MAX];
 unsigned long g4(const unsigned char *b)
 { return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24); }
@@ -28,31 +25,14 @@ static long read_payload(Channel *in, unsigned char *hdr)
 }
 void job_run_here(Channel *in, Channel *out, unsigned char *hdr)
 {
-    long n = read_payload(in, hdr), i;
+    long n = read_payload(in, hdr), olen;
     unsigned long areq;
-    struct sha256 s;
     if (n < 0) { reply(out, hdr, ST_TOOBIG, 0, 0); return; }
     areq = t4_adler32(in_buf, n);
     if (areq != g4(hdr + H_ADLER)) { reply(out, hdr, ST_BADREQ, 0, areq); return; }
-    switch (hdr[2]) {
-    case OP_ECHO:
-        for (i = 0; i < n; i++) out_buf[i] = in_buf[i];
-        reply(out, hdr, ST_OK, n, areq);
-        break;
-    case OP_SHA256:
-        sha256_init(&s); sha256_update(&s, in_buf, (unsigned long)n); sha256_final(&s, out_buf);
-        reply(out, hdr, ST_OK, 32, areq);
-        break;
-#ifdef JOB_COMPRESS
-    case 'z': case 'g': case 'r': case 'i': case 'b': {
-        long olen = ck_compress(hdr[2], hdr[H_LEVEL], in_buf, n, out_buf, JOB_MAX);
-        reply(out, hdr, olen < 0 ? ST_FAILED : ST_OK, olen < 0 ? 0 : olen, areq);
-        break;
-    }
-#endif
-    default:
-        reply(out, hdr, ST_BADOP, 0, areq);
-    }
+    olen = job_exec(hdr[2], hdr[H_LEVEL], in_buf, n, out_buf, JOB_MAX);
+    if (olen < 0) reply(out, hdr, (int)-olen, 0, areq);
+    else reply(out, hdr, ST_OK, olen, areq);
 }
 void job_forward(Channel *in, Channel *out, unsigned char *hdr, Channel *fwd_out, Channel *fwd_in)
 {
