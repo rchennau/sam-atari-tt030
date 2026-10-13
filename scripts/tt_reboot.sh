@@ -8,6 +8,7 @@
 #
 # Note: the boot SET is chosen only at XBOOT's interactive menu, so this returns the machine to
 # whatever set is picked there — it cannot select one. Usage: tt_reboot.sh [--wait-back]
+. "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -u
 HOST=${TT_HOST:-atari-tt}
 SSH="ssh -o ConnectTimeout=${TT_CONNECT:-90} $HOST"

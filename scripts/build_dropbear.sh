@@ -8,6 +8,7 @@
 # could not finish a login within 120 s on the 32 MHz 68030). MiNT-specific settings, each found on
 # the TT on 2026-09-12: DROP_PRIVS 0 (no setresgid), MULTIUSER 1 (MULTIUSER 0 exits "requires a
 # non-multiuser kernel"), stream forwarding off (build guard). Needs scripts/setup_cross_mint.sh first.
+. "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 VER=dropbear-2026.94

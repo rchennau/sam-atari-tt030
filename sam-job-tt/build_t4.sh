@@ -3,6 +3,7 @@
 # T425 node: jobwire + SHA-256 + compression kernels (compkern, built -t4 from sam-yum-tt/t4compress.sh's patched
 # zlib/bzip2 in /tmp/cb). TRAM workers: jobwire + SHA-256, -ta (no FPU). INMOS tools run under t4 and fail under
 # long paths, so everything builds in short /tmp dirs.
+. "$(cd "$(dirname "$0")" && git rev-parse --show-toplevel)/scripts/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd); root=$(cd "$here/.." && pwd); y=$root/sam-yum-tt/src
 CB=/tmp/cb; "$root/sam-yum-tt/t4compress.sh" "$CB" > /dev/null

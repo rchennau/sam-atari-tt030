@@ -3,6 +3,7 @@
 # Operator 2026-09-26: all uploads go over Modem 2, so no SSH (Dropbear boots the T425 and loads the 68030
 # during timed gates). ~3.5 KB/s. Starts `rz -e -y` on the TT's serial console (ttygetty bash, as tt_serial.py),
 # runs `sz -e` here, then compares SHA-256 over the same line. Exit 0 verified · 1 transfer or verify failed.
+. "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -u
 LOCAL=${1:?usage: tt_zput.sh LOCAL REMOTE_DIR [NAME]}
 RDIR=${2:?usage: tt_zput.sh LOCAL REMOTE_DIR [NAME]}

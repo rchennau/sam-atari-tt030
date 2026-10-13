@@ -4,6 +4,7 @@
 #   2. NFR-2: jobtest — JOBS pseudo-random jobs per op through job_exec, host gcc build vs INMOS icc -t4 build
 #      under the t4 emulator; the two digest listings must be identical.
 # Exit 0 = all pass. What this lane cannot cover (real link driver, FreeMiNT, TRAM no-FPU, timings): plan, Eng §5.
+. "$(cd "$(dirname "$0")" && git rev-parse --show-toplevel)/scripts/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd); job=$(cd "$here/.." && pwd); root=$(cd "$job/.." && pwd); y=$root/sam-yum-tt/src
 JOBS=${JOBS:-1000}

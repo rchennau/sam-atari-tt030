@@ -2,6 +2,7 @@
 # tt_get.sh <remote-path> <local-path> — fetch a file from the TT via /ram, refusing a short read.
 # An SSH login here takes ~17 s and can time out; a timed-out read returns 0 bytes, which looked
 # exactly like a successful fetch and produced a corrupted card write (RCA 2026-09-20, D3).
+. "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -u
 REMOTE=${1:?usage: tt_get.sh <remote> <local>}
 LOCAL=${2:?usage: tt_get.sh <remote> <local>}
