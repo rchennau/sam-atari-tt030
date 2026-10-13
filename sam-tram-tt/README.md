@@ -39,3 +39,10 @@ every driver call — the stall deadline starts only after a zero-progress call 
 request header into the first data write. 4-byte round-trip **837 → 250 µs (lazy clock) → 162 µs (merged
 header)**, ~5× lower fixed cost; per direction at 16 KB 436 → 462 KB/s (the per-byte limit is inside the
 `fpgabios` driver, not these calls). Installed packages (`t4call.c` clients) get this only when rebuilt.
+
+**SharedMem located from the T425 (2026-10-12, `sam-yum-tt/src/shmprobe.c` + `shmscan.c`, read-only scan):** the
+68030 wrote a 16-byte marker at SharedMem (TT `0xFEDF4000`, Programmer's Manual p.5); the T425 found it at
+**`0x807F4000`** (alias `0x809F4000`), bytes in the same order. So the ATW800/2 video memory (TT `0xFEC00000`) is
+**T425 `0x80600000`–`0x807FFFFF`**, repeating every 2 MB — T425 RAM beyond 6 MB is VRAM, which explains the
+2026-09-25 memserv blackout. 68030 copies: **3.77 MB/s into SharedMem, 2.93 MB/s out** (32 KB × 50, supervisor
+memcpy), 8× / 6× the link's 462 KB/s. SharedMem is 39 KB (`0xFEDF4000`–`0xFEDFDBFF`), saved and restored by the probe.
