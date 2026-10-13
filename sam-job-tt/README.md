@@ -36,3 +36,10 @@ input, and differs from the 68030's in exactly 9 bytes — the OS byte of each g
 decompresses to the input. bzip2 at the default level 9 fails on the T425 (needs more than the 2 MB heap) and falls
 back to the 68030; it then reported "op not in the resident image" — now `ST_FAILED` ("kernel failed on the T425"),
 built but not yet re-run on the TT. Timings were not captured in this run.
+
+**Phase 2 gaps closed (real TT + fractal, 2026-10-13):** T425 deflate built with `-dATARI` → **gzip via `ttjobd`
+is now byte-identical to the 68030's** (md5 `2086e583…` both). Timings on the 2,125,272-byte file: gzip **121 s
+via `ttjobd` vs 196 s on the 68030 (0.62×)**; bzip2 -1 **201 s vs 359 s (0.56×)**, byte-identical. bzip2 at
+level 9 now reports "kernel failed on the T425" (`ST_FAILED`) and falls back. Host test `test_libttjob.c` (fake
+`ttjobd`): no daemon, out-of-order collection, poll, cap too small, damaged checksum, bad op, lost connection —
+all pass; a mutant without the reply-checksum check aborts.
