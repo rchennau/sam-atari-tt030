@@ -1,5 +1,5 @@
 #!/bin/bash
-# build.sh — build the ATW800/2 TRAM probes on fractal. Outputs build/{linkprobe,tramprobe,tramchar,tramfpu}.btl.
+# build.sh — build the ATW800/2 TRAM probes on fractal. Outputs build/*.btl.
 # The t4-hosted INMOS tools fail under long paths, so the build runs in a short /tmp dir.
 # Run on the TT (no `kill -9` on a hung iserver — it crashed XaAES; use scripts/tt_reboot.sh --wait-back):
 #   TRANSPUTER=1 IBOARDSIZE='#200000' /c/ATW800_2/atwtools/iserver.ttp -sb tramprobe.btl
@@ -22,5 +22,10 @@ sed "s/tramf.lku/tramfs.lku/" tramfpu.cfs > tramfps.cfs
 icc tramf.c -ta -o tramfs.tco && ilink tramfs.tco -o tramfs.lku -f startrd.lnk -ta
 icconf tramfps.cfs && icollect tramfps.cfb -o tramfps.btl
 icconf tramfpu.cfs && icollect tramfpu.cfb -o tramfpu.btl
-cp linkprobe.btl tramprobe.btl tramchar.btl tramfpu.btl tramfps.btl "$here/build/"
+icc root2.c -ta -o root2.tco && ilink root2.tco -o root2.lku -f startup.lnk -ta
+icc relay.c -ta -o relay.tco && ilink relay.tco -o relay.lku -f startrd.lnk -ta
+icc t2.c -ta -o t2a.tco && ilink t2a.tco -o t2a.lku -f startrd.lnk -ta
+icc t2.c -t8 -o t28.tco && ilink t28.tco -o t28.lku -f startrd.lnk -t8
+for v in a 8; do sed "s/T2LKU/t2$v.lku/" tram2.cfs > tram2$v.cfs; icconf tram2$v.cfs && icollect tram2$v.cfb -o tram2$v.btl; done
+cp linkprobe.btl tramprobe.btl tramchar.btl tramfpu.btl tramfps.btl tram2a.btl tram28.btl "$here/build/"
 ls -l "$here/build"

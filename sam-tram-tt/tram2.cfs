@@ -1,0 +1,26 @@
+/* 3-node: T425 L1 <-> Slot-1 L3 (measured); Slot-1 L1 <-> 2nd transputer link 0 (measured 2026-10-12). */
+val BootLink 0;
+T425 (memory = 2M) Root;
+T800 (memory = 4M) Tram1, Tram2;
+connection RootToHost, RootToTram1, Tram1ToTram2;
+connect Root.link[BootLink] to host by RootToHost;
+connect Root.link[1] to Tram1.link[3] by RootToTram1;
+connect Tram1.link[1] to Tram2.link[0] by Tram1ToTram2;
+process (stacksize = 2K, heapsize = 16k, interface (input HostInput, output HostOutput, input FromT1)) RootX;
+process (stacksize = 2K, heapsize = 4k, interface (input FromT2, output ToRoot)) Relay;
+process (stacksize = 2K, heapsize = 4k, interface (output Up)) T2;
+input HostInput;
+output HostOutput;
+connection HI, HO;
+connect RootX.HostInput to HostInput by HI;
+connect RootX.HostOutput to HostOutput by HO;
+place HI on RootToHost;
+place HO on RootToHost;
+connect Relay.ToRoot to RootX.FromT1;
+connect T2.Up to Relay.FromT2;
+use "root2.lku" for RootX;
+place RootX on Root;
+use "relay.lku" for Relay;
+place Relay on Tram1;
+use "T2LKU" for T2;
+place T2 on Tram2;

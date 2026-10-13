@@ -6,7 +6,6 @@
 #include <channel.h>
 #include "charcommon.h"
 
-static int scratch[4];
 
 static int peek(int a, int *w)
 {
@@ -27,22 +26,6 @@ static int poke(int a, int v)
   return ChanOutTimeFail(LINK1OUT, c, 9, t) ? -1 : 0;
 }
 
-/* result: S index found (0..NSIZE-1) as positive code: 100+i = wrapped at size i, 200+i = no RAM at size i,
-   300 = RAM beyond the largest size, -1 = link failure */
-static int size_self(void)
-{
-  int i;
-  volatile int *b = (volatile int *)scratch;
-  for (i = 0; i < NSIZE; i++) {
-    volatile int *p = (volatile int *)((char *)scratch + (0x100000 << i));
-    int save = *p, got;
-    *b = 0x11111111; *p = 0x22222222; got = *p;
-    if (*b == 0x22222222) { *b = 0; return 100 + i; }
-    *p = save;
-    if (got != 0x22222222) return 200 + i;
-  }
-  return 300;
-}
 static int size_next(void)
 {
   int i, base = (int)0x80001000, got, bw;
