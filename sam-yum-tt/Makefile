@@ -22,6 +22,9 @@ build/sha256test: src/sha256test.c src/sha256.c src/sha256.h
 	cc -O2 -Wall -o $@ src/sha256test.c src/sha256.c
 
 tt: build/shabench.ttp
+build/linkrt.ttp: src/linkrt.c src/atwboot.c src/atwboot.h
+	$(CROSS) -m68020-60 -O2 -Wall -o $@ src/linkrt.c src/atwboot.c
+
 build/shabench.ttp: src/shabench.c src/sha256.c src/sha256.h src/atwboot.c src/atwboot.h
 	$(CROSS) -m68020-60 -O2 -Wall -o $@ src/shabench.c src/sha256.c src/atwboot.c
 

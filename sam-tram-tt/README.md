@@ -28,3 +28,8 @@ the TRAM (the C runtime needs the configurer's loader); a wrong `Tram.link[N]` h
 at 20 Mbit/s. 2 hops is exactly half (0.83 MB/s): the relay stores and forwards, nothing overlaps. Since each TRAM
 computes at about half the T425's speed (loop 30,012 vs 14,743 ticks), offload to the TRAMs only pays as
 parallel work alongside the T425, never as a faster processor; the 68030 ↔ T425 link is not in this measurement.
+
+**The 68030 ↔ T425 hop (2026-10-12, `sam-yum-tt/src/linkrt.c`, op `E` echo through the TT link driver):**
+fixed cost **~0.83 ms per round-trip** and **436 KB/s per direction** (16 KB; matches `shabench`'s 459 KB/s one
+way), 0 short driver writes. That is ~37× the T425 ↔ TRAM fixed cost and ~3.6× slower per byte, so for any job
+that starts on the TT the 68030 hop dominates: round-trip ≈ 0.83 ms + 4.6 µs per byte (in + out).
