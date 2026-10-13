@@ -13,6 +13,9 @@
 #define JOB_MAX (400L * 1024)          /* payload and output cap per job: tgzip pieces are 256 KB in, <= 385 KB out */
 #define OP_ECHO 'E'
 #define OP_SHA256 'S'
+#define OP_X25519 'X'                  /* Phase 3 crypto ops, every node (integer only) */
+#define OP_ED25519V 'V'
+#define OP_CHACHA20 'C'
 /* compression (T425 node only, compkern.h): 'z' deflate, 'g' gzip, 'r' raw, 'i' inflate, 'b' bzip2 */
 #define ST_OK 0
 #define ST_BADREQ 1                    /* request checksum failed or malformed */

@@ -32,6 +32,34 @@ static int job(int op, int node, const unsigned char *in, long n, long *olen, in
     if (rep[2] == ST_OK && (g4(rep + 7) != a || g4(rep + 11) != t4_adler32(rep + REP_HDR, *olen))) return 100;  /* checksum */
     return rep[2];
 }
+static int hexb(unsigned char *o, const char *h) { int i = 0; while (h[0] && h[1]) { unsigned v; sscanf(h, "%2x", &v); o[i++] = (unsigned char)v; h += 2; } return i; }
+/* Phase 3: RFC 7748 X25519, RFC 8032 Ed25519 test 1 (valid + corrupted), RFC 8439 ChaCha20 on one node, timed */
+static int crypto_checks(int node)
+{
+    static unsigned char in[256], exp[256];
+    static const char *pt = "Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.";
+    long olen, ms; int st, bad = 0, n, i; clock_t t0;
+    hexb(in, "a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c");
+    hexb(exp, "c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552");
+    t0 = clock(); st = job('X', node, in, 64, &olen, 0); ms = ms_since(t0);
+    if (st || olen != 32 || memcmp(rep + REP_HDR, exp, 32)) { printf("node %d X25519: FAIL (status %d)\n", node, st); bad++; }
+    printf("node %d X25519 %ld ms; ", node, ms);
+    hexb(in, "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b");
+    hexb(in + 64, "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a");
+    t0 = clock(); st = job('V', node, in, 96, &olen, 0); ms = ms_since(t0);
+    if (st || olen != 1 || rep[REP_HDR] != 1) { printf("node %d Ed25519 valid: FAIL\n", node); bad++; }
+    in[5] ^= 1; st = job('V', node, in, 96, &olen, 0);
+    if (st || olen != 1 || rep[REP_HDR] != 0) { printf("node %d Ed25519 corrupted: FAIL\n", node); bad++; }
+    printf("Ed25519 verify %ld ms; ", ms);
+    for (i = 0; i < 32; i++) in[i] = (unsigned char)i;
+    hexb(in + 32, "000000000000004a00000000"); in[44] = 1; in[45] = in[46] = in[47] = 0;
+    for (n = 0; pt[n]; n++) in[48 + n] = (unsigned char)pt[n];
+    hexb(exp, "6e2e359a2568f98041ba0728dd0d6981e97e7aec1d4360c20a27afccfd9fae0bf91b65c5524733ab8f593dabcd62b3571639d624e65152ab8f530c359f0861d807ca0dbf500d6a6156a38e088a22b65e52bc514d16ccf806818ce91ab77937365af90bbf74a35be6b40b8eedf2785e42874d");
+    st = job('C', node, in, 48 + n, &olen, 0);
+    if (st || olen != n || memcmp(rep + REP_HDR, exp, n)) { printf("node %d ChaCha20: FAIL\n", node); bad++; }
+    printf("ChaCha20 KAT %s\n", bad ? "-" : "ok");
+    return bad;
+}
 int main(int argc, char **argv)
 {
     static unsigned char data[16384], dig[32];
@@ -59,6 +87,7 @@ int main(int argc, char **argv)
         for (i = 0; i < 400; i++) if (job(OP_ECHO, node, data, 4, &olen, 0)) { fails++; break; }
         ms = ms_since(t0);
         printf("node %d: echo 4/1K/16K + sha256 16K + BADREQ checked; 4-byte round-trip via ttjobd %ld us\n", node, ms * 1000 / 400);
+        fails += crypto_checks(node);
     }
     printf("%s\n", fails ? "FAILURES" : "all checks passed");
     return fails != 0;

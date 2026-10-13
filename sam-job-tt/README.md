@@ -56,3 +56,13 @@ the real link driver, FreeMiNT, the TRAMs' missing FPU (t4 emulates an FPU), tim
 **CI (2026-10-13, FR-9):** every commit in this repo (and 03:40 nightly) runs `scripts/ci.sh` on fractal via
 `sam-tt030-ci.{path,timer,service}` (`iac/fractal`). Result: `~sam/.local/state/tt030-ci/last.txt`, full log
 `last.log` alongside, and the `tt030.ci.run` event in the central log; `journalctl -u sam-tt030-ci`.
+
+**Phase 3 crypto ops (real TT + emulated lane, 2026-10-13):** `X` X25519 (xserv2's c25519 + 32-bit field maths),
+`V` Ed25519 verify (`edsign`, 32-bit SHA-512), `C` ChaCha20 (`t4/chacha20.c`, RFC 8439, 32-bit only — Monocypher
+needs 64-bit types icc lacks); on every node. Known answers from outside this code: RFC 7748 §5.2, RFC 8032 §7.1
+test 1 (valid and one-bit-corrupted), RFC 8439 §2.4.2 (ciphertext computed with Python `cryptography`). Emulated
+lane: host vs `t4` identical incl. random X/V jobs (signatures made with `edsign_sign`, every second one corrupted).
+On the TT via `ttjobd`, all KATs pass on all nodes: X25519 T425 2,730 ms / TRAM 1 5,655 / TRAM 2 5,490;
+Ed25519 verify 6,430 / 13,015 / 12,965 ms. TRAM 2's 4-byte round-trip read 27.0 ms this run (4.19 before) — not
+yet explained; my SSH polling was running. First start failed "T425 lock not ours": Dropbear's own per-login
+X25519 offload held it — the conflict FR-5 removes.
