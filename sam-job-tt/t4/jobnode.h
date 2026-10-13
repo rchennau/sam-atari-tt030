@@ -4,8 +4,12 @@
 #include <channel.h>
 unsigned long g4(const unsigned char *b);
 void p4(unsigned char *b, unsigned long v);
-/* Read the payload for header hdr from in, execute it here, write the reply to out. */
-void job_run_here(Channel *in, Channel *out, unsigned char *hdr);
-/* Read the payload from in, pass header + payload to fwd_out, relay the reply from fwd_in to out. */
-void job_forward(Channel *in, Channel *out, unsigned char *hdr, Channel *fwd_out, Channel *fwd_in);
+/* Run the job (hdr + its payload in `in`, n bytes) on this node; write reply header + output into rep.
+ * Returns the total reply length (LREP_HDR + output). */
+long job_reply(const unsigned char *hdr, const unsigned char *in, long n, unsigned char *rep, int node);
+/* Read one request header + payload from c into hdr / buf; returns the payload length, or -1 if too long
+ * (the payload is then drained and discarded). */
+long job_read(Channel *c, unsigned char *hdr, unsigned char *buf);
+/* Read one reply (header + output) from c into rep; returns its total length. */
+long rep_read(Channel *c, unsigned char *rep);
 #endif

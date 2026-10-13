@@ -20,9 +20,13 @@ sed -i 's|"../jobwire.h"|"jobwire.h"|' "$w"/*.c
 cd "$w"; . "$root/tools/d72uni-env.sh"; export ISEARCH="$PWD/ $PWD/icc/ $CB/ $D72UNI/libs/"
 cc() { icc "$1" "${@:2}" > "$1.log" 2>&1 || { cat "$1.log"; exit 1; }; ! grep -E '^(Serious|Error|Fatal)' "$1.log"; }
 # TRAM workers (-ta)
-for f in jobnode jobexec sha256 t4adler worker1 worker2 $CRYPTO; do cc "$f.c" -ta -o "$f.tco"; done
+for f in jobnode sha256 t4adler worker1 worker2 $CRYPTO; do cc "$f.c" -ta -o "$f.tco"; done
+# Phase 4: the TRAMs carry the compression kernels too (NODE_ANY jobs may land on them): compkern + zlib/bzip2 -ta
+cc jobexec.c -ta -dJOB_COMPRESS -o jobexec.tco
+cp "$CB/deflate.c" deflate5a.c; cc deflate5a.c -ta -dATARI -dZ_SOLO -dz_off_t=long -dBZ_NO_STDIO -o deflate5a.tco
+ZTA=; for f in $LIB; do [ "$f" = deflate ] && { ZTA="$ZTA deflate5a.tco"; continue; }; cp "$CB/$f.c" "${f}a.c"; cc "${f}a.c" -ta -dZ_SOLO -dz_off_t=long -dBZ_NO_STDIO -o "${f}a.tco"; ZTA="$ZTA ${f}a.tco"; done
 for m in worker1 worker2; do
-    { echo "$m.tco"; for f in jobnode jobexec sha256 t4adler $CRYPTO; do echo "$f.tco"; done; echo '#include startrd.lnk'; } > "$m.lnk"
+    { echo "$m.tco"; for f in jobnode jobexec sha256 t4adler $CRYPTO; do echo "$f.tco"; done; for f in $ZTA; do echo "$f"; done; echo '#include startrd.lnk'; } > "$m.lnk"
     ilink -f "$m.lnk" -ta -o "$m.lku"
 done
 # T425 root (-t4, with compression)

@@ -30,7 +30,7 @@ int ttjob_submit(int op, int level, const void *in, long n)
         if (connect(fd, (struct sockaddr *)&sa, sizeof sa) < 0) { lost(); return -1; }
     }
     lastid = (lastid % 65535) + 1;
-    h[0] = lastid; h[1] = lastid >> 8; h[2] = op; h[3] = 0; h[H_LEVEL] = level;
+    h[0] = lastid; h[1] = lastid >> 8; h[2] = op; h[3] = NODE_ANY;   /* Phase 4: the dispatcher picks the node */ h[H_LEVEL] = level;
     p4(h + H_LEN, n); p4(h + H_ADLER, t4_adler32(in, n));
     if (wr(h, JOB_HDR) || (n > 0 && wr(in, n))) { lost(); return -1; }
     return lastid;

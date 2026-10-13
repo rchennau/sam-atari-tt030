@@ -1,49 +1,47 @@
-/* jobnode — executes or forwards one jobwire request. No host runtime calls (linked with startrd). */
+/* jobnode — run or move one jobwire message. No host runtime calls (linked with startrd). */
 #include "jobnode.h"
 #include "../jobwire.h"
 #include "t4adler.h"
 #include "jobexec.h"
-static unsigned char in_buf[JOB_MAX], out_buf[JOB_MAX];
 unsigned long g4(const unsigned char *b)
 { return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24); }
 void p4(unsigned char *b, unsigned long v)
 { b[0] = (unsigned char)v; b[1] = (unsigned char)(v >> 8); b[2] = (unsigned char)(v >> 16); b[3] = (unsigned char)(v >> 24); }
-static void reply(Channel *out, unsigned char *hdr, int st, long olen, unsigned long areq)
+long job_reply(const unsigned char *hdr, const unsigned char *in, long n, unsigned char *rep, int node)
 {
-    unsigned char r[REP_HDR];
-    r[0] = hdr[0]; r[1] = hdr[1]; r[2] = (unsigned char)st;
-    p4(r + 3, (unsigned long)olen); p4(r + 7, areq); p4(r + 11, olen > 0 ? t4_adler32(out_buf, olen) : 1UL);
-    ChanOut(out, (char *)r, REP_HDR);
-    if (olen > 0) ChanOut(out, (char *)out_buf, (int)olen);
+    unsigned long areq = n >= 0 ? t4_adler32(in, n) : 0;
+    long olen = 0;
+    int st = ST_OK;
+    if (n < 0) st = ST_TOOBIG;
+    else if (areq != g4(hdr + H_ADLER)) st = ST_BADREQ;
+    else {
+        olen = job_exec(hdr[2], hdr[H_LEVEL], in, n, rep + LREP_HDR, JOB_MAX);
+        if (olen < 0) { st = (int)-olen; olen = 0; }
+    }
+    rep[0] = hdr[0]; rep[1] = hdr[1]; rep[2] = (unsigned char)st;
+    p4(rep + 3, (unsigned long)olen); p4(rep + 7, areq);
+    p4(rep + 11, olen > 0 ? t4_adler32(rep + LREP_HDR, olen) : 1UL);
+    rep[R_NODE] = (unsigned char)node;
+    return LREP_HDR + olen;
 }
-static long read_payload(Channel *in, unsigned char *hdr)
+long job_read(Channel *c, unsigned char *hdr, unsigned char *buf)
 {
-    long n = (long)g4(hdr + H_LEN);
-    if (n < 0 || n > JOB_MAX) return -1;          /* the 68030 side refuses these before the link */
-    if (n > 0) ChanIn(in, (char *)in_buf, (int)n);
+    long n, i;
+    ChanIn(c, (char *)hdr, JOB_HDR);
+    n = (long)g4(hdr + H_LEN);
+    if (n < 0 || n > JOB_MAX) {                 /* ttjobd refuses these first; drain so the link stays in step */
+        unsigned char sink[64];
+        for (i = 0; i < n; i += 64) ChanIn(c, (char *)sink, (int)(n - i > 64 ? 64 : n - i));
+        return -1;
+    }
+    if (n > 0) ChanIn(c, (char *)buf, (int)n);
     return n;
 }
-void job_run_here(Channel *in, Channel *out, unsigned char *hdr)
+long rep_read(Channel *c, unsigned char *rep)
 {
-    long n = read_payload(in, hdr), olen;
-    unsigned long areq;
-    if (n < 0) { reply(out, hdr, ST_TOOBIG, 0, 0); return; }
-    areq = t4_adler32(in_buf, n);
-    if (areq != g4(hdr + H_ADLER)) { reply(out, hdr, ST_BADREQ, 0, areq); return; }
-    olen = job_exec(hdr[2], hdr[H_LEVEL], in_buf, n, out_buf, JOB_MAX);
-    if (olen < 0) reply(out, hdr, (int)-olen, 0, areq);
-    else reply(out, hdr, ST_OK, olen, areq);
-}
-void job_forward(Channel *in, Channel *out, unsigned char *hdr, Channel *fwd_out, Channel *fwd_in)
-{
-    unsigned char r[REP_HDR];
-    long n = read_payload(in, hdr), olen;
-    if (n < 0) { reply(out, hdr, ST_TOOBIG, 0, 0); return; }
-    ChanOut(fwd_out, (char *)hdr, JOB_HDR);
-    if (n > 0) ChanOut(fwd_out, (char *)in_buf, (int)n);
-    ChanIn(fwd_in, (char *)r, REP_HDR);
-    olen = (long)g4(r + 3);
-    if (olen > 0) ChanIn(fwd_in, (char *)out_buf, (int)olen);
-    ChanOut(out, (char *)r, REP_HDR);
-    if (olen > 0) ChanOut(out, (char *)out_buf, (int)olen);
+    long olen;
+    ChanIn(c, (char *)rep, LREP_HDR);
+    olen = (long)g4(rep + 3);
+    if (olen > 0) ChanIn(c, (char *)rep + LREP_HDR, (int)olen);
+    return LREP_HDR + olen;
 }

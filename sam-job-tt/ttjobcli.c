@@ -6,6 +6,7 @@
 #include "t4adler.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -24,7 +25,7 @@ static unsigned id;
 static int job(int op, int node, const unsigned char *in, long n, long *olen, int corrupt)
 {
     unsigned long a = t4_adler32(in, n);
-    id++; req[0] = id; req[1] = id >> 8; req[2] = op; req[3] = node; req[H_LEVEL] = 0; p4(req + H_LEN, n); p4(req + H_ADLER, corrupt ? a ^ 1 : a);
+    id++; req[0] = id; req[1] = id >> 8; req[2] = op; req[3] = node; req[H_LEVEL] = (op == 'b') ? 1 : 0; p4(req + H_LEN, n); p4(req + H_ADLER, corrupt ? a ^ 1 : a);
     memcpy(req + JOB_HDR, in, n);
     if (wr(req, JOB_HDR + n) || rd(rep, REP_HDR)) return -1;
     *olen = (long)g4(rep + 3);
@@ -60,6 +61,53 @@ static int crypto_checks(int node)
     printf("ChaCha20 KAT %s\n", bad ? "-" : "ok");
     return bad;
 }
+/* NFR-3: three bzip2 -1 jobs on 256 KB, one after another on the T425, then all three at once as NODE_ANY on one
+ * connection (pipelined). Outputs must be identical; prints the node of each parallel reply and the speed-up. */
+static int par_test(void)
+{
+    static unsigned char in[262144], first[JOB_MAX];
+    static const char *txt = "the quick brown fox jumps over a lazy dog\n";
+    long i, olen, flen = 0, ms_s, ms_p;
+    int k, st, bad = 0;
+    clock_t t0;
+    {   /* pseudo-random words: realistic text. A repeating phrase drove bzip2 into its slow fallback sort (87 s/job). */
+        static const char *w[16] = { "transputer ", "link ", "the ", "atari ", "job ", "queue ", "node ", "of ", "and ",
+                                     "compress ", "a ", "memory ", "TT030 ", "is ", "\n", "parallel " };
+        unsigned long r = 2463534242UL; long o = 0; const char *q;
+        while (o < (long)sizeof in) {
+            r ^= r << 13; r &= 0xFFFFFFFFUL; r ^= r >> 17; r ^= r << 5; r &= 0xFFFFFFFFUL;
+            for (q = w[r & 15]; *q && o < (long)sizeof in; q++) in[o++] = (unsigned char)*q;
+        }
+        (void)txt;
+    }
+    t0 = clock();
+    for (k = 0; k < 3; k++) {
+        st = job('b', 0, in, sizeof in, &olen, 0);
+        if (st || olen <= 0) { printf("serial job %d failed (status %d)\n", k, st); return 1; }
+        if (k == 0) { flen = olen; memcpy(first, rep + REP_HDR, olen); }
+        else if (olen != flen || memcmp(first, rep + REP_HDR, olen)) bad++;
+    }
+    ms_s = ms_since(t0);
+    t0 = clock();
+    for (k = 0; k < 3; k++) {                       /* submit all three before reading any reply */
+        unsigned long a = t4_adler32(in, sizeof in);
+        id++; req[0] = id; req[1] = id >> 8; req[2] = 'b'; req[3] = NODE_ANY; req[H_LEVEL] = 1;
+        p4(req + H_LEN, sizeof in); p4(req + H_ADLER, a);
+        memcpy(req + JOB_HDR, in, sizeof in);
+        if (wr(req, JOB_HDR + (long)sizeof in)) { printf("submit failed\n"); return 1; }
+    }
+    for (k = 0; k < 3; k++) {
+        if (rd(rep, REP_HDR)) { printf("reply read failed\n"); return 1; }
+        olen = (long)g4(rep + 3);
+        if (olen > 0 && rd(rep + REP_HDR, olen)) { printf("reply read failed\n"); return 1; }
+        if (rep[2] != ST_OK || olen != flen || memcmp(first, rep + REP_HDR, olen)) bad++;
+    }
+    ms_p = ms_since(t0);
+    printf("NFR-3: 3 x bzip2 -1 (256 KB): serial on T425 %ld ms, parallel %ld ms (nodes: see ttjobd log) = %ld.%02ldx; outputs %s\n",
+           ms_s, ms_p, ms_p ? ms_s / ms_p : 0, ms_p ? (ms_s * 100 / ms_p) % 100 : 0,
+           bad ? "DIFFER" : "identical");
+    return bad;
+}
 int main(int argc, char **argv)
 {
     static unsigned char data[16384], dig[32];
@@ -72,6 +120,19 @@ int main(int argc, char **argv)
     if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { perror("socket"); return 1; }
     memset(&sa, 0, sizeof sa); sa.sun_family = AF_UNIX; strncpy(sa.sun_path, argc > 1 ? argv[1] : "/var/run/ttjob.sock", sizeof sa.sun_path - 1);
     if (connect(fd, (struct sockaddr *)&sa, sizeof sa) < 0) { perror("connect"); return 1; }
+    if (argc > 2 && !strcmp(argv[2], "-p")) return par_test();
+    if (argc > 5 && !strcmp(argv[2], "-1")) {        /* one job: -1 NODE OP SIZE (bytes of pseudo-random text) */
+        static unsigned char in1[JOB_MAX];
+        static const char *w[8] = { "transputer ", "link ", "the ", "atari ", "job ", "queue ", "node ", "\n" };
+        unsigned long r = 2463534242UL; long o = 0, n = atol(argv[5]); const char *q; clock_t t0;
+        int node = atoi(argv[3]), op = argv[4][0];
+        if (n > JOB_MAX) n = JOB_MAX;
+        while (o < n) { r ^= r << 13; r &= 0xFFFFFFFFUL; r ^= r >> 17; r ^= r << 5; r &= 0xFFFFFFFFUL; for (q = w[r & 7]; *q && o < n; q++) in1[o++] = (unsigned char)*q; }
+        t0 = clock();
+        st = job(op, node, in1, n, &olen, 0);
+        printf("job %c node %d %ld B: status %d, out %ld B, %ld ms\n", op, node, n, st, olen, ms_since(t0));
+        return st != 0;
+    }
     for (i = 0; i < 16384; i++) data[i] = (unsigned char)(i * 29 + 11);
     sha256_init(&s); sha256_update(&s, data, 16384); sha256_final(&s, dig);
     for (node = 0; node < 3; node++) {

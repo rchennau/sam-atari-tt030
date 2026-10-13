@@ -6,6 +6,7 @@ extern long short_writes;                        /* driver writes that sent less
 extern int atw_verbose;                          /* 0: atw_boot prints nothing (default 1) */
 long link_write(const unsigned char *buf, long len);
 long link_read(unsigned char *buf, long len, long timeout_ms);
+long link_read_some(unsigned char *buf, long len);   /* one non-waiting driver read; 0 = nothing yet */
 long ms_since(clock_t t0);
 /* Boot a raw .btl and answer its start-up requests; board is IBOARDSIZE, e.g. "#200000" (2 MB). */
 int atw_boot(const char *path, const char *board);

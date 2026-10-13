@@ -81,6 +81,13 @@ long link_read(unsigned char *buf, long len, long timeout_ms)
     return got;
 }
 
+/* One driver read: whatever is waiting, up to len bytes, without waiting for more (0 = nothing yet). For callers
+ * that poll the link between other work (ttjobd, tt030-transputer-job-queue Phase 4). */
+long link_read_some(unsigned char *buf, long len)
+{
+    long r = trap_1_wll(OP_READ, (long)buf, len > ATW_READ_CAP ? ATW_READ_CAP : len);
+    return r > 0 ? r : 0;
+}
 long ms_since(clock_t t0)
 {
     return (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC);
