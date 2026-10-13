@@ -3,7 +3,10 @@ plus the KeyPump rules (autorepeat dropped, release chord ends the session). Run
 import sys
 from pathlib import Path
 
-from evdev import ecodes as e
+import pytest
+
+# evdev is the host keyboard library (fractal desktop); the CI venv may lack it — skip, do not fail (2026-10-13)
+e = pytest.importorskip("evdev").ecodes
 
 sys.path.insert(0, str(Path(__file__).parent))
 import ttkbd_send as t  # noqa: E402

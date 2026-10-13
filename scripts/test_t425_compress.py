@@ -20,7 +20,7 @@ def tgzip(tmp_path_factory):
     if not (os.path.isdir(Z) and os.path.isdir(B)):
         pytest.skip("zlib/bzip2 sources not unpacked under tools/rpm-src")
     srcs = [os.path.join(SRC, f) for f in ("tgzip.c", "t4call.c", "t4lock.c", "t4adler.c", "compkern.c", "atwboot_host.c")]
-    srcs += [os.path.join(Z, f) for f in ("adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c")]
+    srcs += [os.path.join(Z, f) for f in ("adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c", "inflate.c", "inftrees.c", "inffast.c")]
     srcs += [os.path.join(B, f) for f in ("blocksort.c", "huffman.c", "crctable.c", "randtable.c",
                                           "decompress.c", "compress.c", "bzlib.c")]
     subprocess.run(["cc", "-O2", "-w", "-DZ_SOLO", "-DBZ_NO_STDIO", f'-DT4LOCK="{d}/t425.lock"', f'-DT4LOADED="{d}/t425.loaded"',
@@ -106,7 +106,7 @@ def test_compkern_raw_deflate_op_for_zip(tmp_path):
     import zlib
     so = tmp_path / "ck.so"
     srcs = [os.path.join(SRC, "compkern.c")] + [os.path.join(Z, f) for f in (
-        "adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c")] + [os.path.join(B, f) for f in (
+        "adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c", "inflate.c", "inftrees.c", "inffast.c")] + [os.path.join(B, f) for f in (
         "blocksort.c", "huffman.c", "crctable.c", "randtable.c", "decompress.c", "compress.c", "bzlib.c")]
     subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-w", "-DZ_SOLO", "-DBZ_NO_STDIO", f"-I{SRC}", f"-I{Z}",
                     f"-I{B}", "-o", str(so), *srcs], check=True)
