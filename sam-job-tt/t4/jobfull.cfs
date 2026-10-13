@@ -1,0 +1,29 @@
+/* tt030-transputer-job-queue FR-1 full image: T425 L1 <-> TRAM1 L3; TRAM1 L1 <-> TRAM2 L0 (measured 2026-10-12).
+   T425 memory 5 MB (VRAM from 0x80600000); TRAMs 4 MB. All code -ta (TRAMs have no FPU). */
+val BootLink 0;
+T425 (memory = 5M) Root;
+T800 (memory = 4M) Tram1, Tram2;
+connection RootToHost, RootToTram1, Tram1ToTram2;
+connect Root.link[BootLink] to host by RootToHost;
+connect Root.link[1] to Tram1.link[3] by RootToTram1;
+connect Tram1.link[1] to Tram2.link[0] by Tram1ToTram2;
+process (stacksize = 4K, heapsize = 8k, interface (input HostInput, output HostOutput, output To1, input From1)) RootJ;
+process (stacksize = 4K, heapsize = 8k, interface (input FromRoot, output ToRoot, output To2, input From2)) Work1;
+process (stacksize = 4K, heapsize = 8k, interface (input In, output Out)) Work2;
+input HostInput;
+output HostOutput;
+connection HI, HO;
+connect RootJ.HostInput to HostInput by HI;
+connect RootJ.HostOutput to HostOutput by HO;
+place HI on RootToHost;
+place HO on RootToHost;
+connect RootJ.To1 to Work1.FromRoot;
+connect Work1.ToRoot to RootJ.From1;
+connect Work1.To2 to Work2.In;
+connect Work2.Out to Work1.From2;
+use "root.lku" for RootJ;
+place RootJ on Root;
+use "worker1.lku" for Work1;
+place Work1 on Tram1;
+use "worker2.lku" for Work2;
+place Work2 on Tram2;
