@@ -16,9 +16,21 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/select.h>
+#include <syslog.h>
+#include <stdarg.h>
 #define MAXCL 8
 static unsigned char req[JOB_HDR + JOB_MAX], rep[REP_HDR + JOB_MAX];
 static int up;
+/* Every message goes to stderr (rc.ttjobd appends it to /var/log/ttjobd.log) and to syslog, which the TT forwards
+ * to fractal for central logging (operator 2026-10-13). */
+static void say(int prio, const char *fmt, ...)
+{
+    char m[256];
+    va_list ap;
+    va_start(ap, fmt); vsnprintf(m, sizeof m, fmt, ap); va_end(ap);
+    fprintf(stderr, "ttjobd: %s\n", m);
+    syslog(prio, "%s", m);
+}
 static unsigned long g4(const unsigned char *b)
 { return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24); }
 static int rd(int fd, unsigned char *b, long n) { long g = 0, r; while (g < n) { r = read(fd, b + g, n - g); if (r <= 0) return -1; g += r; } return 0; }
@@ -35,13 +47,13 @@ static long do_job(long n)
     if (!up) return status_only(ST_DOWN);
     if (link_write(req, JOB_HDR + n) != JOB_HDR + n || link_read(rep, REP_HDR, 120000) != REP_HDR) {
         up = 0;                                    /* link out of step: FR-7's watchdog will own this later */
-        fprintf(stderr, "ttjobd: link failed, now DOWN\n");
+        say(LOG_ERR, "link failed, now DOWN");
         return status_only(ST_DOWN);
     }
     olen = (long)g4(rep + 3);
     if (olen < 0 || olen > JOB_MAX || (olen > 0 && link_read(rep + REP_HDR, olen, 30000) != olen)) {
         up = 0;
-        fprintf(stderr, "ttjobd: bad reply, now DOWN\n");
+        say(LOG_ERR, "bad reply, now DOWN");
         return status_only(ST_DOWN);
     }
     return REP_HDR + olen;
@@ -54,10 +66,18 @@ int main(int argc, char **argv)
     struct sockaddr_un sa;
     int ls, cl[MAXCL], i, m;
     fd_set rs;
-    if (t4lock_take(&why) != 1) { fprintf(stderr, "ttjobd: T425 lock not ours: %s\n", why ? why : "?"); return 1; }
+    int try;
+    openlog("ttjobd", LOG_PID, LOG_DAEMON);
+    /* FR-2: an SSH login offloading at boot can hold the T425 lock for seconds; retry (3 s, up to 2 min) instead of
+     * dying — the shell retry loop in rc.ttjobd died at boot on 2026-10-13 and left no ttjobd running. */
+    for (try = 1; t4lock_take(&why) != 1; try++) {
+        if (try >= 40) { say(LOG_ERR, "T425 lock still not ours after %d tries (%s); giving up, logins use the direct path", try, why ? why : "?"); return 1; }
+        if (try == 1) say(LOG_INFO, "T425 lock not ours (%s); retrying every 3 s", why ? why : "?");
+        sleep(3);
+    }
     atw_verbose = 0;
     up = atw_boot(img, "#500000") == 0;
-    fprintf(stderr, "ttjobd: image %s %s\n", img, up ? "booted" : "NOT booted - serving DOWN");
+    say(up ? LOG_INFO : LOG_ERR, "image %s %s", img, up ? "booted" : "NOT booted - serving DOWN");
     if ((ls = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { perror("socket"); return 1; }
     memset(&sa, 0, sizeof sa); sa.sun_family = AF_UNIX; strncpy(sa.sun_path, path, sizeof sa.sun_path - 1);
     unlink(path);
