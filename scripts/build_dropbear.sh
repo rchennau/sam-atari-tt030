@@ -22,6 +22,8 @@ patch_curve() {
   cp "$REPO/staging/DROPBEAR/curve25519-monocypher.c" "$1/src/curve25519.c"
   cp "$REPO"/staging/DROPBEAR/monocypher{.c,.h,-ed25519.c,-ed25519.h} "$REPO"/staging/DROPBEAR/atwx25519.c "$1/src/"
   cp "$REPO"/sam-yum-tt/src/t4lock.{c,h} "$1/src/"   # T425 lock + loaded marker (FR-6), #included by atwx25519.c
+  # tt030-transputer-job-queue FR-5: the ttjobd client, #included by atwx25519.c
+  cp "$REPO"/sam-job-tt/libttjob.{c,h} "$REPO"/sam-job-tt/jobwire.h "$REPO"/sam-yum-tt/src/t4adler.{c,h} "$1/src/"
 }
 # Run it with -F (and background it from the shell): when Dropbear daemonises itself on MiNT, each
 # connection's child exits "setsid: Bad file descriptor" (TT, 2026-09-12); with -F it works.

@@ -27,6 +27,8 @@
 #include <string.h>
 #include <time.h>
 #include "t4lock.c"                     /* the T425 lock + loaded marker shared with t4call (FR-6) */
+#include "t4adler.c"
+#include "libttjob.c"                   /* tt030-transputer-job-queue FR-5: ttjobd client (sam-job-tt) */
 
 #define ATW_IMAGE "/etc/dropbear/xserv.btl"   /* xserv2 build: X25519 + Ed25519 verify */
 #define ATW_OP_CHECK 100
@@ -213,12 +215,40 @@ static int atw_x25519_locked(unsigned char *out, const unsigned char *n, const u
     return 0;
 }
 
+/* tt030-transputer-job-queue FR-5 (2026-10-13): when ttjobd runs it owns the link and holds the T425 lock, and the
+ * resident image carries X25519 and Ed25519 verify, so ask it first. 1 = done (out filled), 0 = ttjobd answered but
+ * could not (use the 68030 — never the direct path, whose lock ttjobd holds), -1 = no ttjobd (direct path below). */
+static int atw_via_ttjobd(int op, const unsigned char *in, long n, unsigned char *out, long cap, const char *what)
+{
+    long olen = 0;
+    clock_t t0 = clock();
+    int id, st;
+    if (getenv("DROPBEAR_NO_ATW"))
+        return 0;
+    if ((id = ttjob_submit(op, 0, in, n)) < 0)
+        return -1;
+    st = ttjob_wait(id, out, cap, &olen, 60000L);
+    if (st != ST_OK || olen != cap) {
+        dropbear_log(LOG_INFO, "atw: ttjobd %s status %d, using the 68030", what, st);
+        return 0;
+    }
+    dropbear_log(LOG_INFO, "atw: %s via ttjobd took %ld ms", what, (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
+    return 1;
+}
+
 /* q = X25519(n, p) on the T425. 0 = done, -1 = compute it on the 68030. */
 static int atw_x25519(unsigned char *q, const unsigned char *n, const unsigned char *p)
 {
-    unsigned char out[32];
+    unsigned char out[32], in[64];
     int r;
 
+    memcpy(in, n, 32);
+    memcpy(in + 32, p, 32);
+    if ((r = atw_via_ttjobd(OP_X25519, in, 64, out, 32, "x25519")) >= 0) {
+        if (r == 1)
+            memcpy(q, out, 32);
+        return r == 1 ? 0 : -1;
+    }
     if (atw_offline() || atw_claim("x25519"))
         return -1;
     r = atw_x25519_locked(out, n, p);
@@ -234,7 +264,17 @@ static int atw_ed25519_verify(const unsigned char *sig, const unsigned char *pub
 {
     const char *why;
     int r;
+    unsigned char *buf, v;
 
+    if (96 + (long)mlen <= JOB_MAX && (buf = malloc(96 + mlen)) != NULL) {
+        memcpy(buf, sig, 64);
+        memcpy(buf + 64, pub, 32);
+        memcpy(buf + 96, msg, mlen);
+        r = atw_via_ttjobd(OP_ED25519V, buf, 96 + (long)mlen, &v, 1, "ed25519 verify");
+        free(buf);
+        if (r >= 0)
+            return r == 1 ? v : -1;
+    }
     if (atw_offline() || mlen > ATW_MSG_MAX || atw_claim("ed25519 verify"))
         return -1;
     r = t4_loaded_is(ATW_SERVER) != 0 ? atw_verify_request(sig, pub, msg, mlen) : -1;

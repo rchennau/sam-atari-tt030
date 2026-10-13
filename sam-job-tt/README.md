@@ -66,3 +66,13 @@ On the TT via `ttjobd`, all KATs pass on all nodes: X25519 T425 2,730 ms / TRAM 
 Ed25519 verify 6,430 / 13,015 / 12,965 ms. TRAM 2's 4-byte round-trip read 27.0 ms this run (4.19 before) — not
 yet explained; my SSH polling was running. First start failed "T425 lock not ours": Dropbear's own per-login
 X25519 offload held it — the conflict FR-5 removes.
+
+**FR-5 Dropbear on `libttjob` (real TT, 2026-10-13; test binary on port 2222, production sshd untouched):**
+`staging/DROPBEAR/atwx25519.c` asks `ttjobd` first (`atw_via_ttjobd`): reachable → X25519 / Ed25519 verify through
+it; reachable but failing → the 68030 (never the direct path, whose lock `ttjobd` holds); no daemon → the old direct
+path. Measured: with no `ttjobd`, the new binary used the direct path (2.8 s X25519) — fallback works; with
+`ttjobd`, logins log "x25519 via ttjobd took 2735 ms" / "ed25519 verify via ttjobd took 6445 ms" (same as direct);
+**a login during a 2.1 MB `tgzip` run got T425 offload via `ttjobd`** (before: "T425 busy" → 68030), login 50 s vs
+17 s idle, `tgzip` 144 s vs 121 s alone, output still byte-identical. Starting `ttjobd` raced each SSH login's
+direct-path lock twice ("T425 lock not ours"); a shell retry loop worked — FR-2's boot step must retry the lock.
+Cosmetic: curve25519-monocypher.c's own line still says "on the T425" after a ttjobd call.
