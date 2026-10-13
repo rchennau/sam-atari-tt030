@@ -27,5 +27,7 @@ icc relay.c -ta -o relay.tco && ilink relay.tco -o relay.lku -f startrd.lnk -ta
 icc t2.c -ta -o t2a.tco && ilink t2a.tco -o t2a.lku -f startrd.lnk -ta
 icc t2.c -t8 -o t28.tco && ilink t28.tco -o t28.lku -f startrd.lnk -t8
 for v in a 8; do sed "s/T2LKU/t2$v.lku/" tram2.cfs > tram2$v.cfs; icconf tram2$v.cfs && icollect tram2$v.cfb -o tram2$v.btl; done
-cp linkprobe.btl tramprobe.btl tramchar.btl tramfpu.btl tramfps.btl tram2a.btl tram28.btl "$here/build/"
+for m in rootb:startup echo1:startrd echo2:startrd; do icc ${m%%:*}.c -ta -o ${m%%:*}.tco && ilink ${m%%:*}.tco -o ${m%%:*}.lku -f ${m##*:}.lnk -ta; done
+icconf tramlink.cfs && icollect tramlink.cfb -o tramlink.btl
+cp tramlink.btl linkprobe.btl tramprobe.btl tramchar.btl tramfpu.btl tramfps.btl tram2a.btl tram28.btl "$here/build/"
 ls -l "$here/build"
