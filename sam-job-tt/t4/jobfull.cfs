@@ -7,7 +7,7 @@ connection RootToHost, RootToTram1, Tram1ToTram2;
 connect Root.link[BootLink] to host by RootToHost;
 connect Root.link[1] to Tram1.link[3] by RootToTram1;
 connect Tram1.link[1] to Tram2.link[0] by Tram1ToTram2;
-process (stacksize = 4K, heapsize = 8k, interface (input HostInput, output HostOutput, output To1, input From1)) RootJ;
+process (stacksize = 8K, heapsize = 2048k, interface (input HostInput, output HostOutput, output To1, input From1)) RootJ;   /* zlib + bzip2 state */
 process (stacksize = 4K, heapsize = 8k, interface (input FromRoot, output ToRoot, output To2, input From2)) Work1;
 process (stacksize = 4K, heapsize = 8k, interface (input In, output Out)) Work2;
 input HostInput;

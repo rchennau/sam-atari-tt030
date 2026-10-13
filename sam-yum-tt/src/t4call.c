@@ -1,5 +1,8 @@
 /* t4call — see t4call.h. Extracted from tgzip.c (t425-compress 1.1), which was the first user. */
 #include "t4call.h"
+#ifdef T4CALL_TTJOB
+#include "libttjob.h"
+#endif
 #include "t4lock.h"
 #include "t4adler.h"
 #include "atwboot.h"
@@ -49,6 +52,24 @@ long t4call(const char *btl, int op, int level, const void *in, long n, void *ou
     long len;
     int l;
 
+#ifdef T4CALL_TTJOB
+    /* tt030-transputer-job-queue FR-3: if ttjobd runs, it owns the link (and the lock); every call goes through it
+     * and the btl argument is unused (the resident image carries the ops). No daemon -> the direct path below. */
+    {
+        static int tj = 1;                       /* 1 try ttjobd, 0 not running */
+        if (tj) {
+            long olen = -1;
+            int id = ttjob_submit(op, level, in, n), st;
+            if (id > 0) {
+                st = ttjob_wait(id, out, cap, &olen, t4call_timeout_ms);
+                if (st == ST_OK) return olen;
+                return off(st == ST_DOWN ? "ttjobd: transputers down" : st == ST_BADOP ? "ttjobd: op not in the resident image"
+                           : st == ST_TOOBIG ? "ttjobd: job too big" : st == ST_FAILED ? "ttjobd: kernel failed on the T425" : "ttjobd: job failed", why);
+            }
+            tj = 0;
+        }
+    }
+#endif
     if (state < 0)
         return off(lastwhy ? lastwhy : "off", why);
     if (state == 0 || strcmp(booted, btl)) {

@@ -25,3 +25,14 @@ type, sets the floor, and it depends on what else is running. A client that wait
 `Syield()` livelocked: `ttjobd` (sleeping in `select()`) never ran, the client spun 4 min until killed — so that
 variant was removed. Conclusion: ≤ 0.5 ms through any separate daemon is not reachable on this kernel without
 scheduler work.
+
+**Phase 2 (real TT, 2026-10-12):** wire gains a level byte (13-byte header) and a 400 KB per-job cap; the T425 node
+carries the compression kernels (`compkern`, `-t4`, 2 MB heap); `libttjob.c` (submit / poll / wait, replies per
+connection, results wiped after reading); `sam-yum-tt/src/t4call.c` routes through `ttjobd` when built with
+`-DT4CALL_TTJOB` and the socket answers (no daemon → the old direct path). `tgzip` rebuilt with no change to
+`tgzip.c`. On a 2,125,272-byte file: **gzip via `ttjobd` = 9 of 9 pieces on the T425**, output decompresses to the
+input, and differs from the 68030's in exactly 9 bytes — the OS byte of each gzip member (`03` T425 zlib build vs
+`05` 68030 build); compressed data identical. **bzip2 -1 via `ttjobd`: byte-identical** to the 68030's and
+decompresses to the input. bzip2 at the default level 9 fails on the T425 (needs more than the 2 MB heap) and falls
+back to the 68030; it then reported "op not in the resident image" — now `ST_FAILED` ("kernel failed on the T425"),
+built but not yet re-run on the TT. Timings were not captured in this run.

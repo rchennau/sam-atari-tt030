@@ -33,13 +33,13 @@ static long do_job(long n)
 {
     long olen;
     if (!up) return status_only(ST_DOWN);
-    if (link_write(req, JOB_HDR + n) != JOB_HDR + n || link_read(rep, REP_HDR, 10000) != REP_HDR) {
+    if (link_write(req, JOB_HDR + n) != JOB_HDR + n || link_read(rep, REP_HDR, 120000) != REP_HDR) {
         up = 0;                                    /* link out of step: FR-7's watchdog will own this later */
         fprintf(stderr, "ttjobd: link failed, now DOWN\n");
         return status_only(ST_DOWN);
     }
     olen = (long)g4(rep + 3);
-    if (olen < 0 || olen > JOB_MAX || (olen > 0 && link_read(rep + REP_HDR, olen, 10000) != olen)) {
+    if (olen < 0 || olen > JOB_MAX || (olen > 0 && link_read(rep + REP_HDR, olen, 30000) != olen)) {
         up = 0;
         fprintf(stderr, "ttjobd: bad reply, now DOWN\n");
         return status_only(ST_DOWN);
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
             long n, rl;
             if (cl[i] < 0 || !FD_ISSET(cl[i], &rs)) continue;
             if (rd(cl[i], req, JOB_HDR)) { close(cl[i]); cl[i] = -1; continue; }
-            n = (long)g4(req + 4);
+            n = (long)g4(req + H_LEN);
             if (n < 0 || n > JOB_MAX) { rl = status_only(ST_TOOBIG); wr(cl[i], rep, rl); close(cl[i]); cl[i] = -1; continue; }
             if (n > 0 && rd(cl[i], req + JOB_HDR, n)) { close(cl[i]); cl[i] = -1; continue; }
             if (req[3] > 2) rl = status_only(ST_NONODE); else rl = do_job(n);

@@ -24,7 +24,7 @@ static unsigned id;
 static int job(int op, int node, const unsigned char *in, long n, long *olen, int corrupt)
 {
     unsigned long a = t4_adler32(in, n);
-    id++; req[0] = id; req[1] = id >> 8; req[2] = op; req[3] = node; p4(req + 4, n); p4(req + 8, corrupt ? a ^ 1 : a);
+    id++; req[0] = id; req[1] = id >> 8; req[2] = op; req[3] = node; req[H_LEVEL] = 0; p4(req + H_LEN, n); p4(req + H_ADLER, corrupt ? a ^ 1 : a);
     memcpy(req + JOB_HDR, in, n);
     if (wr(req, JOB_HDR + n) || rd(rep, REP_HDR)) return -1;
     *olen = (long)g4(rep + 3);

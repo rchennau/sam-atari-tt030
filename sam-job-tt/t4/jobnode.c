@@ -3,6 +3,9 @@
 #include "../jobwire.h"
 #include "sha256.h"
 #include "t4adler.h"
+#ifdef JOB_COMPRESS
+#include "compkern.h"
+#endif
 static unsigned char in_buf[JOB_MAX], out_buf[JOB_MAX];
 unsigned long g4(const unsigned char *b)
 { return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24); }
@@ -18,7 +21,7 @@ static void reply(Channel *out, unsigned char *hdr, int st, long olen, unsigned 
 }
 static long read_payload(Channel *in, unsigned char *hdr)
 {
-    long n = (long)g4(hdr + 4);
+    long n = (long)g4(hdr + H_LEN);
     if (n < 0 || n > JOB_MAX) return -1;          /* the 68030 side refuses these before the link */
     if (n > 0) ChanIn(in, (char *)in_buf, (int)n);
     return n;
@@ -30,7 +33,7 @@ void job_run_here(Channel *in, Channel *out, unsigned char *hdr)
     struct sha256 s;
     if (n < 0) { reply(out, hdr, ST_TOOBIG, 0, 0); return; }
     areq = t4_adler32(in_buf, n);
-    if (areq != g4(hdr + 8)) { reply(out, hdr, ST_BADREQ, 0, areq); return; }
+    if (areq != g4(hdr + H_ADLER)) { reply(out, hdr, ST_BADREQ, 0, areq); return; }
     switch (hdr[2]) {
     case OP_ECHO:
         for (i = 0; i < n; i++) out_buf[i] = in_buf[i];
@@ -40,6 +43,13 @@ void job_run_here(Channel *in, Channel *out, unsigned char *hdr)
         sha256_init(&s); sha256_update(&s, in_buf, (unsigned long)n); sha256_final(&s, out_buf);
         reply(out, hdr, ST_OK, 32, areq);
         break;
+#ifdef JOB_COMPRESS
+    case 'z': case 'g': case 'r': case 'i': case 'b': {
+        long olen = ck_compress(hdr[2], hdr[H_LEVEL], in_buf, n, out_buf, JOB_MAX);
+        reply(out, hdr, olen < 0 ? ST_FAILED : ST_OK, olen < 0 ? 0 : olen, areq);
+        break;
+    }
+#endif
     default:
         reply(out, hdr, ST_BADOP, 0, areq);
     }
