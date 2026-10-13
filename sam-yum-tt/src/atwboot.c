@@ -35,8 +35,8 @@ long short_writes;
 long link_write(const unsigned char *buf, long len)
 {
     long done = 0;
-    clock_t end = clock() + 5 * CLOCKS_PER_SEC;
-    while (done < len) {
+    clock_t end = 0;                       /* the stall clock starts only on a zero-progress call: clock() */
+    while (done < len) {                   /* is itself a trap, ~1/4 of a small round-trip (2026-10-12) */
         long n = len - done > 0x7000 ? 0x7000 : len - done;
         long r = trap_1_wll(OP_WRITE, (long)(buf + done), n);
         if (r < 0)
@@ -45,8 +45,10 @@ long link_write(const unsigned char *buf, long len)
             short_writes++;
         if (r > 0) {
             done += r;
+            end = 0;
+        } else if (!end)
             end = clock() + 5 * CLOCKS_PER_SEC;
-        } else if (clock() > end)
+        else if (clock() > end)
             break;
     }
     return done;
@@ -63,13 +65,17 @@ long link_write(const unsigned char *buf, long len)
 long link_read(unsigned char *buf, long len, long timeout_ms)
 {
     long got = 0;
-    clock_t end = clock() + timeout_ms * CLOCKS_PER_SEC / 1000;
+    clock_t end = 0;                       /* deadline taken at the first short call, not per call */
     while (got < len) {
         long n = len - got > ATW_READ_CAP ? ATW_READ_CAP : len - got;
         long r = trap_1_wll(OP_READ, (long)(buf + got), n);
         if (r > 0)
             got += r;
-        if (clock() > end)
+        if (got >= len)
+            break;
+        if (!end)
+            end = clock() + timeout_ms * CLOCKS_PER_SEC / 1000;
+        else if (clock() > end)
             break;
     }
     return got;

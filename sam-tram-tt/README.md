@@ -33,3 +33,9 @@ parallel work alongside the T425, never as a faster processor; the 68030 ↔ T42
 fixed cost **~0.83 ms per round-trip** and **436 KB/s per direction** (16 KB; matches `shabench`'s 459 KB/s one
 way), 0 short driver writes. That is ~37× the T425 ↔ TRAM fixed cost and ~3.6× slower per byte, so for any job
 that starts on the TT the 68030 hop dominates: round-trip ≈ 0.83 ms + 4.6 µs per byte (in + out).
+
+**Hop optimisation, option 1 (2026-10-12):** `atwboot.c` no longer calls `clock()` (itself a trap under MiNT) on
+every driver call — the stall deadline starts only after a zero-progress call — and `linkrt` can merge the 6-byte
+request header into the first data write. 4-byte round-trip **837 → 250 µs (lazy clock) → 162 µs (merged
+header)**, ~5× lower fixed cost; per direction at 16 KB 436 → 462 KB/s (the per-byte limit is inside the
+`fpgabios` driver, not these calls). Installed packages (`t4call.c` clients) get this only when rebuilt.
