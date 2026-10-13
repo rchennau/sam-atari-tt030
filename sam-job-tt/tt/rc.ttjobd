@@ -1,0 +1,17 @@
+#!/bin/bash
+# Start ttjobd at boot (called from mint.cnf, before rc.dropbear). tt030-transputer-job-queue FR-2.
+# ttjobd owns the ATW800/2 link and boots the resident T425 + TRAM image once. It exits 1 if the T425 lock
+# is held (an SSH login offloading at that moment), so retry: every 3 s, at most 40 times (2 min), then log
+# and give up - logins then use the old direct path or the 68030. A non-zero exit later restarts it the same way.
+# Output goes to /var/log/ttjobd.log AND syslog (tag ttjobd), which fractal collects (operator 2026-10-13);
+# pipefail keeps the loop on ttjobd's exit code, not logger's.
+# Rollback: mint.cnf line "exec u:/usr/sbin/atwxserv" (MINT.CNF.pre-ttjob), /usr/sbin/dropbear.pre-ttjob.
+(
+  set -o pipefail
+  n=0
+  until /usr/sbin/ttjobd /usr/lib/t425/jobfull.btl /var/run/ttjob.sock 2>&1 | tee -a /var/log/ttjobd.log | logger -t ttjobd -p daemon.info; do
+    n=$((n + 1))
+    [ $n -ge 40 ] && { echo "rc.ttjobd: gave up after $n tries $(date)" | tee -a /var/log/ttjobd.log | logger -t ttjobd -p daemon.err; exit 1; }
+    sleep 3
+  done
+) < /dev/null > /dev/null 2>&1 &

@@ -7,11 +7,12 @@ TT_NAME=$(basename "$0" .sh)
 TT_LOG_DIR=${TT_LOG_DIR:-$HOME/.local/state/tt030-ops}
 mkdir -p "$TT_LOG_DIR"
 TT_LOG=$TT_LOG_DIR/$TT_NAME.log
-echo "== $(date -u +%FT%TZ) start $TT_NAME $* (pid $$)" >> "$TT_LOG"
-exec > >(tee -a "$TT_LOG") 2> >(tee -a "$TT_LOG" >&2)
+TT_ALL=$TT_LOG_DIR/all.log                      # combined: shipped centrally (log-sources.fractal.yaml tt030-ops)
+echo "== $(date -u +%FT%TZ) start $TT_NAME $* (pid $$)" | tee -a "$TT_ALL" >> "$TT_LOG"
+exec > >(tee -a "$TT_LOG" "$TT_ALL") 2> >(tee -a "$TT_LOG" "$TT_ALL" >&2)
 _tt_log_exit() {
     local rc=$1
-    echo "== $(date -u +%FT%TZ) exit $rc" >> "$TT_LOG"
+    echo "== $(date -u +%FT%TZ) exit $TT_NAME $rc" | tee -a "$TT_ALL" >> "$TT_LOG"
     PYTHONPATH=/opt/sam/runtime/src /opt/sam/venv/bin/python3 -c '
 import sys
 from sam.utils.sam_logger import emit
