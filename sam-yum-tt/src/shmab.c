@@ -38,14 +38,15 @@ static unsigned char mout[16384], min_[16384];
 static long do_min(void) { memcpy((void *)SHM, min_, ms_n); return 0; }
 static long do_mout(void) { clr(); memcpy(mout, (void *)(SHM + SHMLEN / 2), ms_n); return 0; }
 /* mailbox round-trip: 68030 writes only the input half, T425 writes only the output half */
-static void mailbox(void)
+static void mailbox(int evict)
 {
     static const long sizes[6] = { 4, 64, 256, 1024, 4096, 16384 };
     long s, i, k, iters, ms, bad;
     unsigned char b[4], r8[8];
     clock_t t0;
     for (k = 0; k < 16384; k++) min_[k] = (unsigned char)(k * 7 + 3);
-    printf("mailbox round-trip (68030 writes input half, doorbell, T425 writes complement to output half, 68030 reads)\n");
+    printf("mailbox round-trip%s (68030 writes input half, doorbell, T425 writes complement to output half, 68030 reads)\n",
+           evict ? " WITH 32 KB eviction read" : "");
     printf("size   iters  us/round-trip  KB/s per direction\n");
     for (s = 0; s < 6; s++) {
         ms_n = sizes[s];
@@ -55,14 +56,15 @@ static void mailbox(void)
         for (i = 0; i < iters; i++) {
             min_[0] = (unsigned char)i;              /* vary the data every round */
             Supexec(do_min);
-            b[0] = ms_n; b[1] = ms_n >> 8; b[2] = 0; b[3] = 0x40;
+            b[0] = ms_n; b[1] = ms_n >> 8; b[2] = evict ? 9 : 0; b[3] = evict ? 0x50 : 0x40;   /* 9: 64 << 9 = 32 KB */
             if (link_write(b, 4) != 4 || link_read(r8, 8, 5000) != 8) { printf("no reply\n"); return; }
             Supexec(do_mout);
-            for (k = 0; k < ms_n; k++) if (mout[k] != (unsigned char)~min_[k]) bad++;
+            for (k = 0; k < ms_n; k++) if (mout[k] != (unsigned char)~min_[k]) { bad++; break; }   /* rounds, not bytes */
         }
         ms = ms_since(t0);
         printf("%5ld  %5ld  %10ld     %ld   %s\n", ms_n, iters, ms * 1000 / iters, ms ? 2 * ms_n * iters / ms : 0,
-               bad ? "DATA WRONG" : "all correct");
+               bad ? "rounds wrong:" : "all correct");
+        if (bad) printf("        %ld of %ld\n", bad, iters);
     }
 }
 int main(int argc, char **argv)
@@ -79,7 +81,8 @@ int main(int argc, char **argv)
     if (link_write(b, 4) != 4 || link_read(t, 8, 30000) != 8) printf("3 bandwidth: no reply\n"); else printf("3 bandwidth loop done\n");
     step("4 no-write after bw", 0);
     step("5 write after bw", 1);
-    mailbox();
+    mailbox(0);
+    mailbox(1);
     {   /* commit latency: delay between the 68030's write and the doorbell, 64-byte mailbox, 20 rounds each */
         static const long dl[7] = { 0, 1, 5, 20, 50, 100, 200 };
         long d, i, k, bad; unsigned char b[4], r8[8]; clock_t t;

@@ -57,3 +57,10 @@ mailbox, wrong rounds of 20 by eviction-read size: ≤4 KB 19–20, 8 KB 9, 16 K
 (~16 ms). So the stale copy is 16–32 KB. Design rule: before the T425 reads a 68030-written block, read 32 KB of
 other video memory (read-only, from `0x80600000`), or accept that only never-before-read addresses are fresh.
 Each half of a mailbox is written by one side only.
+
+**SharedMem round-trip with the 32 KB eviction read (2026-10-12, `shmab` mailbox):** 4 B 8.6 ms (3/400 rounds
+wrong), 64 B 8.9 ms (2/400), 256 B 9.3 ms (2/400), 1 KB 11.8 ms (1/100), 4 KB 20.4 ms (1/100), 16 KB 59 ms (0/30).
+Against the optimised link (0.16 ms at 4 B, 17.7 ms at 4 KB, 71 ms at 16 KB) it loses up to ~4 KB, wins only 1.2×
+at 16 KB, and the eviction read does not make it fully reliable. **Verdict: not a general data path.** What stays
+clean: T425 writes → 68030 reads (the T425 never reads 68030-written memory), so input over the link and output via
+SharedMem is the only SharedMem use worth measuring; a real fix needs a cache-invalidate from the card's makers.
