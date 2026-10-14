@@ -24,9 +24,9 @@ any handle had data.
 ### Notes
 
 - No new calls or dependencies; 27 lines added and 6 removed in `event.c`, `proc.c` and `proc.h`.
-- Built with m68k-atari-mint-gcc and run on a real TT030: it kept running and catching console output (on-screen
-  drawing not checked remotely), and idle CPU was
-  measured as above.
+- Built with m68k-atari-mint-gcc and run on a real TT030, checked from screen grabs: typing echoes normally
+  (`echo typed-ok`), a command that prints, stays silent for 5 s, then prints again draws both lines, and console
+  output still opens the Console window.
 - Not measured on other CPUs. On a 68000 the saving should be larger, since the per-poll work is a bigger share of a
   slower CPU.
 - A fuller analysis, with the alternatives considered (a longer fixed timer, a blocking helper thread, finishing

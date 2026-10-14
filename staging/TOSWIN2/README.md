@@ -43,6 +43,12 @@ suggests: each wake-up still pays the AES `evnt_multi` round-trip and the 1 ms `
 measured 6.1–6.5 ms with TosWin2 running and with it paused. So TosWin2 does not delay other processes' wake-ups; it
 only consumes CPU.
 
+**Checked on screen** (TT framebuffer grabs, `src/atwbg/atwshot.c`, 2026-10-14):
+- keys typed into a TosWin2 shell window echo and run normally (`echo typed-ok` → `typed-ok`);
+- `echo first-line; sleep 5; echo after-5s-idle` draws both lines, the second after the back-off had engaged;
+- console output still opens and fills the Console window;
+- idle with a shell window open: 1.2 s / 60 s = 2.0 %.
+
 **What was not measured:**
 - The latency of the first output after an idle spell. It follows from the code (at most 250 ms, on average about
   125 ms), not from a measurement.
