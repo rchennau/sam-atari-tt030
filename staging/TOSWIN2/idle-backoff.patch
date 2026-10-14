@@ -1,0 +1,79 @@
+diff --git a/event.c b/event.c
+index f2686fb..bfd2133 100644
+--- a/event.c
++++ b/event.c
+@@ -300,6 +300,12 @@ void event_loop(void)
+ 	short evset, event, msx, msy, mbutton, kstate, mbreturn, kreturn;
+ 	short msgbuff[8], item, title;
+ 
++	/* sam: poll every 50 ms only while something happens; after IDLE_TICKS quiet ticks (~2 s) poll every 250 ms.
++	 * The fixed 50 ms poll cost 6.5 % of an idle TT030 (measured 2026-10-14). Any data, key, click or message
++	 * returns to 50 ms at once. */
++#define IDLE_TICKS 40
++	int idle = 0;
++
+ 	evset = (MU_MESAG | MU_BUTTON | MU_KEYBD);
+ 	do
+ 	{
+@@ -313,7 +319,7 @@ void event_loop(void)
+ 				0, 0, 0, 0, 0,
+ 				0, 0, 0, 0, 0,
+ 				msgbuff,
+-				50,
++				idle >= IDLE_TICKS ? 250 : 50,
+ 				&msx, &msy, &mbutton, &kstate,
+ 				&kreturn, &mbreturn);
+ 
+@@ -338,9 +344,14 @@ void event_loop(void)
+ 			if (!click_wdial(mbreturn, msx, msy, kstate, mbutton))
+ 				window_click(mbreturn, msx, msy, kstate, mbutton);
+ 
++		if (event & (MU_MESAG | MU_KEYBD | MU_BUTTON))
++			idle = 0;
+ 		if (event & MU_TIMER) {
+-			fd_input();
+-			if (curs_ticks % 6 == 0)
++			if (fd_input())
++				idle = 0;
++			else if (idle < IDLE_TICKS)
++				idle++;
++			if (idle >= IDLE_TICKS || curs_ticks % 6 == 0)
+ 				window_timer ();
+ 		}
+ 		
+diff --git a/proc.c b/proc.c
+index 76251a8..ca5b2a7 100644
+--- a/proc.c
++++ b/proc.c
+@@ -387,8 +387,8 @@ add_fd(int fd)
+ #define READBUFSIZ 4096 	/* 256 */
+ static char buf[READBUFSIZ];
+ 
+-void
+-fd_input(void)
++int
++fd_input(void)    /* returns non-zero when any window got data (event.c backs its timer off when idle) */
+ {
+ 	long readfds, r, checkdead;
+ 	WINDOW *w;
+@@ -459,6 +459,7 @@ fd_input(void)
+ 
+ 		refresh_textwin(t, FALSE);
+ 	}
++	return r > 0;
+ }
+ 
+ /*
+diff --git a/proc.h b/proc.h
+index fe9c43f..3c70e02 100644
+--- a/proc.h
++++ b/proc.h
+@@ -19,7 +19,7 @@ void	term_proc(TEXTWIN *t);
+ TEXTWIN *new_shell(void);
+ TEXTWIN *start_prog(void);
+ 
+-void 	fd_input(void);
++int 	fd_input(void);
+ void	add_fd(int fd);
+ 
+ void	proc_init(void);
