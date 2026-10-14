@@ -4,4 +4,7 @@
 # (an SSH login offloading at boot can hold it) and logs to syslog, which fractal collects; stderr also goes to
 # /var/log/ttjobd.log. One plain start: a shell retry loop here died at boot (2026-10-13).
 # Rollback: mint.cnf line "exec u:/usr/sbin/atwxserv" (MINT.CNF.pre-ttjob), /usr/sbin/dropbear.pre-ttjob.
-/usr/sbin/ttjobd /usr/lib/t425/jobfull.btl /var/run/ttjob.sock < /dev/null >> /var/log/ttjobd.log 2>&1 &
+# Start 45 s later, after XaAES is up: started before it, ttjobd's 4-byte round-trip is 6.8-7.2 ms; started after it,
+# 5.7-6.1 ms (two boots each, 2026-10-14; same binary, both in TT-RAM, priority 0 - cause inside FreeMiNT not found).
+# Until then logins and tgzip use the 68030 path, as they do whenever ttjobd is down.
+( sleep 45; /usr/sbin/ttjobd /usr/lib/t425/jobfull.btl /var/run/ttjob.sock < /dev/null >> /var/log/ttjobd.log 2>&1 ) < /dev/null > /dev/null 2>&1 &
