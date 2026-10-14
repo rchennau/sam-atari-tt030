@@ -1,10 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 # Package tgzip / tbzip2 (gzip + bzip2 on the ATW800/2 T425, 68030 fallback; tt030-rpm-pipeline Rev. 7)
 # as build/t425-compress-<ver>-1.m68kmint.rpm. Contents: /usr/bin/tgzip, /usr/bin/tbzip2 -> tgzip,
 # /usr/lib/t425/compserv.btl (deflate, INMOS toolset via sam-yum-tt/t4compress.sh) and bzserv.btl (bzip2, llvm-t800).
+. "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -eu
 cd "$(dirname "$0")/.."
-V=${1:-1.0}
+V=${1:-1.5}   # 1.5: tgzip/tbzip2 go through ttjobd when it runs (job queue FR-3), else the direct path
 CB=/tmp/cb
 sam-yum-tt/t4compress.sh "$CB" > /dev/null
 # bzserv.btl: the same kernels through llvm-t800 (scripts/setup_llvm_t800.sh), used by tbzip2 only. Unpatched
@@ -21,8 +22,8 @@ cp "$B"/compress.c "$LB"/bzcompress.c
 tools/llvm-t800/bin/llvm-nm "$LB/bzserv.elf" | grep -q '80500000 A __ram_end' \
     || { echo "bzserv: not confined to 5 MB (NFR-2)" >&2; exit 1; }
 PATH=$PWD/tools/cross-mint/usr/bin:$PATH m68k-atari-mint-gcc -m68020-60 -O2 -s -w \
-    -DZ_SOLO -Dz_off_t=long -DBZ_NO_STDIO -I"$CB" -Isam-yum-tt/src -o build/tgzip \
-    sam-yum-tt/src/tgzip.c sam-yum-tt/src/t4call.c sam-yum-tt/src/t4lock.c sam-yum-tt/src/t4adler.c sam-yum-tt/src/atwboot.c "$CB"/compkern.c "$CB"/adler32.c "$CB"/crc32.c \
+    -DT4CALL_TTJOB -Isam-job-tt -DZ_SOLO -Dz_off_t=long -DBZ_NO_STDIO -I"$CB" -Isam-yum-tt/src -o build/tgzip \
+    sam-yum-tt/src/tgzip.c sam-yum-tt/src/t4call.c sam-job-tt/libttjob.c sam-yum-tt/src/t4lock.c sam-yum-tt/src/t4adler.c sam-yum-tt/src/atwboot.c "$CB"/compkern.c "$CB"/adler32.c "$CB"/crc32.c \
     "$CB"/deflate.c "$CB"/trees.c "$CB"/zutil.c "$CB"/inflate.c "$CB"/inftrees.c "$CB"/inffast.c "$CB"/blocksort.c "$CB"/huffman.c "$CB"/crctable.c \
     "$CB"/randtable.c "$CB"/decompress.c "$CB"/bzcompress.c "$CB"/bzlib.c
 python3 - "$V" "$CB" <<'PY'
