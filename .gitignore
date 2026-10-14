@@ -31,3 +31,7 @@ staging/TRANSPUTER/
 !/sam-rom-tt/build/.gitkeep
 /sam-tram-tt/build/
 /sam-job-tt/build/
+
+# INMOS-toolset builds (.btl) link the INMOS runtime: local builds only, never on public GitHub (operator 2026-10-14).
+# Rebuild them with the scripts (sam-job-tt/build_t4.sh, src/x25519bench, sam-yum-tt/t4*.sh); the files stay on disk.
+*.btl
