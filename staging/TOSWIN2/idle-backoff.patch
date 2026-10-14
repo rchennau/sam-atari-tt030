@@ -1,30 +1,58 @@
+From d59f8613d04a14cdbe62bb5516726f9b41ced0e7 Mon Sep 17 00:00:00 2001
+From: rchennau <rchennau@gmail.com>
+Date: Wed, 14 Oct 2026 09:49:48 -0700
+Subject: [PATCH] Back off the output poll when idle
+
+TosWin2 polls its pty handles from MU_TIMER every 50 ms because the AES
+cannot wait on file handles. On a 32 MHz TT030 that costs ~6.5 % of the
+CPU on an idle machine. Keep 50 ms while anything happens; after ~2 s
+with no output, key, click or message poll every 250 ms; any event
+returns to 50 ms at once. fd_input() now reports whether it read data.
+
+Measured on a TT030 (FreeMiNT 1.19, XaAES): idle CPU 6.5 % -> 1.9 %.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ event.c | 26 +++++++++++++++++++++++---
+ proc.c  |  5 +++--
+ proc.h  |  2 +-
+ 3 files changed, 27 insertions(+), 6 deletions(-)
+
 diff --git a/event.c b/event.c
-index f2686fb..bfd2133 100644
+index f2686fb..7024dc4 100644
 --- a/event.c
 +++ b/event.c
-@@ -300,6 +300,12 @@ void event_loop(void)
+@@ -300,6 +300,20 @@ void event_loop(void)
  	short evset, event, msx, msy, mbutton, kstate, mbreturn, kreturn;
  	short msgbuff[8], item, title;
  
-+	/* sam: poll every 50 ms only while something happens; after IDLE_TICKS quiet ticks (~2 s) poll every 250 ms.
-+	 * The fixed 50 ms poll cost 6.5 % of an idle TT030 (measured 2026-10-14). Any data, key, click or message
-+	 * returns to 50 ms at once. */
-+#define IDLE_TICKS 40
++	/*
++	 * The AES cannot wait on file handles, so terminal output is polled
++	 * from MU_TIMER. Poll every BUSY_POLL ms while anything happens; after
++	 * IDLE_TICKS polls with no output, key, click or message (~2 s), poll
++	 * every IDLE_POLL ms. Any event returns to BUSY_POLL at once, so typing
++	 * and its echo are unaffected; only the first output after an idle
++	 * spell can appear up to IDLE_POLL ms later. The fixed 50 ms poll cost
++	 * ~6.5 % of an idle 32 MHz TT030; with the back-off it is ~1.9 %.
++	 */
++#define BUSY_POLL	50
++#define IDLE_POLL	250
++#define IDLE_TICKS	40
 +	int idle = 0;
 +
  	evset = (MU_MESAG | MU_BUTTON | MU_KEYBD);
  	do
  	{
-@@ -313,7 +319,7 @@ void event_loop(void)
+@@ -313,7 +327,7 @@ void event_loop(void)
  				0, 0, 0, 0, 0,
  				0, 0, 0, 0, 0,
  				msgbuff,
 -				50,
-+				idle >= IDLE_TICKS ? 250 : 50,
++				idle >= IDLE_TICKS ? IDLE_POLL : BUSY_POLL,
  				&msx, &msy, &mbutton, &kstate,
  				&kreturn, &mbreturn);
  
-@@ -338,9 +344,14 @@ void event_loop(void)
+@@ -338,9 +352,15 @@ void event_loop(void)
  			if (!click_wdial(mbreturn, msx, msy, kstate, mbutton))
  				window_click(mbreturn, msx, msy, kstate, mbutton);
  
@@ -37,12 +65,13 @@ index f2686fb..bfd2133 100644
 +				idle = 0;
 +			else if (idle < IDLE_TICKS)
 +				idle++;
++			/* cursor blink: every 6th busy poll (300 ms) or every idle poll (250 ms) */
 +			if (idle >= IDLE_TICKS || curs_ticks % 6 == 0)
  				window_timer ();
  		}
  		
 diff --git a/proc.c b/proc.c
-index 76251a8..ca5b2a7 100644
+index 76251a8..5b1f1fb 100644
 --- a/proc.c
 +++ b/proc.c
 @@ -387,8 +387,8 @@ add_fd(int fd)
@@ -52,7 +81,7 @@ index 76251a8..ca5b2a7 100644
 -void
 -fd_input(void)
 +int
-+fd_input(void)    /* returns non-zero when any window got data (event.c backs its timer off when idle) */
++fd_input(void)	/* non-zero when any window received data */
  {
  	long readfds, r, checkdead;
  	WINDOW *w;
@@ -77,3 +106,6 @@ index fe9c43f..3c70e02 100644
  void	add_fd(int fd);
  
  void	proc_init(void);
+-- 
+2.43.0
+
