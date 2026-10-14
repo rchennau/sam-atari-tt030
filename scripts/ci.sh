@@ -7,6 +7,7 @@
 #   4. the job-queue RPMs build (sam-job-tt/build_rpm.sh: ttjob; scripts/build_t425_compress.sh: t425-compress)
 #   5. publish gate (FR-9): only when 1-4 all passed, each RPM whose name (NVR) the LAN mirror lacks is added with
 #      tt_rpm.py add (signed index); an NVR already there with different bytes fails the run (bump the version). A red run publishes nothing; a publish failure turns the run red.
+#   6. report what the TT runs vs the mirror (scripts/tt_versions.py; not part of the outcome)
 # Exit 0 only if all pass. The result is logged centrally (sam_logger event tt030.ci.run) and written to
 # ~/.local/state/tt030-ci/last.txt, so SAM can read it without asking. Run by sam-tt030-ci.service (iac/fractal).
 set -uo pipefail
@@ -20,7 +21,7 @@ step pytest /opt/sam/venv/bin/python3 -m pytest -q --ignore=scripts/test_e2e_pin
 step emu    env JOBS="${JOBS:-1000}" sam-job-tt/emu/run_emu_tests.sh
 step image  sam-job-tt/build_t4.sh
 rpms=
-build_rpms() { local r; r=$(sam-job-tt/build_rpm.sh | tail -1) && rpms="$r" && r=$(scripts/build_t425_compress.sh | tail -1) && rpms="$rpms $r"; }
+build_rpms() { local r; r=$(sam-job-tt/build_rpm.sh | tail -1) && rpms="$r" && r=$(scripts/build_t425_compress.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_ttmon_rpm.sh | tail -1) && rpms="$rpms $r"; }
 step rpm    build_rpms
 MIRROR=${TT_MIRROR:-/mnt/vault/tt030}
 published=
@@ -37,10 +38,13 @@ publish() {
 }
 if [ -z "$fails" ]; then step publish publish; else echo "== publish: skipped (red run)" | tee -a "$log"; fi
 outcome=$([ -z "$fails" ] && echo pass || echo fail)
-echo "$(date -u +%FT%TZ) rev=$rev outcome=$outcome failed=${fails:-none} published=${published:-none}" | sed "s/published= /published=/" | tee "$st/last.txt"
+# what the TT runs vs the mirror (tt_versions.py): reported, never part of the outcome (a TT that has not run
+# yum update yet is not a code failure)
+tt=$(/opt/sam/venv/bin/python3 scripts/tt_versions.py "$MIRROR" 2>&1 | tee -a "$log" | tail -1); tt=${tt#tt_versions: }
+echo "$(date -u +%FT%TZ) rev=$rev outcome=$outcome failed=${fails:-none} published=${published:-none} tt=[$tt]" | sed "s/published= /published=/" | tee "$st/last.txt"
 PYTHONPATH=/opt/sam/runtime/src /opt/sam/venv/bin/python3 -c "
 from sam.utils.sam_logger import emit
-emit('tt030.ci.run', outcome='$outcome', rev='$rev', failed='${fails:-none}', published='${published:-none}')" >/dev/null 2>&1 || echo "ci: central log emit failed (result still in $st)" >&2
+emit('tt030.ci.run', outcome='$outcome', rev='$rev', failed='${fails:-none}', published='${published:-none}', tt='$tt')" >/dev/null 2>&1 || echo "ci: central log emit failed (result still in $st)" >&2
 [ -z "$fails" ]
 exit
 }

@@ -22,10 +22,12 @@
 #include <sockios.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define NODE "atari-tt030"
 #define TOPIC "sam/node/telemetry/" NODE
+#define RUNTIME_TOPIC "sam/node/" NODE "/runtime"   /* installed packages + ttjobd start (scripts/tt_versions.py) */
 
 /* MQTT: string = 2-byte length + bytes */
 static int put_str(unsigned char *p, const char *s)
@@ -96,16 +98,20 @@ static int mqtt_connect(const char *ip)
     return s;
 }
 
-static int mqtt_publish(int s, const char *payload)
+static int mqtt_publish_to(int s, const char *topic, const char *payload)
 {
-    unsigned char pkt[1024];
-    int t = 2 + (int)strlen(TOPIC), p = (int)strlen(payload);
-    int h = put_hdr(pkt, 0x31, t + p); /* PUBLISH, QoS 0, retain */
+    static unsigned char pkt[8192];
+    int t = 2 + (int)strlen(topic), p = (int)strlen(payload);
+    int h;
 
-    put_str(pkt + h, TOPIC);
+    if (t + p + 5 > (int)sizeof pkt)
+        return 0;                      /* too big to send: skip it, keep the connection */
+    h = put_hdr(pkt, 0x31, t + p);     /* PUBLISH, QoS 0, retain */
+    put_str(pkt + h, topic);
     memcpy(pkt + h + t, payload, p);
     return send_all(s, pkt, h + t + p);
 }
+#define mqtt_publish(s, payload) mqtt_publish_to(s, TOPIC, payload)
 
 /* Read a /kern file with open/read, never stdio: mintlib's fopen+fgets costs ~0.45 s CPU per /kern
  * file on the TT, against ~0.05 s for read() (TT, 2026-09-13) — a stdio scan of 18 processes cost 9.5 s. */
@@ -198,11 +204,43 @@ static int en0_stats(struct ifstat *st)
     return 0;
 }
 
+/* The runtime frame: every installed package (name -> "version-release", install time) and when ttjobd last
+ * started (its socket's mtime; 0 = not running), so fractal can say which packages are behind the mirror and
+ * whether the running ttjobd predates its installed package (RUNNING_STALE). rpm -qa costs ~2 s of 68030 CPU, so it
+ * runs only when the rpm database or the socket changes (or after a reconnect). */
+static long mtime_of(const char *f)
+{
+    struct stat sb;
+    return stat(f, &sb) == 0 ? (long)sb.st_mtime : 0L;
+}
+static int runtime_frame(char *out, int size)
+{
+    char name[64], ver[64];
+    long t;
+    int n, first = 1;
+    FILE *p = popen("rpm -qa --queryformat '%{NAME} %{VERSION}-%{RELEASE} %{INSTALLTIME}\\n' 2>/dev/null", "r");
+
+    n = snprintf(out, size, "{\"node\":\"" NODE "\",\"ttjobd_started\":%ld,\"packages\":{",
+                 mtime_of("/var/run/ttjob.sock"));
+    if (!p)
+        return -1;
+    while (n < size - 200 && fscanf(p, "%63s %63s %ld", name, ver, &t) == 3) {
+        n += snprintf(out + n, size - n, "%s\"%s\":[\"%s\",%ld]", first ? "" : ",", name, ver, t);
+        first = 0;
+    }
+    if (pclose(p) != 0 || first || n >= size - 200)
+        return -1;                     /* no list, or truncated: publish nothing rather than a partial list */
+    snprintf(out + n, size - n, "}}");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *ip = argc > 1 ? argv[1] : "192.168.0.20";
     int interval = argc > 2 ? atoi(argv[2]) : 60, s = -1;
     char msg[640], load[32] = "0", net[160];
+    static char rt[7000];
+    long db_seen = -1, sock_seen = -1;
     struct ifstat st;
 
     cpu_busy();                        /* prime the delta */
@@ -227,7 +265,20 @@ int main(int argc, char **argv)
         if (mqtt_publish(s, msg) < 0) {  /* broker gone: reconnect next round */
             close(s);
             s = -1;
+            db_seen = -1;                /* re-send the runtime frame after reconnecting */
             continue;
+        }
+        if (mtime_of("/var/lib/rpm/packages.rpm") != db_seen || mtime_of("/var/run/ttjob.sock") != sock_seen) {
+            db_seen = mtime_of("/var/lib/rpm/packages.rpm");
+            sock_seen = mtime_of("/var/run/ttjob.sock");
+            if (runtime_frame(rt, sizeof rt) != 0)
+                db_seen = -1;            /* rpm failed (e.g. a yum run holds the database): retry next round */
+            else if (mqtt_publish_to(s, RUNTIME_TOPIC, rt) < 0) {
+                close(s);
+                s = -1;
+                db_seen = -1;
+                continue;
+            }
         }
         sleep(interval);
     }
