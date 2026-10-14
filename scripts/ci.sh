@@ -45,6 +45,9 @@ echo "$(date -u +%FT%TZ) rev=$rev outcome=$outcome failed=${fails:-none} publish
 PYTHONPATH=/opt/sam/runtime/src /opt/sam/venv/bin/python3 -c "
 from sam.utils.sam_logger import emit
 emit('tt030.ci.run', outcome='$outcome', rev='$rev', failed='${fails:-none}', published='${published:-none}', tt='$tt')" >/dev/null 2>&1 || echo "ci: central log emit failed (result still in $st)" >&2
+# a commit made during this run fired the path unit while the service was active, and systemd dropped that trigger:
+# run again on the new HEAD instead of leaving it untested until the nightly (2026-10-14)
+[ "$(git rev-parse --short HEAD 2>/dev/null)" != "$rev" ] && exec "$0" "$@"
 [ -z "$fails" ]
 exit
 }
