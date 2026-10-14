@@ -7,8 +7,8 @@ Resident jobwire network on the ATW800/2: T425 dispatcher + both TRAMs (`t4/jobf
 | :--- | :--- | :--- |
 | `jobwire.h` | both | wire format (plan Eng §2): request/reply headers, ops, status codes |
 | `t4/root.c`, `t4/worker1.c`, `t4/worker2.c`, `t4/jobnode.c` | T425, TRAM 1, TRAM 2 | execute or forward one job; adler32 on request and reply |
-| `ttjobd.c` | 68030 | takes `/tmp/t425.lock`, boots the image once, serves the socket, `ST_DOWN` when the link is gone |
-| `ttjobcli.c` | 68030 | Phase 1 test client: echo + SHA-256 per node vs the 68030, corrupted request, round-trip timing |
+| `ttjobd.c` | 68030 | takes `/tmp/t425.lock`, boots the image once, serves the socket, `ST_DOWN` when the link is gone; client sockets are non-blocking with a per-client reply buffer, so a client may keep any number of jobs outstanding |
+| `ttjobcli.c` | 68030 | test client: echo + SHA-256 per node vs the 68030, corrupted request, round-trip timing, crypto KATs; `-p`/`-q N` batches (`TTJOBCLI_WINDOW` jobs in flight, `TTJOBCLI_OP=E` for 256 KB echoes) |
 
 Build: `./build_t4.sh` (image → `build/jobfull.btl`); the two `.ttp` files with cross-mint gcc (see progress).
 

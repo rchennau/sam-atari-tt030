@@ -62,12 +62,12 @@ static int crypto_checks(int node)
     return bad;
 }
 /* NFR-3: N bzip2 -1 jobs on 256 KB of pseudo-random words, first one after another on the T425, then as NODE_ANY
- * with up to 3 in flight (a sliding window: submitting all before reading any reply can deadlock against ttjobd
- * writing a large reply into a full socket). Outputs must all be identical; prints the speed-up. */
+ * with up to 3 in flight (TTJOBCLI_WINDOW; TTJOBCLI_OP=E echoes instead: 256 KB replies that arrive while the
+ * client is still writing requests). Outputs must all be identical; prints the speed-up. */
 static int submit_b(const unsigned char *in, long n)
 {
     unsigned long a = t4_adler32(in, n);
-    id++; req[0] = id; req[1] = id >> 8; req[2] = 'b'; req[3] = NODE_ANY; req[H_LEVEL] = 1;
+    id++; req[0] = id; req[1] = id >> 8; req[2] = getenv("TTJOBCLI_OP") ? getenv("TTJOBCLI_OP")[0] : 'b'; req[3] = NODE_ANY; req[H_LEVEL] = 1;
     p4(req + H_LEN, n); p4(req + H_ADLER, a);
     memcpy(req + JOB_HDR, in, n);
     return wr(req, JOB_HDR + n);
@@ -80,7 +80,7 @@ static int par_test(int jobs)
                                  "compress ", "a ", "memory ", "TT030 ", "is ", "\n", "parallel " };
     unsigned long r = 2463534242UL;
     long o = 0, olen, flen = 0, ms_s, ms_p;
-    int k, st, bad = 0, sent = 0, got = 0;
+    int k, st, bad = 0, sent = 0, got = 0, win;
     const char *q;
     clock_t t0;
     while (o < (long)sizeof in) {
@@ -96,8 +96,11 @@ static int par_test(int jobs)
     }
     ms_s = ms_since(t0);
     t0 = clock();
+    /* TTJOBCLI_WINDOW: jobs in flight (default 3); a window of all N jobs checks that ttjobd never blocks on a
+     * reply into a client that is still writing requests (the 2026-10-13 deadlock) */
+    win = getenv("TTJOBCLI_WINDOW") ? atoi(getenv("TTJOBCLI_WINDOW")) : 3;
     while (got < jobs) {
-        while (sent < jobs && sent - got < 3) { if (submit_b(in, sizeof in)) { printf("submit failed\n"); return 1; } sent++; }
+        while (sent < jobs && sent - got < win) { if (submit_b(in, sizeof in)) { printf("submit failed\n"); return 1; } sent++; }
         if (rd(rep, REP_HDR)) { printf("reply read failed\n"); return 1; }
         olen = (long)g4(rep + 3);
         if (olen > 0 && rd(rep + REP_HDR, olen)) { printf("reply read failed\n"); return 1; }
@@ -106,8 +109,8 @@ static int par_test(int jobs)
         got++;
     }
     ms_p = ms_since(t0);
-    printf("NFR-3: %d x bzip2 -1 (256 KB): serial on T425 %ld ms, parallel %ld ms = %ld.%02ldx; outputs %s\n",
-           jobs, ms_s, ms_p, ms_p ? ms_s / ms_p : 0, ms_p ? (ms_s * 100 / ms_p) % 100 : 0, bad ? "DIFFER" : "identical");
+    printf("NFR-3: %d x %s (256 KB): serial on T425 %ld ms, parallel %ld ms = %ld.%02ldx; outputs %s\n",
+           jobs, getenv("TTJOBCLI_OP") ? "echo" : "bzip2 -1", ms_s, ms_p, ms_p ? ms_s / ms_p : 0, ms_p ? (ms_s * 100 / ms_p) % 100 : 0, bad ? "DIFFER" : "identical");
     return bad;
 }
 int main(int argc, char **argv)

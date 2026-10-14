@@ -24,6 +24,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/select.h>
+#include <fcntl.h>
 #include <mint/mintbind.h>
 #define MAXCL 8
 #define QMAX 32
@@ -42,6 +43,12 @@ static long rgot;
 static clock_t last_io;
 static int busy[NODES];
 static clock_t end0;                 /* when the T425's current job is expected to finish */
+/* Client sockets are non-blocking and every reply goes through a per-client output buffer: a blocking reply write
+ * into a client that is itself blocked writing its next request deadlocked both (one client with more than ~3 large
+ * jobs outstanding, 2026-10-13). ponytail: one buffer per client, freed when drained, bounded by that client's own queued jobs. */
+static int cl[MAXCL];
+static unsigned char *ob[MAXCL];
+static long oend[MAXCL], ooff[MAXCL], ocap[MAXCL];
 
 /* Expected run time in ms on the T425 (tram = 0) or a TRAM, measured on the real TT 2026-10-13: bzip2 -1 16.5 s /
  * 256 KB on the T425, 46 s on a TRAM (2.8x); crypto 2.0x (X25519 2.8 vs 5.6 s). ponytail: a static table; learn
@@ -103,8 +110,46 @@ static void say(int prio, const char *fmt, ...)
 }
 static unsigned long g4(const unsigned char *b)
 { return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24); }
-static int rd(int fd, unsigned char *b, long n) { long g = 0, r; while (g < n) { r = read(fd, b + g, n - g); if (r <= 0) return -1; g += r; } return 0; }
-static int wr(int fd, const unsigned char *b, long n) { long g = 0, r; while (g < n) { r = write(fd, b + g, n - g); if (r <= 0) return -1; g += r; } return 0; }
+/* read exactly n bytes from a non-blocking client: wait up to 5 s for each piece, so a stalled client is dropped
+ * instead of hanging the daemon */
+static int rd(int fd, unsigned char *b, long n)
+{
+    long g = 0, r;
+    while (g < n) {
+        r = read(fd, b + g, n - g);
+        if (r > 0) { g += r; continue; }
+        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+            fd_set f; struct timeval tv = { 5, 0 };
+            FD_ZERO(&f); FD_SET(fd, &f);
+            if (select(fd + 1, &f, NULL, NULL, &tv) > 0) continue;
+        }
+        return -1;
+    }
+    return 0;
+}
+static void flush_out(int i)                                /* write what the client's socket takes now */
+{
+    while (oend[i] > ooff[i]) {
+        long r = write(cl[i], ob[i] + ooff[i], oend[i] - ooff[i]);
+        if (r > 0) { ooff[i] += r; continue; }
+        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) return;
+        break;                                              /* client gone: the read side closes it */
+    }
+    free(ob[i]); ob[i] = NULL; oend[i] = ooff[i] = ocap[i] = 0;   /* drained: give the memory back */
+}
+static void wr(int fd, const unsigned char *b, long n)      /* queue a reply to a client and send what fits */
+{
+    int i;
+    for (i = 0; i < MAXCL && cl[i] != fd; i++) ;
+    if (i == MAXCL || fd < 0) return;
+    if (oend[i] + n > ocap[i]) {
+        unsigned char *nb = realloc(ob[i], (size_t)(oend[i] + n));
+        if (!nb) { say(LOG_ERR, "out of memory for a reply; dropping client"); oend[i] = ooff[i] = 0; return; }
+        ob[i] = nb; ocap[i] = oend[i] + n;
+    }
+    memcpy(ob[i] + oend[i], b, (size_t)n); oend[i] += n;
+    flush_out(i);
+}
 static void answer(int fd, unsigned short cid, int st)      /* a status-only reply to a client */
 {
     unsigned char r[REP_HDR];
@@ -234,8 +279,8 @@ int main(int argc, char **argv)
     const char *path = argc > 2 ? argv[2] : "/var/run/ttjob.sock";
     const char *why = "";
     struct sockaddr_un sa;
-    int ls, cl[MAXCL], i, m, try;
-    fd_set rs;
+    int ls, i, m, try;
+    fd_set rs, ws;
     openlog("ttjobd", LOG_PID, LOG_DAEMON);
     for (try = 1; t4lock_take(&why) != 1; try++) {          /* FR-2: an SSH login can hold the lock at boot */
         if (try >= 40) { say(LOG_ERR, "T425 lock still not ours after %d tries (%s); giving up", try, why ? why : "?"); return 1; }
@@ -261,6 +306,7 @@ int main(int argc, char **argv)
             int k, was = nin;
             for (k = 0; k < 32 && nin == was; k++) poll_link();
             send_jobs();
+            for (k = 0; k < MAXCL; k++) if (cl[k] >= 0 && oend[k] > ooff[k]) flush_out(k);
             continue;
         }
         /* Jobs in flight: poll the link. FreeMiNT rounds a short select() timeout up to its scheduler tick (a 2 ms
@@ -269,16 +315,21 @@ int main(int argc, char **argv)
          * does not burn the 68030. */
         int hot = nin > 0 && (long)(clock() - last_io) * 1000L / (long)CLOCKS_PER_SEC < 100;
         struct timeval tv = { 0, hot ? 0 : 20000 };
-        FD_ZERO(&rs); FD_SET(ls, &rs); m = ls;
-        for (i = 0; i < MAXCL; i++) if (cl[i] >= 0) { FD_SET(cl[i], &rs); if (cl[i] > m) m = cl[i]; }
+        FD_ZERO(&rs); FD_ZERO(&ws); FD_SET(ls, &rs); m = ls;
+        for (i = 0; i < MAXCL; i++) if (cl[i] >= 0) {
+            FD_SET(cl[i], &rs); if (cl[i] > m) m = cl[i];
+            if (oend[i] > ooff[i]) FD_SET(cl[i], &ws);
+        }
         /* block only when nothing is in flight AND nothing is queued: a queued job waiting for the T425 must be
          * sent as soon as a reply frees it (blocking with a queue left jobs stranded, 2026-10-13) */
-        if (select(m + 1, &rs, NULL, NULL, (nin > 0 || nq > 0) ? &tv : NULL) < 0) { if (errno == EINTR) continue; perror("select"); return 1; }
+        if (select(m + 1, &rs, &ws, NULL, (nin > 0 || nq > 0) ? &tv : NULL) < 0) { if (errno == EINTR) continue; perror("select"); return 1; }
         if (FD_ISSET(ls, &rs)) {
             int c = accept(ls, NULL, NULL);
             for (i = 0; i < MAXCL && cl[i] >= 0; i++) ;
-            if (c >= 0 && i < MAXCL) cl[i] = c; else if (c >= 0) close(c);
+            if (c >= 0 && i < MAXCL) { cl[i] = c; fcntl(c, F_SETFL, fcntl(c, F_GETFL, 0) | O_NONBLOCK); oend[i] = ooff[i] = 0; }
+            else if (c >= 0) close(c);
         }
+        for (i = 0; i < MAXCL; i++) if (cl[i] >= 0 && FD_ISSET(cl[i], &ws)) flush_out(i);
         for (i = 0; i < MAXCL; i++) {
             unsigned char h[JOB_HDR];
             long n;
@@ -287,10 +338,10 @@ int main(int argc, char **argv)
             if (rd(cl[i], h, JOB_HDR)) {                     /* client gone: its in-flight replies go nowhere */
                 for (k = 0; k < nin; k++) if (inflight[k].fd == cl[i]) inflight[k].fd = -1;
                 for (k = 0; k < nq; k++) if (queue[k].fd == cl[i]) queue[k].fd = -1;
-                close(cl[i]); cl[i] = -1; continue;
+                close(cl[i]); cl[i] = -1; oend[i] = ooff[i] = 0; continue;
             }
             n = (long)g4(h + H_LEN);
-            if (n < 0 || n > JOB_MAX) { answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_TOOBIG); close(cl[i]); cl[i] = -1; continue; }
+            if (n < 0 || n > JOB_MAX) { answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_TOOBIG); close(cl[i]); cl[i] = -1; oend[i] = ooff[i] = 0; continue; }
             if (h[3] != NODE_ANY && (h[3] >= NODES || absent[h[3]])) { unsigned char sink[256]; long g; for (g = 0; g < n; g += 256) rd(cl[i], sink, n - g > 256 ? 256 : n - g); answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_NONODE); continue; }
             if (!up || nq >= QMAX) {
                 unsigned char sink[256]; long g;
