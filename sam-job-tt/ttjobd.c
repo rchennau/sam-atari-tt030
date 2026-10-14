@@ -152,9 +152,11 @@ static void poll_link(void)
             for (i = 0; i < nin && inflight[i].wid != wid; i++) ;
             if (i < nin) {
                 rbuf[0] = (unsigned char)inflight[i].cid; rbuf[1] = (unsigned char)(inflight[i].cid >> 8);
-                if (inflight[i].fd >= 0) {          /* client protocol: header without the node byte */
-                    wr(inflight[i].fd, rbuf, REP_HDR);
-                    if (olen > 0) wr(inflight[i].fd, rbuf + LREP_HDR, olen);
+                if (inflight[i].fd >= 0) {          /* client protocol: header without the node byte, ONE write: */
+                    int nd = rbuf[R_NODE];           /* two writes cost the client a second FreeMiNT wake-up per job */
+                    if (olen > 0) memmove(rbuf + REP_HDR, rbuf + LREP_HDR, (size_t)olen);
+                    wr(inflight[i].fd, rbuf, REP_HDR + olen);
+                    rbuf[R_NODE] = (unsigned char)nd; /* the log line below still reads it */
                 }
                 if (time(NULL) - inflight[i].sent >= 1)
                     say(LOG_INFO, "job '%c' %ld B on node %d: %ld s, status %d", inflight[i].buf[2], inflight[i].n,
@@ -201,6 +203,17 @@ int main(int argc, char **argv)
     chmod(path, 0660);
     for (i = 0; i < MAXCL; i++) cl[i] = -1;
     for (;;) {
+        /* Short jobs: for 20 ms after link activity, spin on the link alone (no select, no Syield). Syield hands the
+         * 68030 to any other ready process for up to a whole time slice, which cost 6-8 ms per small job against
+         * 4 ms for the Phase 3 daemon that waited on the link directly (NFR-1, 2026-10-13). */
+        if (nin > 0 && (long)(clock() - last_io) * 1000L / (long)CLOCKS_PER_SEC < 20) {
+            /* the clock is a system call too: look at it only every 32 polls, so the spin is almost all driver reads
+             * (each pass of the Phase 3 daemon was one driver read; this loop's extra calls cost ~1-2 ms per job) */
+            int k, was = nin;
+            for (k = 0; k < 32 && nin == was; k++) poll_link();
+            send_jobs();
+            continue;
+        }
         /* Jobs in flight: poll the link. FreeMiNT rounds a short select() timeout up to its scheduler tick (a 2 ms
          * timeout gave 45 ms round-trips, 2026-10-13), so for 100 ms after link activity poll without sleeping
          * (yielding between polls; short jobs answer within that), then sleep 20 ms between polls so a long job
