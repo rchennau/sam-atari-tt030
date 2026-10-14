@@ -61,27 +61,34 @@ static int crypto_checks(int node)
     printf("ChaCha20 KAT %s\n", bad ? "-" : "ok");
     return bad;
 }
-/* NFR-3: three bzip2 -1 jobs on 256 KB, one after another on the T425, then all three at once as NODE_ANY on one
- * connection (pipelined). Outputs must be identical; prints the node of each parallel reply and the speed-up. */
-static int par_test(void)
+/* NFR-3: N bzip2 -1 jobs on 256 KB of pseudo-random words, first one after another on the T425, then as NODE_ANY
+ * with up to 3 in flight (a sliding window: submitting all before reading any reply can deadlock against ttjobd
+ * writing a large reply into a full socket). Outputs must all be identical; prints the speed-up. */
+static int submit_b(const unsigned char *in, long n)
+{
+    unsigned long a = t4_adler32(in, n);
+    id++; req[0] = id; req[1] = id >> 8; req[2] = 'b'; req[3] = NODE_ANY; req[H_LEVEL] = 1;
+    p4(req + H_LEN, n); p4(req + H_ADLER, a);
+    memcpy(req + JOB_HDR, in, n);
+    return wr(req, JOB_HDR + n);
+}
+static int par_only;                 /* -q N: skip the serial pass (several clients run concurrently, timed by the shell) */
+static int par_test(int jobs)
 {
     static unsigned char in[262144], first[JOB_MAX];
-    static const char *txt = "the quick brown fox jumps over a lazy dog\n";
-    long i, olen, flen = 0, ms_s, ms_p;
-    int k, st, bad = 0;
+    static const char *w[16] = { "transputer ", "link ", "the ", "atari ", "job ", "queue ", "node ", "of ", "and ",
+                                 "compress ", "a ", "memory ", "TT030 ", "is ", "\n", "parallel " };
+    unsigned long r = 2463534242UL;
+    long o = 0, olen, flen = 0, ms_s, ms_p;
+    int k, st, bad = 0, sent = 0, got = 0;
+    const char *q;
     clock_t t0;
-    {   /* pseudo-random words: realistic text. A repeating phrase drove bzip2 into its slow fallback sort (87 s/job). */
-        static const char *w[16] = { "transputer ", "link ", "the ", "atari ", "job ", "queue ", "node ", "of ", "and ",
-                                     "compress ", "a ", "memory ", "TT030 ", "is ", "\n", "parallel " };
-        unsigned long r = 2463534242UL; long o = 0; const char *q;
-        while (o < (long)sizeof in) {
-            r ^= r << 13; r &= 0xFFFFFFFFUL; r ^= r >> 17; r ^= r << 5; r &= 0xFFFFFFFFUL;
-            for (q = w[r & 15]; *q && o < (long)sizeof in; q++) in[o++] = (unsigned char)*q;
-        }
-        (void)txt;
+    while (o < (long)sizeof in) {
+        r ^= r << 13; r &= 0xFFFFFFFFUL; r ^= r >> 17; r ^= r << 5; r &= 0xFFFFFFFFUL;
+        for (q = w[r & 15]; *q && o < (long)sizeof in; q++) in[o++] = (unsigned char)*q;
     }
     t0 = clock();
-    for (k = 0; k < 3; k++) {
+    for (k = 0; k < (par_only ? 0 : jobs); k++) {        /* -q: no serial pass; the first parallel reply is the reference */
         st = job('b', 0, in, sizeof in, &olen, 0);
         if (st || olen <= 0) { printf("serial job %d failed (status %d)\n", k, st); return 1; }
         if (k == 0) { flen = olen; memcpy(first, rep + REP_HDR, olen); }
@@ -89,23 +96,18 @@ static int par_test(void)
     }
     ms_s = ms_since(t0);
     t0 = clock();
-    for (k = 0; k < 3; k++) {                       /* submit all three before reading any reply */
-        unsigned long a = t4_adler32(in, sizeof in);
-        id++; req[0] = id; req[1] = id >> 8; req[2] = 'b'; req[3] = NODE_ANY; req[H_LEVEL] = 1;
-        p4(req + H_LEN, sizeof in); p4(req + H_ADLER, a);
-        memcpy(req + JOB_HDR, in, sizeof in);
-        if (wr(req, JOB_HDR + (long)sizeof in)) { printf("submit failed\n"); return 1; }
-    }
-    for (k = 0; k < 3; k++) {
+    while (got < jobs) {
+        while (sent < jobs && sent - got < 3) { if (submit_b(in, sizeof in)) { printf("submit failed\n"); return 1; } sent++; }
         if (rd(rep, REP_HDR)) { printf("reply read failed\n"); return 1; }
         olen = (long)g4(rep + 3);
         if (olen > 0 && rd(rep + REP_HDR, olen)) { printf("reply read failed\n"); return 1; }
+        if (par_only && got == 0 && rep[2] == ST_OK) { flen = olen; memcpy(first, rep + REP_HDR, olen); }
         if (rep[2] != ST_OK || olen != flen || memcmp(first, rep + REP_HDR, olen)) bad++;
+        got++;
     }
     ms_p = ms_since(t0);
-    printf("NFR-3: 3 x bzip2 -1 (256 KB): serial on T425 %ld ms, parallel %ld ms (nodes: see ttjobd log) = %ld.%02ldx; outputs %s\n",
-           ms_s, ms_p, ms_p ? ms_s / ms_p : 0, ms_p ? (ms_s * 100 / ms_p) % 100 : 0,
-           bad ? "DIFFER" : "identical");
+    printf("NFR-3: %d x bzip2 -1 (256 KB): serial on T425 %ld ms, parallel %ld ms = %ld.%02ldx; outputs %s\n",
+           jobs, ms_s, ms_p, ms_p ? ms_s / ms_p : 0, ms_p ? (ms_s * 100 / ms_p) % 100 : 0, bad ? "DIFFER" : "identical");
     return bad;
 }
 int main(int argc, char **argv)
@@ -120,7 +122,8 @@ int main(int argc, char **argv)
     if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { perror("socket"); return 1; }
     memset(&sa, 0, sizeof sa); sa.sun_family = AF_UNIX; strncpy(sa.sun_path, argc > 1 ? argv[1] : "/var/run/ttjob.sock", sizeof sa.sun_path - 1);
     if (connect(fd, (struct sockaddr *)&sa, sizeof sa) < 0) { perror("connect"); return 1; }
-    if (argc > 2 && !strcmp(argv[2], "-p")) return par_test();
+    if (argc > 2 && !strcmp(argv[2], "-p")) return par_test(argc > 3 ? atoi(argv[3]) : 3);
+    if (argc > 2 && !strcmp(argv[2], "-q")) { par_only = 1; return par_test(argc > 3 ? atoi(argv[3]) : 3); }
     if (argc > 5 && !strcmp(argv[2], "-1")) {        /* one job: -1 NODE OP SIZE (bytes of pseudo-random text) */
         static unsigned char in1[JOB_MAX];
         static const char *w[8] = { "transputer ", "link ", "the ", "atari ", "job ", "queue ", "node ", "\n" };

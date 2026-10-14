@@ -28,14 +28,66 @@
 #define QMAX 32
 #define JOB_DEADLINE_S 300        /* ponytail: one deadline for every op; FR-7 makes it per-op and size-derived */
 
-struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; };
+struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; };
 static struct job queue[QMAX], inflight[NODES];
 static int nq, nin, up;
 static unsigned short nextwid;
 static unsigned char rbuf[LREP_HDR + JOB_MAX];
 static long rgot;
-static clock_t last_io;              /* last job sent or reply byte read: drives the adaptive poll below */
+static clock_t last_io;
+static int busy[NODES];
+static clock_t end0;                 /* when the T425's current job is expected to finish */
 
+/* Expected run time in ms on the T425 (tram = 0) or a TRAM, measured on the real TT 2026-10-13: bzip2 -1 16.5 s /
+ * 256 KB on the T425, 46 s on a TRAM (2.8x); crypto 2.0x (X25519 2.8 vs 5.6 s). ponytail: a static table; learn
+ * per-op rates from finished jobs if the ops or nodes change. */
+static long est_ms(int op, long n, int tram)
+{
+    long us; int comp = 0;
+    switch (op) {
+    case 'b': us = n * 63; comp = 1; break;
+    case 'z': case 'g': case 'r': us = n * 50; comp = 1; break;
+    case 'i': us = n * 5; comp = 1; break;
+    case 'X': us = 2800000L; break;
+    case 'V': us = 6500000L + n * 14; break;
+    case 'S': us = n * 14; break;
+    case 'C': us = n * 5; break;
+    default: us = n / 2; break;
+    }
+    if (tram) us = comp ? us / 10 * 28 : us * 2;
+    return us / 1000;
+}
+/* FR-6, queue-aware: walk the queue in order with a running T425 backlog (time left on its current job + the jobs
+ * already reserved for it). A job goes to the T425 if it is idle; otherwise to an idle TRAM only if the TRAM would
+ * finish it before the T425 could (backlog + its own T425 time); otherwise it stays queued, reserved for the T425,
+ * and the backlog grows. Judging the head job alone never used a TRAM (one 46 s TRAM job never beats a <= 33 s
+ * wait), 1.02x on 9 jobs; first-idle sent jobs to slow TRAMs that the T425 would have finished sooner, 1.07x on 3.
+ * Returns the queue index to send next and sets *node, or -1 = nothing to send now. Explicit-node jobs (tests)
+ * go only to that node when it is idle. */
+static int pick(int *node)
+{
+    long backlog = 0;
+    int q, k;
+    if (busy[0]) {
+        backlog = ((long)end0 - (long)clock()) * 1000L / (long)CLOCKS_PER_SEC;
+        if (backlog < 0) backlog = 0;
+    }
+    for (q = 0; q < nq; q++) {
+        struct job *j = &queue[q];
+        int want = j->buf[3];
+        long t425;
+        if (want != NODE_ANY) {
+            if (want < NODES && !busy[want]) { *node = want; return q; }
+            continue;
+        }
+        if (!busy[0] && backlog == 0) { *node = 0; return q; }
+        t425 = backlog + est_ms(j->buf[2], j->n, 0);
+        for (k = 1; k < NODES; k++)
+            if (!busy[k] && est_ms(j->buf[2], j->n, 1) < t425) { *node = k; return q; }
+        backlog = t425;                                   /* reserved for the T425 */
+    }
+    return -1;
+}
 static void say(int prio, const char *fmt, ...)
 {
     char m[256];
@@ -61,14 +113,24 @@ static void go_down(const char *why)                        /* link out of step:
     up = 0;
     for (i = 0; i < nin; i++) { answer(inflight[i].fd, inflight[i].cid, ST_DOWN); free(inflight[i].buf); }
     nin = 0;
+    memset(busy, 0, sizeof busy);
     for (i = 0; i < nq; i++) { answer(queue[i].fd, queue[i].cid, ST_DOWN); free(queue[i].buf); }
     nq = 0;
 }
 static void send_jobs(void)
 {
     while (up && nq > 0 && nin < NODES) {
-        struct job j = queue[0];
-        memmove(queue, queue + 1, (size_t)(nq - 1) * sizeof queue[0]); nq--;
+        struct job j;
+        int node, q = pick(&node);
+        if (q < 0) return;                          /* nothing should start now: queued jobs wait for the T425 */
+        j = queue[q];
+        if (getenv("TTJOBD_TRACE"))
+            say(LOG_INFO, "send wid %u op %c n %ld req %d qpos %d -> node %d (busy %d%d%d, T425 left %ld ms)",
+                (unsigned)(nextwid + 1), j.buf[2], j.n, j.buf[3], q, node, busy[0], busy[1], busy[2],
+                busy[0] ? ((long)end0 - (long)clock()) * 1000L / (long)CLOCKS_PER_SEC : 0L);
+        memmove(queue + q, queue + q + 1, (size_t)(nq - q - 1) * sizeof queue[0]); nq--;
+        j.node = node; j.buf[3] = (unsigned char)node; busy[node] = 1;
+        if (node == 0) end0 = clock() + (clock_t)(est_ms(j.buf[2], j.n, 0) * CLOCKS_PER_SEC / 1000);
         j.wid = ++nextwid;
         j.buf[0] = (unsigned char)j.wid; j.buf[1] = (unsigned char)(j.wid >> 8);
         if (link_write(j.buf, JOB_HDR + j.n) != JOB_HDR + j.n) { free(j.buf); go_down("link write failed"); return; }
@@ -97,6 +159,9 @@ static void poll_link(void)
                 if (time(NULL) - inflight[i].sent >= 1)
                     say(LOG_INFO, "job '%c' %ld B on node %d: %ld s, status %d", inflight[i].buf[2], inflight[i].n,
                         rbuf[R_NODE], (long)(time(NULL) - inflight[i].sent), rbuf[2]);
+                if (getenv("TTJOBD_TRACE"))
+                    say(LOG_INFO, "reply wid %u from node %d (assigned %d)", wid, rbuf[R_NODE], inflight[i].node);
+                busy[inflight[i].node] = 0;
                 free(inflight[i].buf);
                 inflight[i] = inflight[--nin];
             } else
@@ -140,11 +205,13 @@ int main(int argc, char **argv)
          * timeout gave 45 ms round-trips, 2026-10-13), so for 100 ms after link activity poll without sleeping
          * (yielding between polls; short jobs answer within that), then sleep 20 ms between polls so a long job
          * does not burn the 68030. */
-        int hot = nin > 0 && (clock() - last_io) * 1000 / CLOCKS_PER_SEC < 100;
+        int hot = nin > 0 && (long)(clock() - last_io) * 1000L / (long)CLOCKS_PER_SEC < 100;
         struct timeval tv = { 0, hot ? 0 : 20000 };
         FD_ZERO(&rs); FD_SET(ls, &rs); m = ls;
         for (i = 0; i < MAXCL; i++) if (cl[i] >= 0) { FD_SET(cl[i], &rs); if (cl[i] > m) m = cl[i]; }
-        if (select(m + 1, &rs, NULL, NULL, nin > 0 ? &tv : NULL) < 0) { if (errno == EINTR) continue; perror("select"); return 1; }
+        /* block only when nothing is in flight AND nothing is queued: a queued job waiting for the T425 must be
+         * sent as soon as a reply frees it (blocking with a queue left jobs stranded, 2026-10-13) */
+        if (select(m + 1, &rs, NULL, NULL, (nin > 0 || nq > 0) ? &tv : NULL) < 0) { if (errno == EINTR) continue; perror("select"); return 1; }
         if (FD_ISSET(ls, &rs)) {
             int c = accept(ls, NULL, NULL);
             for (i = 0; i < MAXCL && cl[i] >= 0; i++) ;
@@ -176,7 +243,7 @@ int main(int argc, char **argv)
             nq++;
         }
         send_jobs();
-        if (nin > 0) { poll_link(); if (hot) Syield(); }
+        if (nin > 0) { poll_link(); send_jobs(); if (hot) Syield(); }
         for (i = 0; i < nin; i++)
             if (time(NULL) - inflight[i].sent > JOB_DEADLINE_S) { go_down("a job missed its deadline"); break; }
     }
