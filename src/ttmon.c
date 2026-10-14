@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #define NODE "atari-tt030"
@@ -112,6 +113,26 @@ static int mqtt_publish_to(int s, const char *topic, const char *payload)
     return send_all(s, pkt, h + t + p);
 }
 #define mqtt_publish(s, payload) mqtt_publish_to(s, TOPIC, payload)
+
+/* QoS 1 PUBLISH (the sam.node.runtime/v1 contract). ttmon never reads from the socket, so the broker's PUBACK is left
+ * unread; ponytail: fine at one frame per package change, read PUBACKs if this ever publishes often. */
+static int mqtt_publish_q1(int s, const char *topic, const char *payload)
+{
+    static unsigned char pkt[8192];
+    static unsigned short id;
+    int t = 2 + (int)strlen(topic), p = (int)strlen(payload), h;
+
+    if (t + 2 + p + 5 > (int)sizeof pkt)
+        return 0;
+    if (++id == 0)
+        id = 1;
+    h = put_hdr(pkt, 0x33, t + 2 + p);   /* PUBLISH, QoS 1, retain */
+    put_str(pkt + h, topic);
+    pkt[h + t] = id >> 8;
+    pkt[h + t + 1] = id & 0xff;
+    memcpy(pkt + h + t + 2, payload, p);
+    return send_all(s, pkt, h + t + 2 + p);
+}
 
 /* Read a /kern file with open/read, never stdio: mintlib's fopen+fgets costs ~0.45 s CPU per /kern
  * file on the TT, against ~0.05 s for read() (TT, 2026-09-13) — a stdio scan of 18 processes cost 9.5 s. */
@@ -204,10 +225,16 @@ static int en0_stats(struct ifstat *st)
     return 0;
 }
 
-/* The runtime frame: every installed package (name -> "version-release", install time) and when ttjobd last
- * started (its socket's mtime; 0 = not running), so fractal can say which packages are behind the mirror and
- * whether the running ttjobd predates its installed package (RUNNING_STALE). rpm -qa costs ~2 s of 68030 CPU, so it
- * runs only when the rpm database or the socket changes (or after a reconnect). */
+/* The runtime frame, schema sam.node.runtime/v1 (SAM docs/architecture/node-runtime-frame.md): deploy_path
+ * x-tt030-rpm, deploy_commit unknown (RPMs, not a git deploy), deployed_at = the newest package install time,
+ * services.ttjobd = when ttjobd last started (its socket's mtime; null = no socket), extra.packages = every installed
+ * package (name -> ["version-release", install time]). scripts/tt_versions.py compares it with the mirror. rpm -qa
+ * costs ~2 s of 68030 CPU, so it runs only when the rpm database or the socket changes (or after a reconnect). */
+static void iso(long t, char *out, int size)
+{
+    time_t tt = (time_t)t;
+    strftime(out, size, "\"%Y-%m-%dT%H:%M:%SZ\"", gmtime(&tt));
+}
 static long mtime_of(const char *f)
 {
     struct stat sb;
@@ -215,22 +242,29 @@ static long mtime_of(const char *f)
 }
 static int runtime_frame(char *out, int size)
 {
-    char name[64], ver[64];
-    long t;
+    char name[64], ver[64], when[32], up[32];
+    long t, newest = 0, sock = mtime_of("/var/run/ttjob.sock");
     int n, first = 1;
     FILE *p = popen("rpm -qa --queryformat '%{NAME} %{VERSION}-%{RELEASE} %{INSTALLTIME}\\n' 2>/dev/null", "r");
 
-    n = snprintf(out, size, "{\"node\":\"" NODE "\",\"ttjobd_started\":%ld,\"packages\":{",
-                 mtime_of("/var/run/ttjob.sock"));
+    n = snprintf(out, size, "{\"extra\":{\"packages\":{");
     if (!p)
         return -1;
-    while (n < size - 200 && fscanf(p, "%63s %63s %ld", name, ver, &t) == 3) {
+    while (n < size - 300 && fscanf(p, "%63s %63s %ld", name, ver, &t) == 3) {
         n += snprintf(out + n, size - n, "%s\"%s\":[\"%s\",%ld]", first ? "" : ",", name, ver, t);
+        if (t > newest)
+            newest = t;
         first = 0;
     }
-    if (pclose(p) != 0 || first || n >= size - 200)
+    if (pclose(p) != 0 || first || n >= size - 300)
         return -1;                     /* no list, or truncated: publish nothing rather than a partial list */
-    snprintf(out + n, size - n, "}}");
+    iso(newest, when, sizeof when);
+    if (sock)
+        iso(sock, up, sizeof up);
+    else
+        strcpy(up, "null");
+    snprintf(out + n, size - n, "}},\"schema\":\"sam.node.runtime/v1\",\"node\":\"" NODE "\",\"deploy_commit\":\"unknown\","
+             "\"deployed_at\":%s,\"deploy_path\":\"x-tt030-rpm\",\"services\":{\"ttjobd\":%s}}", when, up);
     return 0;
 }
 
@@ -273,7 +307,7 @@ int main(int argc, char **argv)
             sock_seen = mtime_of("/var/run/ttjob.sock");
             if (runtime_frame(rt, sizeof rt) != 0)
                 db_seen = -1;            /* rpm failed (e.g. a yum run holds the database): retry next round */
-            else if (mqtt_publish_to(s, RUNTIME_TOPIC, rt) < 0) {
+            else if (mqtt_publish_q1(s, RUNTIME_TOPIC, rt) < 0) {
                 close(s);
                 s = -1;
                 db_seen = -1;

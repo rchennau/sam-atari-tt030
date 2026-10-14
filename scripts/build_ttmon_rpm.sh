@@ -4,7 +4,7 @@
 . "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-V=${1:-1.1}   # 1.1: adds the retained sam/node/atari-tt030/runtime frame
+V=${1:-1.2}   # 1.2: runtime frame in the SAM schema sam.node.runtime/v1 (QoS 1); 1.1 added the frame
 tools/cross-mint/usr/bin/m68k-atari-mint-gcc -m68020-60 -Os -s -Wall -o build/ttmon src/ttmon.c
 python3 - "$V" <<'PY'
 import sys

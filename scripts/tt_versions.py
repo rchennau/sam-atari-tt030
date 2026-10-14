@@ -3,31 +3,44 @@
 
     scripts/tt_versions.py [MIRROR]        default /mnt/vault/tt030 (TT_MIRROR)
 
-Reads ttmon's retained frame sam/node/atari-tt030/runtime (installed packages + ttjobd start time) and the mirror's
-index.tsv, and prints one line per package that is not CURRENT, then a summary:
+Reads ttmon's retained frame sam/node/atari-tt030/runtime (schema sam.node.runtime/v1: extra.packages = installed
+packages, services.ttjobd = ttjobd start time) and the mirror's index.tsv, and prints one line per package that is
+not CURRENT, then a summary:
   STALE           the mirror has a newer version-release of an installed package (yum update would change it)
   RUNNING_STALE   ttjobd started before its installed ttjob package (the new binary waits for a reboot)
   UNREPORTED      no frame on the broker (ttmon not running, or a ttmon without the runtime frame)
+  NONCONFORMING   a frame that is not sam.node.runtime/v1 (missing or unknown top-level fields)
 Exit 0 when everything is CURRENT, 1 otherwise, 2 when the mirror index cannot be read. Packages the mirror does not
 carry at all are counted as "local", never as current or stale.
 """
+import calendar
 import json
 import os
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tt_rpm import read_index, rpmvercmp  # noqa: E402
 
 TOPIC = "sam/node/atari-tt030/runtime"
+REQUIRED = {"schema", "node", "deploy_commit", "deployed_at", "deploy_path"}
+ALLOWED = REQUIRED | {"binaries", "services", "extra"}
+
+
+def epoch(iso):
+    return calendar.timegm(time.strptime(iso, "%Y-%m-%dT%H:%M:%SZ")) if iso else 0
 
 
 def evaluate(frame, index):
     """frame: ttmon runtime dict or None; index: tt_rpm.read_index rows. Returns (rows, counts)."""
     if frame is None:
         return [("UNREPORTED", "-", f"no retained frame on {TOPIC}")], {"UNREPORTED": 1}
+    if frame.get("schema") != "sam.node.runtime/v1" or not REQUIRED <= frame.keys() <= ALLOWED:
+        return [("NONCONFORMING", "-", f"not sam.node.runtime/v1: fields {sorted(frame)}")], {"NONCONFORMING": 1}
+    packages = frame.get("extra", {}).get("packages", {})
     rows, counts = [], {"CURRENT": 0, "STALE": 0, "RUNNING_STALE": 0, "local": 0}
-    for name, (verrel, _t) in sorted(frame.get("packages", {}).items()):
+    for name, (verrel, _t) in sorted(packages.items()):
         r = index.get(name)
         if r is None:
             counts["local"] += 1
@@ -38,8 +51,8 @@ def evaluate(frame, index):
             counts["STALE"] += 1
         else:
             counts["CURRENT"] += 1
-    tj = frame.get("packages", {}).get("ttjob")
-    started = frame.get("ttjobd_started", 0)
+    tj = packages.get("ttjob")
+    started = epoch(frame.get("services", {}).get("ttjobd"))
     if tj and started and tj[1] > started:
         rows.append(("RUNNING_STALE", "ttjobd", f"started {started}, ttjob {tj[0]} installed {tj[1]} (reboot to load it)"))
         counts["RUNNING_STALE"] += 1
