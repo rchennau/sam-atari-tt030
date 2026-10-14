@@ -110,7 +110,7 @@ static int par_test(int jobs)
     }
     ms_p = ms_since(t0);
     printf("NFR-3: %d x %s (256 KB): serial on T425 %ld ms, parallel %ld ms = %ld.%02ldx; outputs %s\n",
-           jobs, getenv("TTJOBCLI_OP") ? "echo" : "bzip2 -1", ms_s, ms_p, ms_p ? ms_s / ms_p : 0, ms_p ? (ms_s * 100 / ms_p) % 100 : 0, bad ? "DIFFER" : "identical");
+           jobs, !getenv("TTJOBCLI_OP") || getenv("TTJOBCLI_OP")[0] == 'b' ? "bzip2 -1" : getenv("TTJOBCLI_OP")[0] == 'E' ? "echo" : getenv("TTJOBCLI_OP"), ms_s, ms_p, ms_p ? ms_s / ms_p : 0, ms_p ? (ms_s * 100 / ms_p) % 100 : 0, bad ? "DIFFER" : "identical");
     return bad;
 }
 int main(int argc, char **argv)
