@@ -1,7 +1,7 @@
 #!/bin/bash
 # build_rpm.sh — package the job queue (tt030-transputer-job-queue, Deployment §5) as build/ttjob-<V>-<R>.m68kmint.rpm:
 #   /usr/sbin/ttjobd, /usr/bin/ttjobcli, /usr/lib/t425/job{full,t1,t0}.btl (from build_t4.sh), /etc/rc.ttjobd.
-# Release = number of commits touching sam-job-tt, so every change gets a newer NVR and an unchanged tree rebuilds the
+# Release = number of commits touching sam-job-tt or sam-yum-tt/src (shared sources), so every change gets a newer NVR and an unchanged tree rebuilds the
 # same name (ci.sh publishes only names the mirror lacks). Boot wiring stays outside the package: mint.cnf runs
 # "exec u:/bin/bash /etc/rc.ttjobd" (set once by hand, 2026-10-13). A new ttjobd takes effect at the next reboot.
 # Usage: build_rpm.sh [VERSION]   (run build_t4.sh first; prints the RPM path)
@@ -9,7 +9,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd); root=$(cd "$here/.." && pwd); y=$root/sam-yum-tt/src
 V=${1:-1.0}
-R=$(git -C "$root" rev-list --count HEAD -- sam-job-tt)
+R=$(git -C "$root" rev-list --count HEAD -- sam-job-tt sam-yum-tt/src)   # sam-yum-tt/src: ttjobd links atwboot.c, t4lock.c
 for b in jobfull jobt1 jobt0; do [ -s "$here/build/$b.btl" ] || { echo "build_rpm: build/$b.btl missing (run build_t4.sh)" >&2; exit 1; }; done
 CC="$root/tools/cross-mint/usr/bin/m68k-atari-mint-gcc -m68020-60 -O2 -Wall -s"   # -s: unstripped symbols carry temp object names, so no two builds match
 $CC -I"$y" -I"$here" -o "$here/build/ttjobd.ttp" "$here/ttjobd.c" "$y/atwboot.c" "$y/t4lock.c"

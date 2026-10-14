@@ -64,9 +64,11 @@ int t4lock_take(const char **why)
                 pid = 0;
             fclose(f);
         }
-        /* live = the pid exists and runs the program that took the lock (or either name is unknown) */
+        /* live = the pid exists and runs the program that took the lock (or either name is unknown). Our own pid
+         * is never live: nobody takes the lock while holding it, so the file survived a reboot that gave us the
+         * same pid (ttjobd was pid 13 before and after, 2026-10-13, and gave up after 40 tries). */
         prog_of(pid, now, sizeof now);
-        if (pid > 0 && kill((int)pid, 0) == 0
+        if (pid > 0 && pid != (long)getpid() && kill((int)pid, 0) == 0
             && (!held[0] || !strcmp(held, "-") || !now[0] || !strcmp(held, now))) {
             sprintf(whybuf, "busy (pid %ld)", pid);
             *why = whybuf;

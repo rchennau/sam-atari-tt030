@@ -100,6 +100,22 @@ def test_loaded_marker(tmp_path):
     assert lib.t4_loaded_is(b"compserv.btl") == 1 and lib.t4_loaded_is(b"xserv.btl") == 0
 
 
+def test_lock_naming_our_own_pid_is_stale(tmp_path):
+    """A lock that names the taker's own pid survived a reboot (MiNT reuses low pids: ttjobd was pid 13 before and
+    after, 2026-10-13, and gave up after 40 tries). Nobody takes the lock while holding it, so it is stale."""
+    import ctypes
+    so = tmp_path / "t4lock.so"
+    lock = tmp_path / "lock"
+    subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-w", f"-I{SRC}", f'-DT4LOCK="{lock}"',
+                    "-o", str(so), os.path.join(SRC, "t4lock.c")], check=True)
+    lib = ctypes.CDLL(str(so))
+    why = ctypes.c_char_p()
+    lock.write_text(f"{os.getpid()} -\n")
+    assert lib.t4lock_take(ctypes.byref(why)) == 1
+    lock.write_text(f"{os.getppid()} -\n")                              # a live other process still holds it
+    assert lib.t4lock_take(ctypes.byref(why)) == 0
+
+
 def test_compkern_raw_deflate_op_for_zip(tmp_path):
     """op 'r' (zip's zlib path): 1 data_type byte (1 = text, 0 = binary) + a raw deflate stream."""
     import ctypes
