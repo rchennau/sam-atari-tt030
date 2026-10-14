@@ -45,6 +45,10 @@ long job_exec(int op, int level, const unsigned char *in, long n, unsigned char 
         return olen < 0 ? -ST_FAILED : olen;
     }
 #endif
+#ifdef JOB_TEST
+    case 'H':                               /* test image only: never returns, to exercise ttjobd's watchdog (FR-7) */
+        for (;;) ;
+#endif
     default:
         return -ST_BADOP;
     }

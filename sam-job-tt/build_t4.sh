@@ -6,6 +6,13 @@
 . "$(cd "$(dirname "$0")" && git rev-parse --show-toplevel)/scripts/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd); root=$(cd "$here/.." && pwd); y=$root/sam-yum-tt/src
+# NFR-5: memory declarations must stay inside the hardware: the T425 below its VRAM at 0x80600000 (<= 5 MB declared,
+# 0x80500000) and each TRAM within its measured 4 MB (FR-11). A declaration past those fails the build.
+for c in "$here"/t4/job*.cfs; do
+    awk '/T425 \(memory =/ { if ($0 !~ /memory = [1-5]M/) { print FILENAME ": T425 memory > 5M (VRAM from 0x80600000)"; bad=1 } }
+         /T800 \(memory =/ { if ($0 !~ /memory = [1-4]M/) { print FILENAME ": TRAM memory > 4M"; bad=1 } }
+         END { exit bad }' "$c" || { echo "build_t4: NFR-5 memory check failed" >&2; exit 1; }
+done
 CB=/tmp/cb; "$root/sam-yum-tt/t4compress.sh" "$CB" > /dev/null
 LIB="adler32 crc32 deflate trees zutil inflate inftrees inffast blocksort huffman crctable randtable decompress bzcompress bzlib compkern"
 w=/tmp/samjob; rm -rf "$w"; mkdir -p "$w" "$here/build"
@@ -22,7 +29,8 @@ cc() { icc "$1" "${@:2}" > "$1.log" 2>&1 || { cat "$1.log"; exit 1; }; ! grep -E
 # TRAM workers (-ta)
 for f in jobnode sha256 t4adler worker1 worker2 $CRYPTO; do cc "$f.c" -ta -o "$f.tco"; done
 # Phase 4: the TRAMs carry the compression kernels too (NODE_ANY jobs may land on them): compkern + zlib/bzip2 -ta
-cc jobexec.c -ta -dJOB_COMPRESS -o jobexec.tco
+JT=${JOB_TEST:+-dJOB_TEST}; OUT=${JOB_TEST:+jobtest.btl}; OUT=${OUT:-jobfull.btl}
+cc jobexec.c -ta -dJOB_COMPRESS $JT -o jobexec.tco
 cp "$CB/deflate.c" deflate5a.c; cc deflate5a.c -ta -dATARI -dZ_SOLO -dz_off_t=long -dBZ_NO_STDIO -o deflate5a.tco
 ZTA=; for f in $LIB; do [ "$f" = deflate ] && { ZTA="$ZTA deflate5a.tco"; continue; }; cp "$CB/$f.c" "${f}a.c"; cc "${f}a.c" -ta -dZ_SOLO -dz_off_t=long -dBZ_NO_STDIO -o "${f}a.tco"; ZTA="$ZTA ${f}a.tco"; done
 for m in worker1 worker2; do
@@ -34,8 +42,17 @@ cp jobnode.c jobnodec.c; cp jobexec.c jobexecc.c; for f in $CRYPTO; do cp "$f.c"
 # zlib picks the gzip OS byte from compile-time defines: the 68030 build writes 05 (ATARI), the T425 build 03.
 # Rebuild deflate with -dATARI so the T425's gzip output is byte-identical to the 68030's (Phase 2 finding).
 cp "$CB/deflate.c" deflate5.c; cc deflate5.c -t4 -dATARI -dZ_SOLO -dz_off_t=long -dBZ_NO_STDIO -o deflate5.t4h
-cc root.c -t4 -o root.t4h; cc jobnodec.c -t4 -o jobnodec.t4h; cc jobexecc.c -t4 -dJOB_COMPRESS -o jobexecc.t4h; cc sha2564.c -t4 -o sha2564.t4h; cc t4adler4.c -t4 -o t4adler4.t4h
+cc root.c -t4 -o root.t4h; cc jobnodec.c -t4 -o jobnodec.t4h; cc jobexecc.c -t4 -dJOB_COMPRESS $JT -o jobexecc.t4h; cc sha2564.c -t4 -o sha2564.t4h; cc t4adler4.c -t4 -o t4adler4.t4h
 { echo root.t4h; echo jobnodec.t4h; echo jobexecc.t4h; for f in $CRYPTO; do echo "${f}4.t4h"; done; echo sha2564.t4h; echo t4adler4.t4h; for f in $LIB; do [ "$f" = deflate ] && echo deflate5.t4h || echo "$CB/$f.t4h"; done; echo '#include startrd.lnk'; } > root.lnk
 ilink -f root.lnk -t4 -o root.lku
-icconf jobfull.cfs && icollect jobfull.cfb -o jobfull.btl
-cp jobfull.btl "$here/build/"; ls -l "$here/build/jobfull.btl"
+icconf jobfull.cfs && icollect jobfull.cfb -o "$OUT"
+cp "$OUT" "$here/build/"; ls -l "$here/build/$OUT"
+# FR-8 fallback images: T425 + TRAM 1 (worker1 without its TRAM 2 side) and T425 only (root without the TRAM link)
+cp worker1.c worker1n.c; cc worker1n.c -ta -dNO_T2 -o worker1n.tco
+{ echo worker1n.tco; for f in jobnode jobexec sha256 t4adler $CRYPTO; do echo "$f.tco"; done; for f in $ZTA; do echo "$f"; done; echo '#include startrd.lnk'; } > worker1n.lnk
+ilink -f worker1n.lnk -ta -o worker1n.lku
+cp root.c roots.c; cc roots.c -t4 -dSOLO -o roots.t4h
+sed 's/^root.t4h$/roots.t4h/' root.lnk > roots.lnk; ilink -f roots.lnk -t4 -o roots.lku
+for v in t1 t0 bad; do icconf job$v.cfs && icollect job$v.cfb -o job$v.btl && cp job$v.btl "$here/build/"; done
+ls -l "$here"/build/jobt1.btl "$here"/build/jobt0.btl "$here"/build/jobbad.btl
+# JOB_TEST=1: also build build/jobtest.btl, the same image plus the never-returning op 'H' for watchdog tests (FR-7)

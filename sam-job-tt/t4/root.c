@@ -31,7 +31,7 @@ static void mux(Process *p, Channel *done0, Channel *t1i, Channel *hout, Channel
     int node;
     (void)p;
     for (;;) {
-        if (ProcAlt(done0, t1i, NULL) == 0) {
+        if (!t1i || ProcAlt(done0, t1i, NULL) == 0) {     /* SOLO image: no TRAM link, only the local worker */
             len = (long)ChanInInt(done0);
             ChanOut(hout, (char *)rep0, (int)len);
             node = 0;
@@ -71,11 +71,14 @@ static void host(Process *p, Channel *hin, Channel *t1o, Channel *go0, Channel *
             if (n < 0 || n > JOB_MAX) { n = -1; }
             else if (n > 0) ChanIn(hin, (char *)in0, (int)n);
             ChanOutInt(go0, (int)n);
-        } else {
+        } else if (t1o) {
             for (k = 0; k < JOB_HDR; k++) hdrf[k] = h[k];
             if (n > 0 && n <= JOB_MAX) ChanIn(hin, (char *)fwd, (int)n);
             ChanOut(t1o, (char *)hdrf, JOB_HDR);
             if (n > 0 && n <= JOB_MAX) ChanOut(t1o, (char *)fwd, (int)n);
+        } else {                                   /* no such node in this image: drain; ttjobd never sends these */
+            if (n > 0 && n <= JOB_MAX) ChanIn(hin, (char *)fwd, (int)n);
+            busy[node] = 0;
         }
     }
 }
@@ -83,7 +86,11 @@ static void host(Process *p, Channel *hin, Channel *t1o, Channel *go0, Channel *
 int main(void)
 {
     Channel *hin = (Channel *)get_param(1), *hout = (Channel *)get_param(2);
+#ifdef SOLO                                               /* jobt0.btl: T425 only (FR-8 fallback) */
+    Channel *t1o = NULL, *t1i = NULL;
+#else
     Channel *t1o = (Channel *)get_param(3), *t1i = (Channel *)get_param(4);
+#endif
     Channel *go0 = ChanAlloc(), *done0 = ChanAlloc(), *freec = ChanAlloc();
     static char ready[4] = { 'R', 'D', 'Y', '0' };
     Process *ph, *pw, *pm;

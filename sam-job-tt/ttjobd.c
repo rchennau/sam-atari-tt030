@@ -3,7 +3,8 @@
  * jobwire requests from local clients over a Unix socket. Up to NODES jobs are in flight at once (one per node; the
  * T425 dispatcher picks the node for NODE_ANY), so jobs from different clients run in parallel. Each job gets a
  * ttjobd wire id, mapped back to the client's own id in the reply. If the image cannot be booted, or a reply does
- * not come within JOB_DEADLINE_S, it answers ST_DOWN so clients run the op on the 68030 (C4). Messages go to stderr
+ * not come by its deadline, the watchdog (FR-7) answers ST_DOWN for everything outstanding so clients run the op on
+ * the 68030 (C4), resets and re-boots the image, and logs the recovery time. Messages go to stderr
  * (rc.ttjobd: /var/log/ttjobd.log) and syslog (forwarded to fractal, central logging).
  * Usage: ttjobd [IMAGE.BTL] [SOCKET]   defaults /usr/lib/t425/jobfull.btl, /var/run/ttjob.sock */
 #include "atwboot.h"
@@ -26,11 +27,15 @@
 #include <mint/mintbind.h>
 #define MAXCL 8
 #define QMAX 32
-#define JOB_DEADLINE_S 300        /* ponytail: one deadline for every op; FR-7 makes it per-op and size-derived */
+#define REBOOT_RETRY_S 60         /* a failed re-boot is tried again this often */
 
-struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; };
+struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; clock_t due; };
 static struct job queue[QMAX], inflight[NODES];
 static int nq, nin, up;
+static const char *img;
+static int absent[NODES];            /* FR-8: nodes the booted image does not contain (never scheduled) */
+static const char *topo_path = "/var/run/ttjob.topology";
+static time_t down_since;
 static unsigned short nextwid;
 static unsigned char rbuf[LREP_HDR + JOB_MAX];
 static long rgot;
@@ -77,13 +82,13 @@ static int pick(int *node)
         int want = j->buf[3];
         long t425;
         if (want != NODE_ANY) {
-            if (want < NODES && !busy[want]) { *node = want; return q; }
+            if (want < NODES && !absent[want] && !busy[want]) { *node = want; return q; }
             continue;
         }
-        if (!busy[0] && backlog == 0) { *node = 0; return q; }
+        if (!busy[0] && backlog == 0) { *node = 0; return q; }    /* node 0 (the T425) is in every image */
         t425 = backlog + est_ms(j->buf[2], j->n, 0);
         for (k = 1; k < NODES; k++)
-            if (!busy[k] && est_ms(j->buf[2], j->n, 1) < t425) { *node = k; return q; }
+            if (!absent[k] && !busy[k] && est_ms(j->buf[2], j->n, 1) < t425) { *node = k; return q; }
         backlog = t425;                                   /* reserved for the T425 */
     }
     return -1;
@@ -106,11 +111,53 @@ static void answer(int fd, unsigned short cid, int st)      /* a status-only rep
     memset(r, 0, sizeof r); r[0] = (unsigned char)cid; r[1] = (unsigned char)(cid >> 8); r[2] = (unsigned char)st;
     if (fd >= 0) wr(fd, r, REP_HDR);
 }
+/* FR-8: boot the largest image the hardware allows. A network image whose loader hangs on a missing TRAM never sends
+ * its ready marker, which atw_boot now reports as a failure, so try: full (T425 + TRAM 1 + TRAM 2) -> T425 + TRAM 1 ->
+ * T425 only, from the same directory as IMAGE (or the comma-separated list in TTJOBD_IMAGES, for tests). On success
+ * mark the nodes this image lacks absent and write the topology file. Returns 1 if an image booted. */
+static int boot_network(void)
+{
+    static char list[3][256];
+    const char *names[3] = { NULL, "jobt1.btl", "jobt0.btl" }, *env = getenv("TTJOBD_IMAGES"), *sl;
+    int nimg = 0, i, k, rc;
+    FILE *f;
+    if (env) {                                      /* test override: up to 3 paths; present nodes = 3, 2, 1 in order */
+        const char *p = env;
+        while (*p && nimg < 3) {
+            size_t len = strcspn(p, ",");
+            snprintf(list[nimg++], sizeof list[0], "%.*s", (int)len, p);
+            p += len + (p[len] == ',');
+        }
+    } else {
+        snprintf(list[nimg++], sizeof list[0], "%s", img);
+        sl = strrchr(img, '/');
+        for (i = 1; i < 3; i++)
+            snprintf(list[nimg++], sizeof list[0], "%.*s%s", sl ? (int)(sl - img + 1) : 0, img, names[i]);
+    }
+    for (i = 0; i < nimg; i++) {
+        if ((rc = atw_boot(list[i], "#500000")) == 0) {
+            for (k = 0; k < NODES; k++) absent[k] = k >= NODES - i;
+            say(i ? LOG_WARNING : LOG_INFO, "image %s booted (%d of %d nodes)", list[i], NODES - i, NODES);
+            if ((f = fopen(topo_path, "w"))) {
+                time_t now = time(NULL);
+                fprintf(f, "# ttjobd %s# image %s\n# node link cpu clock_mhz ram_kb state\n", ctime(&now), list[i]);
+                fprintf(f, "0 host:L0 T425 40 5120 present\n");
+                fprintf(f, "1 T425.L1-L3 T4 20 4096 %s\n", absent[1] ? "absent" : "present");
+                fprintf(f, "2 TRAM1.L1-L0 T4 20 4096 %s\n", absent[2] ? "absent" : "present");
+                fclose(f);
+            }
+            return 1;
+        }
+        say(LOG_WARNING, "image %s did not boot (atw_boot %d)%s", list[i], rc, i + 1 < nimg ? "; trying the next" : "");
+    }
+    return 0;
+}
 static void go_down(const char *why)                        /* link out of step: fail everything to the 68030 */
 {
     int i;
     if (up) say(LOG_ERR, "%s, now DOWN; jobs fall back to the 68030", why);
     up = 0;
+    down_since = time(NULL);                        /* main loop retries the boot every REBOOT_RETRY_S */
     for (i = 0; i < nin; i++) { answer(inflight[i].fd, inflight[i].cid, ST_DOWN); free(inflight[i].buf); }
     nin = 0;
     memset(busy, 0, sizeof busy);
@@ -131,6 +178,8 @@ static void send_jobs(void)
         memmove(queue + q, queue + q + 1, (size_t)(nq - q - 1) * sizeof queue[0]); nq--;
         j.node = node; j.buf[3] = (unsigned char)node; busy[node] = 1;
         if (node == 0) end0 = clock() + (clock_t)(est_ms(j.buf[2], j.n, 0) * CLOCKS_PER_SEC / 1000);
+        /* FR-7: deadline = 3 x the expected time on that node + 5 s */
+        j.due = clock() + (clock_t)((3 * est_ms(j.buf[2], j.n, node != 0) + 5000) * (long)CLOCKS_PER_SEC / 1000);
         j.wid = ++nextwid;
         j.buf[0] = (unsigned char)j.wid; j.buf[1] = (unsigned char)(j.wid >> 8);
         if (link_write(j.buf, JOB_HDR + j.n) != JOB_HDR + j.n) { free(j.buf); go_down("link write failed"); return; }
@@ -181,7 +230,7 @@ static void poll_link(void)
 }
 int main(int argc, char **argv)
 {
-    const char *img = argc > 1 ? argv[1] : "/usr/lib/t425/jobfull.btl";
+    img = argc > 1 ? argv[1] : "/usr/lib/t425/jobfull.btl";
     const char *path = argc > 2 ? argv[2] : "/var/run/ttjob.sock";
     const char *why = "";
     struct sockaddr_un sa;
@@ -194,8 +243,8 @@ int main(int argc, char **argv)
         sleep(3);
     }
     atw_verbose = 0;
-    up = atw_boot(img, "#500000") == 0;
-    say(up ? LOG_INFO : LOG_ERR, "image %s %s", img, up ? "booted" : "NOT booted - serving DOWN");
+    up = boot_network();
+    if (!up) { say(LOG_ERR, "no image booted - serving DOWN, retrying every %d s", REBOOT_RETRY_S); down_since = time(NULL); }
     if ((ls = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) { perror("socket"); return 1; }
     memset(&sa, 0, sizeof sa); sa.sun_family = AF_UNIX; strncpy(sa.sun_path, path, sizeof sa.sun_path - 1);
     unlink(path);
@@ -242,7 +291,7 @@ int main(int argc, char **argv)
             }
             n = (long)g4(h + H_LEN);
             if (n < 0 || n > JOB_MAX) { answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_TOOBIG); close(cl[i]); cl[i] = -1; continue; }
-            if (h[3] != NODE_ANY && h[3] >= NODES) { unsigned char sink[256]; long g; for (g = 0; g < n; g += 256) rd(cl[i], sink, n - g > 256 ? 256 : n - g); answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_NONODE); continue; }
+            if (h[3] != NODE_ANY && (h[3] >= NODES || absent[h[3]])) { unsigned char sink[256]; long g; for (g = 0; g < n; g += 256) rd(cl[i], sink, n - g > 256 ? 256 : n - g); answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_NONODE); continue; }
             if (!up || nq >= QMAX) {
                 unsigned char sink[256]; long g;
                 for (g = 0; g < n; g += 256) rd(cl[i], sink, n - g > 256 ? 256 : n - g);
@@ -257,7 +306,24 @@ int main(int argc, char **argv)
         }
         send_jobs();
         if (nin > 0) { poll_link(); send_jobs(); if (hot) Syield(); }
+        /* FR-7 watchdog: a job past its deadline means a node is hung. Fail everything outstanding to the 68030 (the
+         * clients run it there), reset + re-boot the image (the T425 reset also resets the TRAMs), log the recovery. */
         for (i = 0; i < nin; i++)
-            if (time(NULL) - inflight[i].sent > JOB_DEADLINE_S) { go_down("a job missed its deadline"); break; }
+            if ((long)clock() - (long)inflight[i].due > 0) {
+                clock_t t0 = clock();
+                say(LOG_ERR, "job '%c' (%ld B) on node %d missed its deadline: resetting the transputer network",
+                    inflight[i].buf[2], inflight[i].n, inflight[i].node);
+                go_down("watchdog");
+                rgot = 0;
+                up = boot_network();
+                if (up) say(LOG_INFO, "watchdog: network back up after %ld ms", (long)(clock() - t0) * 1000L / (long)CLOCKS_PER_SEC);
+                else { say(LOG_ERR, "watchdog: re-boot failed; serving DOWN, retrying every %d s", REBOOT_RETRY_S); down_since = time(NULL); }
+                break;
+            }
+        if (!up && down_since && time(NULL) - down_since >= REBOOT_RETRY_S) {
+            up = boot_network();
+            say(up ? LOG_INFO : LOG_ERR, "watchdog: re-boot %s", up ? "succeeded, network back up" : "failed again");
+            down_since = up ? 0 : time(NULL);
+        }
     }
 }

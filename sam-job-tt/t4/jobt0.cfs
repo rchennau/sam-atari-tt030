@@ -1,0 +1,16 @@
+/* FR-8 fallback image T425 only (both TRAMs absent). Derived from the full image: T425 L1 <-> TRAM1 L3; TRAM1 L1 <-> TRAM2 L0 (measured 2026-10-12).
+   T425 memory 5 MB (VRAM from 0x80600000); TRAMs 4 MB. All code -ta (TRAMs have no FPU). */
+val BootLink 0;
+T425 (memory = 5M) Root;
+connection RootToHost;
+connect Root.link[BootLink] to host by RootToHost;
+process (stacksize = 8K, heapsize = 2048k, interface (input HostInput, output HostOutput)) RootJ;   /* zlib + bzip2 state */
+input HostInput;
+output HostOutput;
+connection HI, HO;
+connect RootJ.HostInput to HostInput by HI;
+connect RootJ.HostOutput to HostOutput by HO;
+place HI on RootToHost;
+place HO on RootToHost;
+use "roots.lku" for RootJ;
+place RootJ on Root;

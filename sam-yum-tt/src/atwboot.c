@@ -137,8 +137,10 @@ int atw_boot(const char *path, const char *board)
     for (;;) {
         unsigned char pkt[1024], rep[64];
         long len, rl;
-        if (link_read(pkt, 2, 10000) != 2)
-            break;                             /* quiet: start-up done */
+        if (link_read(pkt, 2, 10000) != 2) {   /* quiet for 10 s without "RDYk": the image never reached main() */
+            atw_log("start-up: no ready marker (quiet 10 s)\n");
+            return 2;                          /* e.g. a network image whose loader hangs on a missing TRAM (2026-10-13) */
+        }
         atw_log("start-up: packet at +%ld ms\n", (long)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
         if (pkt[0] == 'R' && pkt[1] == 'D') {  /* the server's "RDYk" marker: main() runs, on link k */
             if (link_read(pkt + 2, 2, 2000) == 2)

@@ -21,7 +21,7 @@ static void mux1(Process *p, Channel *done1, Channel *t2i, Channel *ro)
     long len;
     (void)p;
     for (;;) {
-        if (ProcAlt(done1, t2i, NULL) == 0) { len = (long)ChanInInt(done1); ChanOut(ro, (char *)rep1, (int)len); }
+        if (!t2i || ProcAlt(done1, t2i, NULL) == 0) {     /* NO_T2 image: TRAM 2 absent */ len = (long)ChanInInt(done1); ChanOut(ro, (char *)rep1, (int)len); }
         else { len = rep_read(t2i, repm); ChanOut(ro, (char *)repm, (int)len); }
     }
 }
@@ -39,19 +39,24 @@ static void route(Process *p, Channel *ri, Channel *t2o, Channel *go1)
             for (k = 0; k < JOB_HDR; k++) hdr1[k] = h[k];
             if (n < 0 || n > JOB_MAX) n = -1; else if (n > 0) ChanIn(ri, (char *)in1, (int)n);
             ChanOutInt(go1, (int)n);
-        } else {
+        } else if (t2o) {
             for (k = 0; k < JOB_HDR; k++) hdrf[k] = h[k];
             if (n > 0 && n <= JOB_MAX) ChanIn(ri, (char *)fwd, (int)n);
             ChanOut(t2o, (char *)hdrf, JOB_HDR);
             if (n > 0 && n <= JOB_MAX) ChanOut(t2o, (char *)fwd, (int)n);
-        }
+        } else if (n > 0 && n <= JOB_MAX)
+            ChanIn(ri, (char *)fwd, (int)n);       /* no TRAM 2 in this image: drain; ttjobd never sends these */
     }
 }
 
 int main(void)
 {
     Channel *ri = (Channel *)get_param(1), *ro = (Channel *)get_param(2);
+#ifdef NO_T2                                              /* jobt1.btl: T425 + TRAM 1 (FR-8 fallback) */
+    Channel *t2o = NULL, *t2i = NULL;
+#else
     Channel *t2o = (Channel *)get_param(3), *t2i = (Channel *)get_param(4);
+#endif
     Channel *go1 = ChanAlloc(), *done1 = ChanAlloc();
     Process *pr = ProcAlloc(route, 4096, 3, ri, t2o, go1);
     Process *pw = ProcAlloc(work1, 32768, 2, go1, done1);
