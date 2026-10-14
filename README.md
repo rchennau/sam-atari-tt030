@@ -7,27 +7,41 @@ Management, drivers, custom software, and hardware acceleration utilities for th
 ## Hardware & System Overview
 
 ### Atari TT030 Workstation
-The Atari TT030 is a 32-bit Motorola 68030-based workstation running at 32 MHz with an MC68882 FPU, 4 MB ST-RAM, and 64 MB TT-RAM. Equipped with BlueSCSI v2 (Pico 2) storage, BlueSCSI DaynaPORT WiFi local networking, the internal floppy drive and a serial-to-USB link on Modem 2 (38400 baud to fractal: serial console and ZMODEM transfers), the machine serves as a live node within the SAM architecture running TOS 3.06 and FreeMiNT 1.19.
+The Atari TT030 is a 32-bit Motorola 68030-based workstation running at 32 MHz with an MC68882 FPU, 4 MB ST-RAM, and 64 MB TT-RAM. Equipped with BlueSCSI v2 (Pico 2) storage, BlueSCSI DaynaPORT WiFi local networking, the internal floppy drive and a serial-to-USB link on Modem 2 (38400 baud to a Linux build host: serial console and ZMODEM transfers), the machine serves as a live node within the SAM architecture running TOS 3.06 and FreeMiNT 1.19.
 
 ### ATW800/2 Transputer Co-Processor
-The ATW800/2 is an expansion board housing an INMOS T425 32-bit RISC Transputer running at 40 MHz (implemented via FPGA). The transputer features parallel hardware links, hardware process scheduling, and dedicated SRAM.
+The ATW800/2 is a VME expansion card with an FPGA that provides fast 2D colour graphics and a **synthetic T425 transputer** (an FPGA implementation of the INMOS 32-bit T425; the card's User's Manual quotes 50+ MHz, and earlier notes in this repo assumed 40 MHz; the clock has not been measured here). The T425 has 5 MB of usable RAM: from T425 address `0x80600000` up is the card's video memory. The 68030 talks to it over the card's link driver (`fpgabios`): about 0.16 ms fixed cost per round-trip and 462 KB/s per direction after this project's driver-call fix.
+
+### TRAM modules (added 2026-10-12)
+The card has two sockets for classic TRAMs (TRAnsputer Modules). Both now hold **Transtech TTM15F-45-F** modules, characterised on the real TT (`sam-tram-tt/`):
+
+```
+T425 link 1 ── link 3 [Slot-1 TRAM] link 1 ── link 0 [2nd TRAM]      (T425 host link = 0; T425 links 2 and 3 looped)
+```
+
+- **CPU:** T4-class, **no FPU**: code built for the T805 FPU (`-t8`) halts both, so they run `-ta`/`-t4` builds. The vendor class suggests a T805; the chip markings are still unread.
+- **Speed:** a fixed loop runs at half the T425's speed (30,012 vs 14,743 ticks); bzip2 is 2.8× slower and X25519 2× slower than on the T425. They pay off as extra parallel workers, not as faster processors.
+- **Memory:** 4 MB each.
+- **Links:** 20 Mbit/s. From the T425: 22 µs fixed cost and 1.58 MB/s per direction to Slot 1; 45 µs and 0.83 MB/s to the 2nd TRAM, which Slot 1 relays (store and forward).
 
 ### Project Purpose
-The primary purpose of this project is to adapt and modify legacy and modern Unix/C software to run in tandem with the ATW800/2 Transputer. By offloading computationally intensive operations (such as Elliptic-Curve Cryptography X25519 key exchange, Ed25519 signature verification, and payload stream framing) to the T425 transputer, the host 68030 CPU is freed from heavy mathematical bottlenecks during secure remote management sessions.
+The primary purpose of this project is to adapt and modify legacy and modern Unix/C software to run in tandem with the ATW800/2 Transputer. Computationally heavy work (X25519 key exchange, Ed25519 signature verification, ChaCha20, gzip/bzip2 compression) is offloaded to the T425 and the two TRAMs, which frees the 68030. Since 2026-10-13 one daemon, `ttjobd` (`sam-job-tt`), owns the card: it boots a resident image on all three transputers at startup and queues jobs from any number of local programs. Every client falls back to the 68030 when the transputers are unavailable.
 
 ## Project Sub-Utilities & Independent Repositories
 
 Each custom software component contains its own dedicated project directory, README, build instructions, and execution documentation:
 
-1. **[`sam-ssh-tt`](sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (per-login crypto ~25.0 s → ~14.4 s, measured on the TT 2026-09-13).
-2. **[`sam-scp-tt`](sam-scp-tt/README.md)**: SCP acceleration bridge for hardware packet framing and high-speed transputer transfer handling.
+1. **[`sam-ssh-tt`](sam-ssh-tt/README.md)**: Dropbear SSH server with T425 transputer offload for X25519 key exchange & Ed25519 signature verification (per-login crypto ~25.0 s → ~14.4 s, measured on the TT 2026-09-13). Since 2026-10-13 its crypto goes through `ttjobd` when that daemon runs (X25519 2.8 s, Ed25519 verify 6.5 s on the T425), so a login during a compression job still gets offload.
+2. **[`sam-scp-tt`](sam-scp-tt/README.md)** — *README only*: describes an SCP acceleration bridge. There is no code for it in this repo, and none of its claims has been measured.
 3. **[`ttmon`](src/ttmon.c)**: Telemetry publisher — retained MQTT `sam/node/telemetry/atari-tt030` every 60 s (the live SAM integration).
 4. **[`sam-yum-tt`](sam-yum-tt/README.md)** — **v1.0, working on the real TT**: `yum install | update | remove | list | search | makecache` from the LAN mirror, with a signed index, per-package SHA-256 and build-on-miss for anything the mirror lacks (track `tt030-rpm-pipeline`, all requirements met). Shipped as the `yum-tt` RPM (`src/yum` + `resolve.awk` + `update.awk`).
 5. **[`sam-rom-tt`](sam-rom-tt/README.md)** — *alpha skeleton, unproven*: custom (no-TOS) 512 KB firmware for the four ROM sockets, plus the byte-lane interleave tool. Nothing here is proven to run; do not burn from it.
-6. **[`ttmqtt`](src/ttmqtt.c)**: Minimal MQTT 3.1.1 `pub` / `sub -W secs` for shell scripts (113 KB). `sub` prints the first message's topic and payload; exit 0 message, 1 timeout, 2 error. Broker by name (`mqtt.sam.int`, pinned in the TT's `/etc/hosts`). Carries build-on-miss requests and replies.
-7. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client originally aimed at port 8080, which on fractal is taken by another service.
-8. **[`sam-kbd-tt`](sam-kbd-tt/README.md)** — **complete: keyboard and mouse working on the real TT, started at boot**: fractal's keyboard and mouse drive the TT as if they were its own (XaAES, TeraDesk, TosWin2), alongside the physical keyboard. `ttkbdd` injects through FreeMiNT's kbdvec / mousevec paths over a raw serial link or a signed, XChaCha20-Poly1305-encrypted TCP session; one command on fractal, `scripts/ttkbd-session.sh`; the TT's top-right corner hands control back (track `tt030-remote-keyboard`).
+6. **[`ttmqtt`](src/ttmqtt.c)**: Minimal MQTT 3.1.1 `pub` / `sub -W secs` for shell scripts (113 KB). `sub` prints the first message's topic and payload; exit 0 message, 1 timeout, 2 error. Broker by host name, pinned in the TT's `/etc/hosts`. Carries build-on-miss requests and replies.
+7. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client; replaced by MQTT telemetry.
+8. **[`sam-kbd-tt`](sam-kbd-tt/README.md)** — **complete: keyboard and mouse working on the real TT, started at boot**: a Linux PC's keyboard and mouse drive the TT as if they were its own (XaAES, TeraDesk, TosWin2), alongside the physical keyboard. `ttkbdd` injects through FreeMiNT's kbdvec / mousevec paths over a raw serial link or a signed, XChaCha20-Poly1305-encrypted TCP session; one command on the PC, `scripts/ttkbd-session.sh`; the TT's top-right corner hands control back (track `tt030-remote-keyboard`).
 9. **[`sam-t425-ports`](sam-t425-ports/README.md)** — faster SpareMiNT userland: CPU-heavy programs rebuilt for the 68030 and, where it measurably wins, offloaded to the T425 (`tbc` 0.19–0.25 of stock bc, `djpeg` 0.37, `lha` 0.46–0.51); every port gated on the real TT, losses recorded.
+10. **[`sam-job-tt`](sam-job-tt/README.md)** — **in production on the TT (2026-10-13)**: the transputer job queue. `ttjobd` owns the ATW800/2 link, boots a resident image on the T425 and both TRAMs, and runs jobs (echo, SHA-256, X25519, Ed25519 verify, ChaCha20, and on the T425 deflate/gzip/inflate/bzip2) for local clients over a Unix socket through `libttjob`. It schedules each job by expected finish time across the three nodes (9 bzip2 jobs from 3 clients 1.64× faster than the T425 alone). A watchdog resets and re-boots the network if a node hangs (about 2 s). If a TRAM is missing it boots a smaller image (T425 + TRAM 1, or T425 only) and writes `/var/run/ttjob.topology`. Packaged as the `ttjob` RPM. Op results are checked against host builds under the `t4` emulator.
+11. **[`sam-tram-tt`](sam-tram-tt/README.md)**: probes and benchmarks for the two TRAMs: link discovery, the 3-node boot, device id, clock and RAM sizing, the FPU test, link round-trips, and the 68030 ↔ T425 hop and SharedMem measurements.
 ---
 
 ## Software Stack & Subsystem Directory
@@ -49,6 +63,12 @@ Each custom software component contains its own dedicated project directory, REA
 ├── sam-rom-tt/                # ALPHA skeleton: custom no-TOS TT030 firmware (512 KB, 4 byte-lane chips)
 ├── sam-yum-tt/                # the TT-side yum client (+ the T425 SHA-256 probe that ruled out offload)
 ├── sam-kbd-tt/                # remote keyboard + mouse: README (sources: src/ttkbdd.c, src/kbdinj.c, scripts/ttkbd_send.py, scripts/ttkbd-session.sh)
+├── sam-job-tt/                # transputer job queue: ttjobd, libttjob, resident T425 + TRAM images, emulated test lane
+├── sam-tram-tt/               # TRAM probes and link benchmarks
+├── sam-t425-ports/            # SpareMiNT userland ports with T425 offload
+├── packaging/                 # recipes for packaging native TOS/GEM programs as RPMs (bytes come from the TT's disk)
+├── recipes/                   # build-on-miss recipe map and fixtures
+├── tools/                     # toolchain setup outputs (cross-mint, llvm-t800, INMOS d72uni env); not committed
 └── tt_bridge/                 # SAM TT-Bridge HTTP Client C codebase project & docs (TOS/MiNT)
 ```
 
@@ -62,10 +82,12 @@ The **SAM (Sensible Agent Management)** platform orchestrated end-to-end develop
 1. **Cross-Compilation & Build**:
    - Built Motorola 68030 host binaries using `m68k-atari-mint-gcc` (GCC 15.2 cross-compiler, `scripts/setup_cross_mint.sh`) and INMOS ANSI C (`icc`/`ilink` under `t4`) for the T425 transputer server code.
 2. **Automated Emulation & Integration Testing**:
-   - Validated binaries using Hatari emulator automation suites (`scripts/test_sting_hatari.py`), checking network stack behavior and raw sector disk safety before touching real hardware.
-3. **Over-the-Air Live Staging & Deployment**:
-   - Bootstrapped real hardware via DaynaPORT WiFi (`192.168.0.30`) and Dropbear SSH/SCP.
-   - Live-tested `atwxserv` persistent server initialization, verifying handshake acceleration directly on the ATW800/2 hardware co-processor.
+   - Hatari runs the package pipeline end to end (`scripts/test_hatari_ping_rpm.sh`, `scripts/test_e2e_ping_rpm.py`); Hatari cannot emulate the ATW800/2, so transputer code is checked under the `t4` emulator against host builds (`sam-job-tt/emu/run_emu_tests.sh`), and every performance gate runs on the real TT.
+   - CI (`scripts/ci.sh`) runs on every commit and nightly: host test suites, the emulated lane, the transputer image build, the RPM builds, and a publish gate that sends a new package version to the LAN mirror only from a passing run.
+3. **Live Staging & Deployment**:
+   - Uploads go over the Modem 2 serial link (ZMODEM, `scripts/tt_zput.sh`, SHA-256 checked); day-to-day access is Dropbear SSH over the DaynaPORT WiFi.
+   - Every script logs its run to a local log and a central event.
+   - At boot `mint.cnf` starts `ttjobd` (`/etc/rc.ttjobd`) before Dropbear; it replaced the earlier `atwxserv` crypto server.
 
 ---
 
@@ -73,22 +95,19 @@ The **SAM (Sensible Agent Management)** platform orchestrated end-to-end develop
 
 ```mermaid
 flowchart LR
-    subgraph fractal ["fractal (build host)"]
+    subgraph build ["Linux build host"]
         A["scripts/build_*.sh<br/>m68k-atari-mint-gcc"] --> B["scripts/rpm_header.py<br/>write_rpm (v3, no rpmbuild)"]
-        B --> C["/mnt/vault/tt030/built/*.rpm"]
-        U["SpareMiNT upstream RPMs"] --> M["/mnt/vault/tt030/m68kmint/*.rpm"]
-        C --> I["scripts/tt_rpm.py index<br/>index.tsv"]
+        B --> C["mirror built/*.rpm"]
+        U["SpareMiNT upstream RPMs"] --> M["mirror m68kmint/*.rpm"]
+        C --> I["scripts/tt_rpm.py index<br/>index.signed"]
         M --> I
     end
-    subgraph nas ["NAS /vault/tt030 (NFS from fractal)"]
-        I --> S["mirror files"]
-    end
-    subgraph ct104 ["CT104 Caddy"]
-        S --> H["http://mirror.sam.int/tt030/<br/>LAN sources only"]
+    subgraph web ["LAN web server"]
+        I --> H["HTTP mirror<br/>LAN sources only"]
     end
     subgraph tt ["Atari TT030"]
         H -->|wget| R["rpm -i<br/>(UNIXMODE=/brUs)"]
-        Q["ttmqtt pub/sub"] <-->|"sam/tt030/build/*"| BR["mqtt.sam.int broker"]
+        Q["ttmqtt pub/sub"] <-->|"sam/tt030/build/*"| BR["MQTT broker"]
     end
 ```
 
@@ -96,15 +115,16 @@ flowchart LR
 | :--- | :--- | :--- |
 | RPM header parser + v3 writer | `scripts/rpm_header.py` | ✅ no `rpm` binary needed; the TT's `rpm -qpi` / `-i` / `-e` / `-V` accept its output |
 | Host mirror CLI | `scripts/tt_rpm.py` — `sync`, `index`, `add`, `push`, `keygen`, `synth` | ✅ 420-package signed index; `push` installs to a TT that cannot reach the mirror (ssh, SHA re-checked on the TT) |
-| Mirror | NAS `/vault/tt030` → `http://mirror.sam.int/tt030/` (CT104 Caddy, LAN only) | ✅ tailnet source 403, LAN 200 |
+| Mirror | static files behind a LAN web server | ✅ answers LAN sources only (remote sources get 403) |
 | `yum` client | `sam-yum-tt/src/yum` + `resolve.awk` + `update.awk`, packaged as `yum-tt` | ✅ `install` 47 s (`less`), `update` 35 s (upgraded itself 1.7→1.8), `remove`, `list`, `search`, `makecache` |
 | TT tools | `mawk` (cross-built), SpareMiNT `wget`, `src/ttmqtt.c`, `src/ttsign.c` | ✅ all installed as RPMs from the mirror |
-| Build-on-miss | `scripts/ttbuildd.py` (fractal unit `sam-ttbuildd`), `scripts/build_recipe.py`, `recipes/source-map.json` | ✅ `yum install pv` with pv absent → built + installed, 1 m 47 s; no recipe → queued + board card; build error → `failed`; broker down → exit 1 |
+| Build-on-miss | `scripts/ttbuildd.py` (a systemd unit on the build host), `scripts/build_recipe.py`, `recipes/source-map.json` | ✅ `yum install pv` with pv absent → built + installed, 1 m 47 s; no recipe → queued + board card; build error → `failed`; broker down → exit 1 |
 | Recipes | `pv` 1.7.24, `xz` 5.8.4 | ✅ two clean builds give the same stripped binary (NFR-3) |
 | rpm DB backfill | `scripts/rpm_va_classify.py` | ✅ `rpm -Va` classified: 0 real drift |
 | Offline rpm DB writer | `scripts/tt_rpmdb.py` (`check`, `add`) + `scripts/tt_db1tool.c` (real db1.85) | ✅ 2026-10-10: wrote mintlib + ncurses into card 2 (TT's rpm verified the result in Hatari) |
 | rpm >64 KB fix | `rpm-3.0.6-4.sam2` (`wcpu_repack.py --suffix`, `mint_stack.py` on stripped binaries) | ✅ 2026-10-10: the sam1 rebuild had lost its 256 KB stack; sam2 = 512 KB, on the mirror |
 | Native TOS/GEM → FHS | `scripts/tt_tospkg.py` + `packaging/*.json` (bytes from the card's HD00, never git) | 🟡 2026-10-10: six `/opt/<app>` RPMs on the LAN mirror, Hatari-tested; real TT pending (PMS `tt030-fhs-layout`) |
+| Job-queue packages | `sam-job-tt/build_rpm.sh` (`ttjob`), `scripts/build_t425_compress.sh` (`t425-compress` 1.6, through `ttjobd`) | ✅ 2026-10-13: both rebuild byte-identical; CI publishes a new version only from a passing run |
 | Card image | `scripts/build_hd10_ext2.sh` + `staging/SAM_RPMS/` | ✅ rebuilt with the yum tools; **not boot-tested** (needs an SD flash) |
 
 ### FreeMiNT rpm / yum package management
@@ -134,7 +154,6 @@ The TT runs SpareMiNT's **rpm 3.0.6** (2001) against a modern mirror. What that 
   `freemint-net` and `gawk` are deliberately not installed: they would overwrite `/etc`, replace the boot
   scripts, pull the kernel package, or collide with mawk's `/usr/bin/awk`.
 
-Full operator guide: `docs/runbooks/tt030-packages.md` in the SAM monorepo.
 
 *Superseded:* `scripts/sam_tt030_rpm_builder.py` and the `ping` spec workflow (`rpmbuild`-based, pre-plan) were not used; the plan requires the dependency-free writer above.
 
@@ -163,7 +182,7 @@ flowchart LR
 | Raw serial (D4) | `ttkbdd -S` exec'd from the Modem 2 console; `ttkbd_send.py --serial` | 🟡 9.3 % CPU; 600/600 keys; 2,690/2,700 at 15 keys/s; latency median 6 ms |
 | Mouse | `mousevec` injection, protocol v3 frames, `--mouse` | ✅ exact motion (4 px/unit), TT hot corner hands back; operator-confirmed live |
 | One command | `scripts/ttkbd-session.sh` (serial default, `--wifi`) | ✅ restores the Modem 2 console on the chord or hot corner |
-| fractal capture | `ttkbd_send.py grab`, `scripts/ttkbd-session.sh`, iac/fractal uaccess rule | ✅ operator confirmed the live session works (2026-09-23) |
+| PC capture | `ttkbd_send.py grab`, `scripts/ttkbd-session.sh`, a udev uaccess rule | ✅ operator confirmed the live session works (2026-09-23) |
 | Start at boot | `/etc/rc.ttkbdd` + `mint.cnf` exec line | ✅ on the card; after a reboot ttkbdd was PID 19, listening |
 
 Details, results and run instructions: [`sam-kbd-tt/README.md`](sam-kbd-tt/README.md).
@@ -174,8 +193,9 @@ Details, results and run instructions: [`sam-kbd-tt/README.md`](sam-kbd-tt/READM
 - **CPU / FPU**: Motorola MC68030 @ 32 MHz · MC68882 FPU
 - **Memory**: 4 MB ST-RAM · 64 MB TT-RAM
 - **Storage**: BlueSCSI v2 (Pico 2) SCSI ID 0 (`HD00_512.hda`, FAT16) and SCSI ID 1 (`HD10_512.hda`, 1 GiB Ext2 RAW)
-- **Networking**: BlueSCSI DaynaPORT WiFi (`192.168.0.30`) & Serial SLIP (`192.168.10.2`)
-- **Co-Processor**: ATW800/2 Transputer Board (T425 FPGA transputer @ 40 MHz)
+- **Networking**: BlueSCSI DaynaPORT WiFi · serial SLIP on Modem 2
+- **Co-Processor**: ATW800/2 card: synthetic (FPGA) T425 transputer with 5 MB usable RAM, 2D graphics core
+- **TRAMs**: two Transtech TTM15F-45-F in the card's TRAM sockets: T4-class, no FPU, 4 MB each, half the T425's loop speed
 
 ---
 

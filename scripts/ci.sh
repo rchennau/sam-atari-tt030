@@ -6,10 +6,11 @@
 #   3. the resident transputer image builds (sam-job-tt/build_t4.sh)
 #   4. the job-queue RPMs build (sam-job-tt/build_rpm.sh: ttjob; scripts/build_t425_compress.sh: t425-compress)
 #   5. publish gate (FR-9): only when 1-4 all passed, each RPM whose name (NVR) the LAN mirror lacks is added with
-#      tt_rpm.py add (signed index). A red run publishes nothing; a publish failure turns the run red.
+#      tt_rpm.py add (signed index); an NVR already there with different bytes fails the run (bump the version). A red run publishes nothing; a publish failure turns the run red.
 # Exit 0 only if all pass. The result is logged centrally (sam_logger event tt030.ci.run) and written to
 # ~/.local/state/tt030-ci/last.txt, so SAM can read it without asking. Run by sam-tt030-ci.service (iac/fractal).
 set -uo pipefail
+{   # the whole script is one block, so bash parses it before running: editing ci.sh during a run garbled that run (2026-10-13)
 cd "$(dirname "$0")/.."
 st=~/.local/state/tt030-ci; mkdir -p "$st"; log=$st/last.log; : > "$log"
 rev=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -26,7 +27,10 @@ published=
 publish() {
     local r
     for r in $rpms; do
-        [ -e "$MIRROR/built/$(basename "$r")" ] && continue          # this NVR is already on the mirror
+        if [ -e "$MIRROR/built/$(basename "$r")" ]; then             # this NVR is already on the mirror:
+            cmp -s "$r" "$MIRROR/built/$(basename "$r")" && continue    # same bytes (builds are reproducible), or
+            echo "publish: $(basename "$r") on the mirror has different content: bump the version" >&2; return 1
+        fi
         /opt/sam/venv/bin/python3 scripts/tt_rpm.py add "$MIRROR" "$r" || return 1
         published="$published $(basename "$r")"
     done
@@ -38,3 +42,5 @@ PYTHONPATH=/opt/sam/runtime/src /opt/sam/venv/bin/python3 -c "
 from sam.utils.sam_logger import emit
 emit('tt030.ci.run', outcome='$outcome', rev='$rev', failed='${fails:-none}', published='${published:-none}')" >/dev/null 2>&1 || echo "ci: central log emit failed (result still in $st)" >&2
 [ -z "$fails" ]
+exit
+}

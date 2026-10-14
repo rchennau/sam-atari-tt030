@@ -5,7 +5,7 @@
 . "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -eu
 cd "$(dirname "$0")/.."
-V=${1:-1.5}   # 1.5: tgzip/tbzip2 go through ttjobd when it runs (job queue FR-3), else the direct path
+V=${1:-1.6}   # 1.6 (1.5 was an earlier build on the mirror): tgzip/tbzip2 go through ttjobd when it runs (job queue FR-3), else the direct path
 CB=/tmp/cb
 sam-yum-tt/t4compress.sh "$CB" > /dev/null
 # bzserv.btl: the same kernels through llvm-t800 (scripts/setup_llvm_t800.sh), used by tbzip2 only. Unpatched
