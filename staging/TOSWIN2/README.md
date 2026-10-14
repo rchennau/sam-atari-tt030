@@ -56,6 +56,12 @@ only consumes CPU.
 
 Two samples per build: enough to see a 3× change, not enough to quote a variance.
 
+**Why there is no emulator figure:** we tried Hatari (TT config, FreeMiNT 1.19, XaAES, the same TosWin2 build with
+a window open). It charged the unpatched TosWin2 **5 ms of CPU in 61 s**, against **3.88 s per 60 s** on the real
+TT. MiNT charges CPU per scheduler tick by sampling, and under emulation TosWin2's short wake-ups rarely land on a
+tick. A measurement that misses the known case by ~750× cannot validate the unknown one, so only the
+real-hardware figures are given.
+
 ## Pros and cons
 
 | | Pro | Con |
