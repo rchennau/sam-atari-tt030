@@ -137,6 +137,8 @@ int main(int argc, char **argv)
         t0 = clock();
         st = job(op, node, in1, n, &olen, 0);
         printf("job %c node %d %ld B: status %d, out %ld B, %ld ms\n", op, node, n, st, olen, ms_since(t0));
+        /* FR-2 isolation: an echo must return THIS client's bytes (concurrent clients reuse the same job ids) */
+        if (op == 'E' && st == 0 && (olen != n || memcmp(rep + REP_HDR, in1, n))) { printf("echo: got another client's data\n"); return 1; }
         return st != 0;
     }
     for (i = 0; i < 16384; i++) data[i] = (unsigned char)(i * 29 + 11);

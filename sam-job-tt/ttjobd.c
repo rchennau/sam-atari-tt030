@@ -108,6 +108,9 @@ static void say(int prio, const char *fmt, ...)
     fprintf(stderr, "ttjobd: %s\n", m);
     syslog(prio, "%s", m);
 }
+/* FR-2: job payloads and results (X25519 scalars, shared secrets) are wiped before their memory is reused */
+static void wipe(void *p, long n) { volatile unsigned char *v = p; while (n-- > 0) *v++ = 0; }
+static void wipe_free(unsigned char *p, long n) { if (p) { wipe(p, n); free(p); } }
 static unsigned long g4(const unsigned char *b)
 { return b[0] | ((unsigned long)b[1] << 8) | ((unsigned long)b[2] << 16) | ((unsigned long)b[3] << 24); }
 /* read exactly n bytes from a non-blocking client: wait up to 5 s for each piece, so a stalled client is dropped
@@ -135,7 +138,7 @@ static void flush_out(int i)                                /* write what the cl
         if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) return;
         break;                                              /* client gone: the read side closes it */
     }
-    free(ob[i]); ob[i] = NULL; oend[i] = ooff[i] = ocap[i] = 0;   /* drained: give the memory back */
+    wipe_free(ob[i], ocap[i]); ob[i] = NULL; oend[i] = ooff[i] = ocap[i] = 0;   /* drained: wipe, give it back */
 }
 static void wr(int fd, const unsigned char *b, long n)      /* queue a reply to a client and send what fits */
 {
@@ -203,10 +206,10 @@ static void go_down(const char *why)                        /* link out of step:
     if (up) say(LOG_ERR, "%s, now DOWN; jobs fall back to the 68030", why);
     up = 0;
     down_since = time(NULL);                        /* main loop retries the boot every REBOOT_RETRY_S */
-    for (i = 0; i < nin; i++) { answer(inflight[i].fd, inflight[i].cid, ST_DOWN); free(inflight[i].buf); }
+    for (i = 0; i < nin; i++) { answer(inflight[i].fd, inflight[i].cid, ST_DOWN); wipe_free(inflight[i].buf, JOB_HDR + inflight[i].n); }
     nin = 0;
     memset(busy, 0, sizeof busy);
-    for (i = 0; i < nq; i++) { answer(queue[i].fd, queue[i].cid, ST_DOWN); free(queue[i].buf); }
+    for (i = 0; i < nq; i++) { answer(queue[i].fd, queue[i].cid, ST_DOWN); wipe_free(queue[i].buf, JOB_HDR + queue[i].n); }
     nq = 0;
 }
 static void send_jobs(void)
@@ -227,7 +230,7 @@ static void send_jobs(void)
         j.due = clock() + (clock_t)((3 * est_ms(j.buf[2], j.n, node != 0) + 5000) * (long)CLOCKS_PER_SEC / 1000);
         j.wid = ++nextwid;
         j.buf[0] = (unsigned char)j.wid; j.buf[1] = (unsigned char)(j.wid >> 8);
-        if (link_write(j.buf, JOB_HDR + j.n) != JOB_HDR + j.n) { free(j.buf); go_down("link write failed"); return; }
+        if (link_write(j.buf, JOB_HDR + j.n) != JOB_HDR + j.n) { wipe_free(j.buf, JOB_HDR + j.n); go_down("link write failed"); return; }
         j.sent = time(NULL);
         last_io = clock();
         inflight[nin++] = j;
@@ -258,10 +261,11 @@ static void poll_link(void)
                 if (getenv("TTJOBD_TRACE"))
                     say(LOG_INFO, "reply wid %u from node %d (assigned %d)", wid, rbuf[R_NODE], inflight[i].node);
                 busy[inflight[i].node] = 0;
-                free(inflight[i].buf);
+                wipe_free(inflight[i].buf, JOB_HDR + inflight[i].n);
                 inflight[i] = inflight[--nin];
             } else
                 say(LOG_WARNING, "reply for unknown job %u dropped", wid);
+            wipe(rbuf, LREP_HDR + olen);                       /* the result now lives only in the client's buffer */
             rgot = 0;
             continue;
         }
@@ -351,7 +355,7 @@ int main(int argc, char **argv)
             }
             queue[nq].fd = cl[i]; queue[nq].cid = (unsigned short)(h[0] | (h[1] << 8)); queue[nq].n = n;
             if (!(queue[nq].buf = malloc(JOB_HDR + n)) || (memcpy(queue[nq].buf, h, JOB_HDR), n > 0 && rd(cl[i], queue[nq].buf + JOB_HDR, n))) {
-                free(queue[nq].buf); answer(cl[i], queue[nq].cid, ST_DOWN); continue;
+                wipe_free(queue[nq].buf, JOB_HDR + n); answer(cl[i], queue[nq].cid, ST_DOWN); continue;
             }
             nq++;
         }
