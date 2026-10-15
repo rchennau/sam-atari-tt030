@@ -108,3 +108,11 @@ ATW800/2's 5 MB) fixed it: output identical to the host build.
 Unix-era sources (SpareMiNT lha 1.14i `lha.h`) include them unconditionally even when the kernel uses none of their
 contents. We add empty stubs (as for the INMOS toolset). Minor; empty headers in libt800 would let such code build as is.
 Note the reverse trap: a stub `<sys/types.h>` written for icc shadows libt800's own and breaks `<signal.h>` (`pid_t`).
+
+## F11 — `t800-run` takes no `.o` inputs, and `--no-relax` comes only with `--inmos-libc`
+Linking our own icc-compiled kernels (converted with `tcoff2elf`) next to a clang `main` is exactly what `tcoff2elf`
+enables, and it works: 16 converted zlib/bzip2 objects + a clang test main run under `t4` byte-identical to a host
+build (`sam-job-tt/fr2_mixed_link.sh`, 2026-10-15). But `t800-run.sh` rejects `*.o` ("unrecognized argument"), and
+the `--no-relax` that converted modules need (raw branch operands) is only set by `--inmos-libc`, which also swaps
+the whole C library. We run a patched copy. Suggestion: accept `.o`/`.a` inputs, and add `--no-relax` whenever an
+input came from `tcoff2elf` (or a plain `--no-relax` flag), independent of `--inmos-libc`.
