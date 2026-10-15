@@ -124,3 +124,11 @@ for a key — also with `mixed.btl` next to it. Naming the image on the command 
 Suspect: the runner locates itself by an upper-case 8.3 name or via a TOS path call that MiNT's ext2 lowercase file
 does not match. Also: the "-- key --" wait hangs a non-interactive (serial/ssh) caller; suggestion: skip the wait
 when stdin is not a terminal. 2026-10-15.
+
+## F13 — `ProcPar` returns at once instead of waiting for its processes
+Repro (`sam-job-tt/llvm/procpar_repro.c`, `t800-cc -mcpu=t425 -mboard=atw800 -mmem=5M`, run under `t4`): three processes
+— a producer that sends 3 ints then `ProcStop()`s, a relay that loops forever, a consumer that prints 3 then `ProcStop()`s.
+`ProcPar(p1, p2, p3, NULL)` returns before the consumer prints anything, and the line after it printed **twice**. In our
+resident job image `main` then returned into `exit()` right after its ready marker, so every job timed out on the card.
+Workaround: `ProcRun()` each process, then `ProcStop()` in `main`. Suggestion: make `ProcPar` wait (as INMOS's does), or
+document that it does not. 2026-10-15.

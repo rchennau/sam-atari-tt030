@@ -90,6 +90,9 @@ int main(void)
     Process *pw = ProcAlloc(work1, 65536, 2, &go1, &done1);
     Process *pm = ProcAlloc(mux1, 8192, 3, &done1, t2i, ro);
     if (!pr || !pw || !pm) for (;;) ;
-    ProcPar(pr, pw, pm, NULL);
+    /* llvm-t800's ProcPar returns at once instead of waiting (friction F13), and main returning ends in exit():
+     * start each process and park main for good. */
+    ProcRun(pr); ProcRun(pw); ProcRun(pm);
+    ProcStop();
     return 0;
 }

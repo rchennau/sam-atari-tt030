@@ -119,6 +119,9 @@ int main(void)
     Process *pw = ProcAlloc(work0, 65536, 2, &go0, &done0);          /* zlib/bzip2/crypto run on this stack */
     Process *pm = ProcAlloc(mux, 8192, 4, &done0, t1i, hout, &freec);
     if (!ph || !pw || !pm) for (;;) ;                    /* out of memory: no RDY reply follows, ttjobd times out */
-    ProcPar(ph, pw, pm, NULL);
+    /* llvm-t800's ProcPar returns at once instead of waiting (friction F13), and main returning ends in exit():
+     * start each process and park main for good. */
+    ProcRun(ph); ProcRun(pw); ProcRun(pm);
+    ProcStop();
     return 0;
 }
