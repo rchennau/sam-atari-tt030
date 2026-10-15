@@ -116,3 +116,11 @@ build (`sam-job-tt/fr2_mixed_link.sh`, 2026-10-15). But `t800-run.sh` rejects `*
 the `--no-relax` that converted modules need (raw branch operands) is only set by `--inmos-libc`, which also swaps
 the whole C library. We run a patched copy. Suggestion: accept `.o`/`.a` inputs, and add `--no-relax` whenever an
 input came from `tcoff2elf` (or a plain `--no-relax` flag), independent of `--inmos-libc`.
+
+## F12 — `T8TTP` finds neither its appended image nor a `.BTL` beside it (FreeMiNT, ext2)
+`mkprg mixed.btl -o MIXED.TTP`, uploaded byte-identical (md5 checked) to `/f/root/fr5/mixed.ttp` on the TT's ext2 drive:
+running it prints "T8TTP: no transputer program: none appended, no .BTL beside it, none on the parameter line" and waits
+for a key — also with `mixed.btl` next to it. Naming the image on the command line works (`./mixed.ttp mixed.btl`).
+Suspect: the runner locates itself by an upper-case 8.3 name or via a TOS path call that MiNT's ext2 lowercase file
+does not match. Also: the "-- key --" wait hangs a non-interactive (serial/ssh) caller; suggestion: skip the wait
+when stdin is not a terminal. 2026-10-15.
