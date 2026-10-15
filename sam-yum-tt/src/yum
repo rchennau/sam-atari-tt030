@@ -58,6 +58,14 @@ makecache() {
         || echo "yum: index verified, serial $new, $(grep -vc '^#' "$CACHE/index.tsv") packages"
 }
 
+# The installed set for GUIs (tt030-yum-gui FR-8): a cold `rpm -qa` costs 7.5-15.5 s on the TT, so write it once after
+# every rpm operation, success or not (a failed -U can still change the db). Temp + rename: a reader never sees half.
+write_installed() {
+    mkdir -p "$CACHE"
+    rpm -qa --queryformat '%{NAME}\t%{VERSION}-%{RELEASE}\n' > "$CACHE/installed.tsv.$$" \
+        && mv -f "$CACHE/installed.tsv.$$" "$CACHE/installed.tsv" || rm -f "$CACHE/installed.tsv.$$"
+}
+
 need_cache() { [ -f "$CACHE/index.tsv" ] || makecache; }
 # install re-reads an index older than 10 min: a cached index can name a package the mirror has
 # since dropped or replaced (seen 2026-09-21: pv removed from built/, the stale cache 404'd).
@@ -143,7 +151,9 @@ fetch_verify_install() {
     done < "$CACHE/plan"
     echo "yum: all packages verified; installing"
     # shellcheck disable=SC2086 # one word per package file, none contain spaces
-    rpm $rpmop $nodeps $files || die "rpm $rpmop failed (files kept in $CACHE/pkgs)"
+    rpm $rpmop $nodeps $files; rc=$?
+    write_installed
+    [ $rc = 0 ] || die "rpm $rpmop failed (files kept in $CACHE/pkgs)"
     rm -f $files
     echo "yum: installed"
     log info "$verb_self ok:$(for f in $files; do printf ' %s' "${f##*/}"; done)"
@@ -172,7 +182,9 @@ update)
     ;;
 remove)
     [ $# -gt 0 ] || { echo "usage: yum remove PKG..." >&2; exit 2; }
-    rpm -e "$@" || die "rpm -e failed: $*"
+    rpm -e "$@"; rc=$?
+    write_installed
+    [ $rc = 0 ] || die "rpm -e failed: $*"
     log info "remove ok: $*"
     ;;
 install)
