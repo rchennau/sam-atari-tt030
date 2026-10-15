@@ -1,7 +1,10 @@
 #!/bin/sh
 # lha 1.14i with its -lh5-/6-/7- encoder on the T425 (tt030-t425-kernel-ports W1), as two RPMs:
-#   build/lha-1.14i-5.m68kmint.rpm          /usr/bin/lha + /usr/lib/t425/lha.btl   (replaces SpareMiNT 1.14i-1)
-#   build/lha-t425-on-1.14i-5.m68kmint.rpm  /etc/t425/enabled/lha                 (held until the FR-5 gate)
+#   build/lha-1.14i-6.m68kmint.rpm          /usr/bin/lha + /usr/lib/t425/lha.btl (decode, INMOS icc)
+#                                           + /usr/lib/t425/lha-enc.btl (encode, llvm-t800 -Os)
+#   build/lha-t425-on-1.14i-6.m68kmint.rpm  /etc/t425/enabled/lha
+# The split (tt030-llvm-t800-adoption FR-5, operator MCQ 2026-10-15): on the TT, clang's encoder took 0.85-0.89
+# of icc's time and its decoder 1.04-1.05, so each direction ships the faster compiler's image (as tbzip2 did).
 # Source: SpareMiNT's lha-1.14i-1 SRPM (tools/rpm-src/x/), its two patches, and its spec's switches:
 # OPTIMIZE is REPLACED (the spec passes OPTIMIZE="$RPM_OPT_FLAGS -DHAVE_NO_LCHOWN"), so there is no
 # SUPPORT_LH7. With it, lha defaults to -lh7- and SpareMiNT's lha cannot read the archives ("make_table()
@@ -32,7 +35,7 @@ s = s.replace(inc, inc + '''
 #define LHA_T4_MAX (1536L * 1024)	/* in + out must fit the T425's 4 MB board */
 #define LHA_T4_MIN (16L * 1024)		/* measured break-even, 2026-09-24: 4 KB 1.04 -> 1.78 s,
 					   16 KB 2.42 -> 2.44 s, 64 KB 8.07 -> 5.34 s (boot ~1 s) */
-#define LHA_T4_BTL "/usr/lib/t425/lha.btl"
+#define LHA_T4_BTL "/usr/lib/t425/lha-enc.btl"	/* encode: llvm-t800 (FR-5 split) */
 /* Encode all of infp on the T425 (tt030-t425-kernel-ports). 0 = done, -1 = run encode() here. */
 static int
 t4_encode(FILE *infp, FILE *outfp, long size, int method, long *packed)
@@ -166,20 +169,21 @@ PATH=$XBIN:$PATH make -s CC=m68k-atari-mint-gcc \
     OPTIMIZE="-std=gnu89 -include time.h -O2 -m68020-60 -DHAVE_NO_LCHOWN -DT425 -I$RT" \
     LDFLAGS="$T4O" > "$W/make.log" 2>&1 || { tail -20 "$W/make.log"; exit 1; }
 "$XBIN/m68k-atari-mint-strip" src/lha
-sh "$REPO/sam-yum-tt/t4lha.sh" /tmp/lh > /dev/null
+sh "$REPO/sam-yum-tt/t4clang.sh" lha /tmp/lh > /dev/null   # runs t4lha.sh (icc) first, then the clang images
 cd "$REPO"
-python3 - "$W/lha-114i/src/lha" /tmp/lh/lhaserv.b4h <<'PY'
+python3 - "$W/lha-114i/src/lha" /tmp/lh/lhaserv.b4h /tmp/lh/clang/lhaserv-Os.btl <<'PY'
 import sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
-lha, btl = sys.argv[1], sys.argv[2]
-open("build/lha-1.14i-5.m68kmint.rpm", "wb").write(R.write_rpm("lha", "1.14i", "5", [
+lha, btl, enc = sys.argv[1], sys.argv[2], sys.argv[3]
+open("build/lha-1.14i-6.m68kmint.rpm", "wb").write(R.write_rpm("lha", "1.14i", "6", [
     ("/usr/bin/lha", 0o100755, open(lha, "rb").read()),
     ("/usr/lib/t425/lha.btl", 0o100644, open(btl, "rb").read()),
+    ("/usr/lib/t425/lha-enc.btl", 0o100644, open(enc, "rb").read()),
 ], summary="LHa 1.14i; -lh5-/-lh6- encoding and decoding offload to the ATW800/2 T425 when lha-t425-on is installed (sam)",
     provides=["lha"]))
-open("build/lha-t425-on-1.14i-5.m68kmint.rpm", "wb").write(R.write_rpm("lha-t425-on", "1.14i", "5", [
+open("build/lha-t425-on-1.14i-6.m68kmint.rpm", "wb").write(R.write_rpm("lha-t425-on", "1.14i", "6", [
     ("/etc/t425/enabled/lha", 0o100644, b""),
 ], summary="turn on T425 offload for lha (after its FR-5 gate)", requires_=["lha"]))
-print("build/lha-1.14i-5.m68kmint.rpm build/lha-t425-on-1.14i-5.m68kmint.rpm")
+print("build/lha-1.14i-6.m68kmint.rpm build/lha-t425-on-1.14i-6.m68kmint.rpm")
 PY
