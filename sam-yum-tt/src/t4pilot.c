@@ -17,10 +17,10 @@ static unsigned long get4(const unsigned char *b)
 
 int main(int argc, char **argv)
 {
-    static unsigned char in[1L << 20], out[1L << 20];
+    static unsigned char in[1L << 21], out[1L << 21];   /* 2 MB: an 800x600 PPM is 1.44 MB (FR-5 W2 ports) */
     unsigned char h[4], a[4];
     const char *why;
-    long n, len, boot_ms, call_ms;
+    long n, len = 0, boot_ms, call_ms;
     clock_t t0;
     FILE *f;
 
@@ -46,11 +46,15 @@ int main(int argc, char **argv)
     }
     boot_ms = ms_since(t0);
     t0 = clock();
-    if (send_op(argv[2][0], atoi(argv[3]), n) || link_write(in, n) != n || link_read(h, 4, 6L * 3600 * 1000) != 4
-        || (len = (long)get4(h)) < 0 || len > (long)sizeof out
-        || link_read(a, 4, 5000) != 4 || link_read(out, len, 30000) != len) {
+    why = send_op(argv[2][0], atoi(argv[3]), n) ? "send_op"
+        : (len = link_write(in, n)) != n ? "write"
+        : link_read(h, 4, 6L * 3600 * 1000) != 4 ? "reply header"
+        : (len = (long)get4(h)) < 0 || len > (long)sizeof out ? "reply length"
+        : link_read(a, 4, 5000) != 4 ? "adler"
+        : link_read(out, len, 30000) != len ? "reply body" : NULL;
+    if (why) {                               /* name the step: "call failed" alone hid the 1.44 MB cases (FR-5) */
         t4lock_release();
-        fprintf(stderr, "t4pilot: call failed\n");
+        fprintf(stderr, "t4pilot: call failed at %s (len %ld, %ld ms)\n", why, len, ms_since(t0));
         return 1;
     }
     call_ms = ms_since(t0);
