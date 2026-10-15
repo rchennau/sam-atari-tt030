@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pkgmodel.h"
+#include "runner.h"
 
 #ifndef WF_VSLPOSN
 #define WF_VSLPOSN WF_VSLIDE
@@ -17,8 +18,19 @@ enum {
     FILTER_NOT_INSTALLED = 3
 };
 
+enum {
+    ACT_INSTALL = 0,
+    ACT_UPDATE = 1,
+    ACT_REMOVE = 2,
+    ACT_UPDATE_ALL = 3,
+    ACT_REFRESH = 4,
+    ACT_CANCEL = 5,
+    NUM_ACT_BTNS = 6
+};
+
 static struct pkg pkgs[MAX_PKGS];
 static int total_pkgs = 0;
+static int num_index_pkgs = 0;
 static int n_installed = 0;
 static int n_newer = 0;
 static int installed_unknown = 0;
@@ -46,8 +58,43 @@ static const char *filter_labels[4] = {
     " Not installed "
 };
 
+static const char *act_labels[NUM_ACT_BTNS] = {
+    " Install ",
+    " Update ",
+    " Remove ",
+    " Update all ",
+    " Refresh ",
+    " Cancel "
+};
+
 static GRECT btn_rect[4];
+static GRECT act_btn_rect[NUM_ACT_BTNS];
 static short find_prompt_x = 0;
+
+static int child_running = 0;
+static int user_cancelled = 0;
+static int last_action = -1;
+
+#define OUT_BUF_CAP 65536
+static char out_buf[OUT_BUF_CAP];
+static size_t out_len = 0;
+
+static void append_output(const char *data, size_t len)
+{
+    if (!data || len == 0) return;
+    if (len >= OUT_BUF_CAP) {
+        data += (len - (OUT_BUF_CAP - 1));
+        len = OUT_BUF_CAP - 1;
+        out_len = 0;
+    } else if (out_len + len >= OUT_BUF_CAP) {
+        size_t drop = (out_len + len) - (OUT_BUF_CAP - 1);
+        memmove(out_buf, out_buf + drop, out_len - drop);
+        out_len -= drop;
+    }
+    memcpy(out_buf + out_len, data, len);
+    out_len += len;
+    out_buf[out_len] = '\0';
+}
 
 static void update_info_line(void)
 {
@@ -142,14 +189,50 @@ static void recalc_layout(void)
     if (win_handle <= 0) return;
     short wx, wy, ww, wh;
     wind_get(win_handle, WF_WORKXYWH, &wx, &wy, &ww, &wh);
-    short list_top = wy + row_height + 2;
-    short avail_h = wy + wh - list_top;
+    short list_top = wy + 2 * row_height + 5;
+    short pane_h = 8 * row_height;
+    short list_bot = wy + wh - pane_h - 3;
+    short avail_h = list_bot - list_top;
     visible_rows = avail_h / row_height;
     if (visible_rows < 1) visible_rows = 1;
 
     int max_scroll = (visible_count > visible_rows) ? visible_count - visible_rows : 0;
     if (scroll_top > max_scroll) scroll_top = max_scroll;
     if (scroll_top < 0) scroll_top = 0;
+}
+
+static void reload_installed(void)
+{
+    for (int i = 0; i < num_index_pkgs; i++) {
+        pkgs[i].state = PKG_NOT_INSTALLED;
+        pkgs[i].inst[0] = '\0';
+    }
+    if (total_pkgs > num_index_pkgs) {
+        pkg_free(&pkgs[num_index_pkgs], total_pkgs - num_index_pkgs);
+        total_pkgs = num_index_pkgs;
+    }
+
+    int inst_ret = pkg_apply_installed("/var/cache/yum.tt/installed.tsv", pkgs, total_pkgs, MAX_PKGS);
+    if (inst_ret < 0) {
+        installed_unknown = 1;
+    } else {
+        installed_unknown = 0;
+        total_pkgs = inst_ret;
+    }
+
+    n_installed = 0;
+    n_newer = 0;
+    if (!installed_unknown) {
+        for (int i = 0; i < total_pkgs; i++) {
+            if (pkgs[i].state != PKG_NOT_INSTALLED) {
+                n_installed++;
+            }
+            if (pkgs[i].state == PKG_NEWER) {
+                n_newer++;
+            }
+        }
+    }
+    rebuild_visible_list();
 }
 
 static void update_toolbar_geometry(short wx, short wy)
@@ -164,6 +247,20 @@ static void update_toolbar_geometry(short wx, short wy)
         cur_x += w + 6;
     }
     find_prompt_x = cur_x + 4;
+}
+
+static void update_action_toolbar_geometry(short wx, short wy)
+{
+    short cur_x = wx + 4;
+    short bar_y = wy + row_height + 2;
+    for (int i = 0; i < NUM_ACT_BTNS; i++) {
+        short w = (short)(strlen(act_labels[i]) * char_w);
+        act_btn_rect[i].g_x = cur_x;
+        act_btn_rect[i].g_y = bar_y;
+        act_btn_rect[i].g_w = w;
+        act_btn_rect[i].g_h = row_height;
+        cur_x += w + 4;
+    }
 }
 
 static const char *get_marker(int state)
@@ -210,10 +307,11 @@ static void draw_window_contents(const GRECT *clip)
     vswr_mode(vdi_handle, MD_REPLACE);
     v_bar(vdi_handle, clr);
 
+    vst_effects(vdi_handle, TXT_NORMAL);
     vst_color(vdi_handle, 1);
     vsl_color(vdi_handle, 1);
 
-    /* Draw toolbar if visible within clip */
+    /* Draw Toolbar 1 (Filters) if visible within clip */
     if (clip->g_y < work.g_y + row_height + 2 && clip->g_y + clip->g_h > work.g_y) {
         update_toolbar_geometry(work.g_x, work.g_y);
 
@@ -245,17 +343,64 @@ static void draw_window_contents(const GRECT *clip)
         snprintf(find_buf, sizeof(find_buf), "Find: %s", find_text);
         v_gtext(vdi_handle, find_prompt_x, work.g_y, find_buf);
 
-        short sep[4];
-        sep[0] = work.g_x;
-        sep[1] = work.g_y + row_height;
-        sep[2] = work.g_x + work.g_w - 1;
-        sep[3] = work.g_y + row_height;
-        v_pline(vdi_handle, 2, sep);
+        short sep1[4];
+        sep1[0] = work.g_x;
+        sep1[1] = work.g_y + row_height;
+        sep1[2] = work.g_x + work.g_w - 1;
+        sep1[3] = work.g_y + row_height;
+        v_pline(vdi_handle, 2, sep1);
     }
 
+    /* Draw Toolbar 2 (Actions) if visible within clip */
+    short bar2_top = work.g_y + row_height + 2;
+    short bar2_bot = bar2_top + row_height - 1;
+    if (clip->g_y <= bar2_bot + 2 && clip->g_y + clip->g_h > bar2_top) {
+        update_action_toolbar_geometry(work.g_x, work.g_y);
+
+        for (int i = 0; i < NUM_ACT_BTNS; i++) {
+            int is_enabled = child_running ? (i == ACT_CANCEL) : (i != ACT_CANCEL);
+
+            short bpxy[10];
+            bpxy[0] = act_btn_rect[i].g_x;                              bpxy[1] = act_btn_rect[i].g_y;
+            bpxy[2] = act_btn_rect[i].g_x + act_btn_rect[i].g_w - 1;   bpxy[3] = act_btn_rect[i].g_y;
+            bpxy[4] = act_btn_rect[i].g_x + act_btn_rect[i].g_w - 1;   bpxy[5] = act_btn_rect[i].g_y + act_btn_rect[i].g_h - 1;
+            bpxy[6] = act_btn_rect[i].g_x;                              bpxy[7] = act_btn_rect[i].g_y + act_btn_rect[i].g_h - 1;
+            bpxy[8] = act_btn_rect[i].g_x;                              bpxy[9] = act_btn_rect[i].g_y;
+
+            if (is_enabled) {
+                vsl_color(vdi_handle, 1);
+                vst_color(vdi_handle, 1);
+                vst_effects(vdi_handle, TXT_NORMAL);
+            } else {
+                vsl_color(vdi_handle, 9);
+                vst_color(vdi_handle, 9);
+                vst_effects(vdi_handle, TXT_LIGHT);
+            }
+
+            v_pline(vdi_handle, 5, bpxy);
+            v_gtext(vdi_handle, act_btn_rect[i].g_x, act_btn_rect[i].g_y, act_labels[i]);
+        }
+        vst_effects(vdi_handle, TXT_NORMAL);
+        vst_color(vdi_handle, 1);
+        vsl_color(vdi_handle, 1);
+
+        short sep2[4];
+        sep2[0] = work.g_x;
+        sep2[1] = bar2_bot + 2;
+        sep2[2] = work.g_x + work.g_w - 1;
+        sep2[3] = bar2_bot + 2;
+        v_pline(vdi_handle, 2, sep2);
+    }
+
+    /* Output pane calculations */
+    short pane_h = 8 * row_height;
+    short pane_top = work.g_y + work.g_h - pane_h;
+    short pane_sep_y = pane_top - 2;
+
     /* Draw visible package rows */
-    short list_top = work.g_y + row_height + 2;
-    short avail_h = work.g_y + work.g_h - list_top;
+    short list_top = work.g_y + 2 * row_height + 5;
+    short list_bot = pane_sep_y - 1;
+    short avail_h = list_bot - list_top;
     short vrows = avail_h / row_height;
     if (vrows < 1) vrows = 1;
 
@@ -275,6 +420,7 @@ static void draw_window_contents(const GRECT *clip)
         if (idx >= visible_count) break;
 
         short ry = list_top + r * row_height;
+        if (ry + row_height > list_bot) break;
         if (ry + row_height <= clip->g_y || ry >= clip->g_y + clip->g_h) {
             continue;
         }
@@ -303,6 +449,65 @@ static void draw_window_contents(const GRECT *clip)
             vsf_color(vdi_handle, 1);
             v_bar(vdi_handle, rpxy);
             vswr_mode(vdi_handle, MD_REPLACE);
+        }
+    }
+
+    /* Draw output pane at bottom */
+    if (clip->g_y + clip->g_h > pane_sep_y && clip->g_y < work.g_y + work.g_h) {
+        short psep[4];
+        psep[0] = work.g_x;
+        psep[1] = pane_sep_y;
+        psep[2] = work.g_x + work.g_w - 1;
+        psep[3] = pane_sep_y;
+        vsl_color(vdi_handle, 1);
+        v_pline(vdi_handle, 2, psep);
+
+        int line_starts[8];
+        int n_lines = 0;
+        if (out_len > 0) {
+            int end = (int)out_len;
+            while (end > 0 && (out_buf[end - 1] == '\n' || out_buf[end - 1] == '\r')) {
+                end--;
+            }
+            int cur_end = end;
+            while (cur_end > 0 && n_lines < 8) {
+                int sol = cur_end - 1;
+                while (sol >= 0 && out_buf[sol] != '\n') {
+                    sol--;
+                }
+                line_starts[n_lines++] = sol + 1;
+                cur_end = sol;
+            }
+        }
+
+        vst_effects(vdi_handle, TXT_NORMAL);
+        vst_color(vdi_handle, 1);
+
+        for (int r = 0; r < n_lines; r++) {
+            int start = line_starts[n_lines - 1 - r];
+            short ly = pane_top + r * row_height;
+            if (ly + row_height <= clip->g_y || ly >= clip->g_y + clip->g_h) {
+                continue;
+            }
+
+            char disp_line[128];
+            int d = 0;
+            int max_d = (work.g_w - 8) / char_w;
+            if (max_d >= (int)sizeof(disp_line)) {
+                max_d = (int)sizeof(disp_line) - 1;
+            }
+
+            for (int p = start; p < (int)out_len && out_buf[p] != '\n' && out_buf[p] != '\r'; p++) {
+                unsigned char c = (unsigned char)out_buf[p];
+                if (c == '\t') {
+                    if (d < max_d) disp_line[d++] = ' ';
+                    while (d % 8 != 0 && d < max_d) disp_line[d++] = ' ';
+                } else if (c >= 32 && c <= 126) {
+                    if (d < max_d) disp_line[d++] = (char)c;
+                }
+            }
+            disp_line[d] = '\0';
+            v_gtext(vdi_handle, work.g_x + 4, ly, disp_line);
         }
     }
 }
@@ -345,6 +550,63 @@ static void redraw_window(void)
     do_redraw(win_handle, &dirty);
 }
 
+static void start_runner_action(char *const argv[])
+{
+    if (child_running) return;
+    user_cancelled = 0;
+    if (runner_start(argv) == 0) {
+        child_running = 1;
+        redraw_window();
+    } else {
+        append_output("Failed to start runner\n", 23);
+        redraw_window();
+    }
+}
+
+static void handle_action_button(int btn)
+{
+    if (child_running) {
+        if (btn == ACT_CANCEL) {
+            user_cancelled = 1;
+            runner_cancel();
+        }
+        return;
+    }
+
+    if (btn == ACT_CANCEL) {
+        return;
+    }
+
+    last_action = btn;
+    if (btn == ACT_INSTALL || btn == ACT_UPDATE || btn == ACT_REMOVE) {
+        if (selected_index < 0 || selected_index >= visible_count) {
+            return;
+        }
+        int pkg_idx = visible_indices[selected_index];
+        const char *pkg_name = pkgs[pkg_idx].name;
+        const char *verb = (btn == ACT_INSTALL) ? "install" :
+                           (btn == ACT_UPDATE)  ? "update"  : "remove";
+        char *argv[4];
+        argv[0] = (char *)"/usr/bin/yum";
+        argv[1] = (char *)verb;
+        argv[2] = (char *)pkg_name;
+        argv[3] = NULL;
+        start_runner_action(argv);
+    } else if (btn == ACT_UPDATE_ALL) {
+        char *argv[3];
+        argv[0] = (char *)"/usr/bin/yum";
+        argv[1] = (char *)"update";
+        argv[2] = NULL;
+        start_runner_action(argv);
+    } else if (btn == ACT_REFRESH) {
+        char *argv[3];
+        argv[0] = (char *)"/usr/bin/yum";
+        argv[1] = (char *)"makecache";
+        argv[2] = NULL;
+        start_runner_action(argv);
+    }
+}
+
 int main(void)
 {
     short work_in[11] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2};
@@ -366,31 +628,13 @@ int main(void)
     char_w = (cellw > 0) ? cellw : (box_w > 0 ? box_w : 8);
     char_h = (ch > 0) ? ch : (box_h > 0 ? box_h : 16);
 
-    total_pkgs = pkg_load_index("/var/cache/yum.tt/index.tsv", pkgs, MAX_PKGS);
-    if (total_pkgs < 0) {
-        total_pkgs = 0;
+    num_index_pkgs = pkg_load_index("/var/cache/yum.tt/index.tsv", pkgs, MAX_PKGS);
+    if (num_index_pkgs < 0) {
+        num_index_pkgs = 0;
     }
+    total_pkgs = num_index_pkgs;
 
-    int inst_ret = pkg_apply_installed("/var/cache/yum.tt/installed.tsv", pkgs, total_pkgs, MAX_PKGS);
-    if (inst_ret < 0) {
-        installed_unknown = 1;
-    } else {
-        installed_unknown = 0;
-        total_pkgs = inst_ret;
-    }
-
-    n_installed = 0;
-    n_newer = 0;
-    if (!installed_unknown) {
-        for (int i = 0; i < total_pkgs; i++) {
-            if (pkgs[i].state != PKG_NOT_INSTALLED) {
-                n_installed++;
-            }
-            if (pkgs[i].state == PKG_NEWER) {
-                n_newer++;
-            }
-        }
-    }
+    reload_installed();
 
     find_text[0] = '\0';
     rebuild_visible_list();
@@ -400,6 +644,8 @@ int main(void)
 
     short win_w = (desk_w * 7) / 10;
     short win_h = (desk_h * 7) / 10;
+    if (win_w < 500 && desk_w >= 520) win_w = 500;
+    if (win_h < 350 && desk_h >= 370) win_h = 350;
     short win_x = desk_x + (desk_w - win_w) / 2;
     short win_y = desk_y + (desk_h - win_h) / 2;
 
@@ -438,6 +684,44 @@ int main(void)
             &mclicks
         );
 
+        if (events & MU_TIMER) {
+            if (child_running) {
+                char pbuf[1024];
+                long n;
+                int got_data = 0;
+                while ((n = runner_poll(pbuf, sizeof(pbuf) - 1)) > 0) {
+                    append_output(pbuf, (size_t)n);
+                    got_data = 1;
+                }
+                if (n < 0) {
+                    int exit_code = runner_finish();
+                    child_running = 0;
+
+                    char fin_line[64];
+                    if (user_cancelled) {
+                        snprintf(fin_line, sizeof(fin_line), "CANCELLED\n");
+                    } else if (exit_code == 0) {
+                        snprintf(fin_line, sizeof(fin_line), "OK\n");
+                    } else {
+                        snprintf(fin_line, sizeof(fin_line), "FAILED (exit %d)\n", exit_code);
+                    }
+                    append_output(fin_line, strlen(fin_line));
+                    user_cancelled = 0;
+
+                    if (last_action == ACT_REFRESH) {
+                        pkg_free(pkgs, total_pkgs);
+                        num_index_pkgs = pkg_load_index("/var/cache/yum.tt/index.tsv", pkgs, MAX_PKGS);
+                        if (num_index_pkgs < 0) num_index_pkgs = 0;
+                        total_pkgs = num_index_pkgs;
+                    }
+                    reload_installed();
+                    redraw_window();
+                } else if (got_data) {
+                    redraw_window();
+                }
+            }
+        }
+
         if (events & MU_MESAG) {
             switch (msg[0]) {
             case WM_REDRAW:
@@ -457,6 +741,11 @@ int main(void)
                 break;
             case WM_CLOSED:
                 if (msg[3] == win_handle) {
+                    if (child_running) {
+                        runner_cancel();
+                        runner_finish();
+                        child_running = 0;
+                    }
                     running = 0;
                 }
                 break;
@@ -531,6 +820,12 @@ int main(void)
                 short wx, wy, ww, wh;
                 wind_get(win_handle, WF_WORKXYWH, &wx, &wy, &ww, &wh);
                 if (mx >= wx && mx < wx + ww && my >= wy && my < wy + wh) {
+                    short bar2_top = wy + row_height + 2;
+                    short bar2_bot = bar2_top + row_height - 1;
+                    short list_top = wy + 2 * row_height + 5;
+                    short pane_h = 8 * row_height;
+                    short list_bot = wy + wh - pane_h - 3;
+
                     if (my >= wy && my < wy + row_height) {
                         update_toolbar_geometry(wx, wy);
                         for (int i = 0; i < 4; i++) {
@@ -544,8 +839,16 @@ int main(void)
                                 break;
                             }
                         }
-                    } else if (my >= wy + row_height + 2) {
-                        int row = (my - (wy + row_height + 2)) / row_height;
+                    } else if (my >= bar2_top && my <= bar2_bot) {
+                        update_action_toolbar_geometry(wx, wy);
+                        for (int i = 0; i < NUM_ACT_BTNS; i++) {
+                            if (mx >= act_btn_rect[i].g_x && mx < act_btn_rect[i].g_x + act_btn_rect[i].g_w) {
+                                handle_action_button(i);
+                                break;
+                            }
+                        }
+                    } else if (my >= list_top && my <= list_bot) {
+                        int row = (my - list_top) / row_height;
                         int idx = scroll_top + row;
                         if (idx >= 0 && idx < visible_count) {
                             if (selected_index != idx) {
@@ -593,6 +896,12 @@ int main(void)
                 }
             }
         }
+    }
+
+    if (child_running) {
+        runner_cancel();
+        runner_finish();
+        child_running = 0;
     }
 
     if (win_handle > 0) {
