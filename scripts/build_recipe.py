@@ -18,6 +18,7 @@ Name the server after the package (btl "<name>.btl"): two packages shipping one 
 collide in rpm as soon as their builds differ (found with the t4demo fixture, 2026-09-24).
 Exit 0 built · 1 failed (the last lines of the failing step are printed) · 2 no recipe for NAME.
 """
+import fcntl
 import hashlib
 import json
 import os
@@ -73,14 +74,21 @@ def run(cmd, cwd, env, log, deadline):
 
 
 def build(name, out_dir, timeout=600, progress=print):
-    deadline = time.monotonic() + timeout
+    # A FIXED path, not mkdtemp: __FILE__ and debug paths land in objects, and a random dir would
+    # make two clean builds differ (NFR-3). ttbuildd and ci.sh (via pytest) both build here, so a
+    # per-package flock serialises them; it also covers /tmp/t4s-<name> (F104, spurious red CI).
+    work = os.path.join(tempfile.gettempdir(), f"ttbuild-{name}")
+    with open(work + ".lock", "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)    # ponytail: waits unbounded; the holder is bounded by its own timeout
+        return _build(name, out_dir, timeout, progress, work)
+
+
+def _build(name, out_dir, timeout, progress, work):
+    deadline = time.monotonic() + timeout   # after the lock: waiting must not eat this build's budget
     r = recipes().get(name)
     if r is None:
         raise LookupError(name)
     src = fetch(r)
-    # A FIXED path, not mkdtemp: __FILE__ and debug paths land in objects, and a random dir would
-    # make two clean builds differ (NFR-3). Safe because ttbuildd runs one build at a time.
-    work = os.path.join(tempfile.gettempdir(), f"ttbuild-{name}")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work)
     try:
