@@ -8,6 +8,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 R=${1:-1.sam1}
+# toswin2 embeds __DATE__, so the binary changed every day and CI's publish refused the same NVR with new bytes
+# (red 2026-10-15 07:13Z onward). GCC honours SOURCE_DATE_EPOCH for __DATE__; pinned to this release's packaging
+# commit (6d0b5d3, 2026-10-14), which reproduces the mirror's 2.7-1.sam1 byte for byte. Move it with the next release.
+export SOURCE_DATE_EPOCH=1791999483
 T=$PWD/tools; export PATH=$T/cross-mint/usr/bin:$PATH
 fetch() { [ -d "$T/$1" ] || git clone -q "https://github.com/freemint/$2.git" "$T/$1"; git -C "$T/$1" fetch -q --depth 50 origin; git -C "$T/$1" checkout -q -f "$3"; git -C "$T/$1" clean -qfdx; }
 fetch cflib-src cflib ce57817c3f68c7d346d1081768505e81acaee807
