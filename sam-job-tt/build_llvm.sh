@@ -54,7 +54,17 @@ CFLAGS="-target t800 -mcpu=t425 -O2 -Wall -Wno-unused-function -Wno-unused-but-s
 
 # 1. Compile common kernel objects
 $CLANG $CFLAGS -DJOB_COMPRESS -c "$here/llvm/jobnode.c" -o "$w/jobnode.o"
-$CLANG $CFLAGS -DJOB_COMPRESS -c "$here/llvm/jobexec.c" -o "$w/jobexec.o"
+$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -c "$here/llvm/jobexec.c" -o "$w/jobexec.o"
+
+# lha (ttjob-ports FR-3, first port): the sources t4clang.sh prepares for llvm, lhaserv's hook renamed to lha_kernel
+LH=/tmp/lh
+[ -f "$LH/clang/lhaserv.c" ] || sh "$root/sam-yum-tt/t4clang.sh" lha "$LH" > /dev/null
+LHAOBJS=
+for f in lhaserv slide huf crcio maketree shuf dhuf maketbl larc; do
+    $CLANG -target t800 -mcpu=t425 -O2 -w -std=gnu89 -DEUC -DSYSV_SYSTEM_DIR -DTZSET -DSUPPORT_LH6 \
+        -Dt4_kernel=lha_kernel -Dt4_out_cap=lha_out_cap -I"$LH/clang" -I"$y" -c "$LH/clang/$f.c" -o "$w/lha_$f.o"
+    LHAOBJS="$LHAOBJS $w/lha_$f.o"
+done
 $CLANG $CFLAGS -c "$here/llvm/chacha20.c" -o "$w/chacha20.o"
 $CLANG $CFLAGS -c "$y/sha256.c" -o "$w/sha256.o"
 $CLANG $CFLAGS -c "$y/t4adler.c" -o "$w/t4adler.o"
@@ -74,7 +84,7 @@ done
 COMMON_OBJS="$w/jobnode.o $w/jobexec.o $w/chacha20.o $w/sha256.o $w/t4adler.o \
              $w/c25519.o $w/f25519.o $w/sha512_32.o $w/edsign.o $w/ed25519.o $w/fprime.o $w/morph25519.o \
              $w/adler32.o $w/crc32.o $w/deflate.o $w/trees.o $w/zutil.o $w/inflate.o $w/inftrees.o $w/inffast.o \
-             $w/blocksort.o $w/huffman.o $w/crctable.o $w/randtable.o $w/decompress.o $w/bzcompress.o $w/bzlib.o $w/compkern.o"
+             $w/blocksort.o $w/huffman.o $w/crctable.o $w/randtable.o $w/decompress.o $w/bzcompress.o $w/bzlib.o $w/compkern.o $LHAOBJS"
 
 # 2. Build worker2 (TRAM 2)
 $CLANG $CFLAGS -c "$here/llvm/worker2.c" -o "$w/worker2.o"

@@ -68,6 +68,8 @@ static long est_ms(int op, long n, int tram)
     case 'V': us = 6500000L + n * 14; break;
     case 'S': us = n * 14; break;
     case 'C': us = n * 5; break;
+    case '5': case '6': us = n * 56; comp = 1; break;   /* lha encode: 11.6-14.2 s / 256 KB on the T425 (2026-10-14 gate) */
+    case 'd': us = n * 45; comp = 1; break;             /* lha decode, n = packed bytes: 3.5 s / 95 KB */
     default: us = n / 2; break;
     }
     if (tram) us = comp ? us / 10 * 28 : us * 2;

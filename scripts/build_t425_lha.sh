@@ -161,14 +161,21 @@ s = s.replace(old, """	interface.packed = packed_size;
 open(p, "w", encoding="latin-1").write(s)
 PY
 T4O=
+# TTJOB=1: t4call goes through ttjobd when it runs (tt030-ttjob-ports FR-3; needs a resident image with the lha ops)
+TJ=; [ "${TTJOB:-0}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
 for c in t4call t4lock t4adler atwboot; do
-    "$XBIN/m68k-atari-mint-gcc" -m68020-60 -O2 -c -I"$RT" -o "$W/$c.o" "$RT/$c.c"
+    "$XBIN/m68k-atari-mint-gcc" -m68020-60 -O2 -c $TJ -I"$RT" -o "$W/$c.o" "$RT/$c.c"
     T4O="$T4O $W/$c.o"
 done
+if [ -n "$TJ" ]; then
+    "$XBIN/m68k-atari-mint-gcc" -m68020-60 -O2 -c -I"$REPO/sam-job-tt" -I"$RT" -o "$W/libttjob.o" "$REPO/sam-job-tt/libttjob.c"
+    T4O="$T4O $W/libttjob.o"
+fi
 PATH=$XBIN:$PATH make -s CC=m68k-atari-mint-gcc \
     OPTIMIZE="-std=gnu89 -include time.h -O2 -m68020-60 -DHAVE_NO_LCHOWN -DT425 -I$RT" \
     LDFLAGS="$T4O" > "$W/make.log" 2>&1 || { tail -20 "$W/make.log"; exit 1; }
 "$XBIN/m68k-atari-mint-strip" src/lha
+[ -n "$TJ" ] && cp src/lha "$REPO/build/lha-ttjob"   # test binary; the RPMs below are built as before
 sh "$REPO/sam-yum-tt/t4clang.sh" lha /tmp/lh > /dev/null   # runs t4lha.sh (icc) first, then the clang images
 cd "$REPO"
 python3 - "$W/lha-114i/src/lha" /tmp/lh/lhaserv.b4h /tmp/lh/clang/lhaserv-Os.btl <<'PY'

@@ -1,5 +1,8 @@
 /* jobexec — see jobexec.h. */
 #include "jobexec.h"
+#ifdef JOB_LHA
+long lha_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap);
+#endif
 #include "../jobwire.h"
 #include "sha256.h"
 #include "chacha20.h"
@@ -43,6 +46,12 @@ long job_exec(int op, int level, const unsigned char *in, long n, unsigned char 
 #ifdef JOB_COMPRESS
     case 'z': case 'g': case 'r': case 'i': case 'b': {
         long olen = ck_compress(op, level, in, n, out, cap);
+        return olen < 0 ? -ST_FAILED : olen;
+    }
+#endif
+#ifdef JOB_LHA
+    case '5': case '6': case 'd': {          /* lha -lh5-/-lh6- encode, 'd' decode (lhaserv's kernel; ttjob-ports FR-3) */
+        long olen = lha_kernel(op, level, in, n, out, cap);
         return olen < 0 ? -ST_FAILED : olen;
     }
 #endif
