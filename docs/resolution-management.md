@@ -69,7 +69,7 @@ Mode 28 computes to 54.2 Hz, just under the monitor's stated 55 Hz, and still di
 
 ## Chosen configuration (operator, 2026-10-15)
 
-Default **mode 32** (1920×1080, 256 colours). Dropbear runs with `DROPBEAR_NO_ATW=1` (`/etc/rc.dropbear`) so logins
+Default **mode 32** (1920×1080, 256 colours). Dropbear runs with `DROPBEAR_NO_ATW=1` (`/etc/dropbear/dropbear.conf`, dropbear-2026.94-2.sam1, `%config(noreplace)`) so logins
 do not touch the T425; the serial console (Modem 2) is preferred for connections in this mode. Other `ttjobd` work
 (tgzip, lha, bzip2) still blanks the picture briefly while it runs. For full offload with no blanking use mode 22
-(1280×800, 65536 colours) or 15 (1024×768, 65536 colours) and remove `DROPBEAR_NO_ATW`.
+(1280×800, 65536 colours) or 15 (1024×768, 65536 colours) and comment out `DROPBEAR_NO_ATW` in that file.
