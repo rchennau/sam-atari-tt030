@@ -12,6 +12,9 @@ The Atari TT030 is a 32-bit Motorola 68030-based workstation running at 32 MHz w
 ### ATW800/2 Transputer Co-Processor
 The ATW800/2 is a VME expansion card with an FPGA that provides fast 2D colour graphics and a **synthetic T425 transputer** (an FPGA implementation of the INMOS 32-bit T425; the card's User's Manual quotes 50+ MHz, and earlier notes in this repo assumed 40 MHz; the clock has not been measured here). The T425 has 5 MB of usable RAM: from T425 address `0x80600000` up is the card's video memory. The 68030 talks to it over the card's link driver (`fpgabios`): about 0.16 ms fixed cost per round-trip and 462 KB/s per direction after this project's driver-call fix.
 
+### Display modes (measured 2026-10-15)
+The ATW800/2 drives HDMI through its xVDI driver; the boot mode is set from fractal with `scripts/atw_mode.sh` (a reboot per change). On the operator's ASUS VS247H-P, 11 vendor modes plus a custom 1920×1080 mono mode display: 800×600 (256 / 65536 colours), 1024×768 (256 / 65536), 1280×720, 1280×800 (256 / 65536), 1280×960, 1280×1024, 1440×960 and 1920×1080 (256 colours), and 1920×1080 mono. Modes below 55 Hz or taller than 1080 lines are out of the monitor's range. **Default: 1920×1080, 256 colours.** At pixel clocks of 108 MHz and above the picture blanks while the T425 runs a job, so in that mode SSH crypto stays on the 68030 (`DROPBEAR_NO_ATW`). Full table, timings and method: [`docs/resolution-management.md`](docs/resolution-management.md).
+
 ### TRAM modules (added 2026-10-12)
 The card has two sockets for classic TRAMs (TRAnsputer Modules). Both now hold **Transtech TTM15F-45-F** modules, characterised on the real TT (`sam-tram-tt/`):
 
