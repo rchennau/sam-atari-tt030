@@ -48,9 +48,17 @@ def run(cmd, port="/dev/atari-tt", timeout=120.0):
         time.sleep(0.03)
     buf, end = b"", time.monotonic() + timeout
     rx = re.compile(rb"T4END-" + tag.encode() + rb"-(\d+)")
+    last = time.monotonic()
     while time.monotonic() < end:
         r, _, _ = select.select([fd], [], [], 0.5)
+        if not r and time.monotonic() - last > 3:
+            # The TT's serial transmit can stall with output queued until it receives a byte (2026-10-16:
+            # a finished run's end marker arrived only when the next run typed). A lone CR restarts it;
+            # bash sees an empty line. ponytail: assumes the command does not read stdin.
+            os.write(fd, b"\r")
+            last = time.monotonic()
         if r:
+            last = time.monotonic()
             buf += os.read(fd, 4096)
             m = rx.search(buf)
             if m:
