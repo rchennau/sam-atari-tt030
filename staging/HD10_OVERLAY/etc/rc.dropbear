@@ -6,6 +6,9 @@
 # -e passes this boot environment to sessions: without it Dropbear clears it, ssh sessions lose the
 # kernel's UNIXMODE=/brUs, mintlib opens files in text mode and CRLF becomes LF (wrong openssl
 # SHA-256, rpm -V false MD5 flags; tt030-rpm-pipeline progress.md, 2026-09-21).
+# Settings (e.g. DROPBEAR_NO_ATW) live in /etc/dropbear/dropbear.conf, a %config(noreplace) file; set -a exports only
+# the variables it actually sets (an exported empty DROPBEAR_NO_ATW would still disable offload).
+[ -r /etc/dropbear/dropbear.conf ] && { set -a; . /etc/dropbear/dropbear.conf; set +a; }
 /usr/sbin/dropbear -e -F -p 22 -r /etc/dropbear/dropbear_ed25519_host_key < /dev/null > /dev/null 2>&1 &
 # A card built with HD10_PKGLIST registers its preinstalled packages once (rc.firstboot; backgrounded).
 [ -x /etc/rc.firstboot ] && /etc/rc.firstboot < /dev/null > /dev/null 2>&1 &

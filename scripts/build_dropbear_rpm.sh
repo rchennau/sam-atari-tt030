@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 V=2026.94
-R=${1:-1.sam1}   # 1.sam1: first packaged build (t4lock self-pid fix, ttjobd client)
+R=${1:-2.sam1}   # 1.sam1: first packaged build (t4lock self-pid fix, ttjobd client); 2.sam1: /etc/dropbear/dropbear.conf
 scripts/build_dropbear.sh > /dev/null
 S=tools/cross-mint/usr/bin/m68k-atari-mint-strip
 for b in dropbear dropbearkey dbclient; do $S -o build/$b tools/dropbear-$V/$b; done
@@ -24,8 +24,10 @@ open(out, "wb").write(R.write_rpm("dropbear", v, r, [
     ("/usr/bin/dropbearkey", 0o100755, rd("build/dropbearkey")),
     ("/usr/bin/dbclient", 0o100755, rd("build/dbclient")),
     ("/etc/rc.dropbear", 0o100755, rd("staging/HD10_OVERLAY/etc/rc.dropbear")),
+    ("/etc/dropbear/dropbear.conf", 0o100644, rd("staging/HD10_OVERLAY/etc/dropbear/dropbear.conf")),
 ], summary="Dropbear SSH server for the TT: curve25519/ed25519, crypto on the transputers via ttjobd (sam)",
    description="Dropbear 2026.94 (MIT licence) with Monocypher (BSD-2/CC0) for curve25519/ed25519; X25519 and "
-               "Ed25519 verify go to ttjobd, else the T425, else the 68030. Host keys are not in the package."))
+               "Ed25519 verify go to ttjobd, else the T425, else the 68030. Host keys are not in the package.",
+   fileflags={"/etc/dropbear/dropbear.conf": 1 | 16}))   # %config(noreplace)
 print(out)
 PY
