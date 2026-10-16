@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # stage_floppy.sh - Format and populate 1.44MB FAT12 Floppy Image / USB Floppy
-# Target Device: /dev/sdf (USB Floppy on fractal) or disk image file.
+# Target Device: /dev/sdf (USB Floppy on the remote system management host) or disk image file.
 # Atari TT030 Ecosystem Integration - Phase 0
 # ==============================================================================
 

@@ -4,7 +4,7 @@
  * Phase 0, src/kbdinj.c): the same ikbd_scan() path as the attached keyboard, so both merge.
  *
  * Frame (protocol v2): 4 bytes {flags, code, dx, dy}; flags bit0 = key up, bit1 = heartbeat, bit3 = quit
- * (serial), bit4 = mouse (code = buttons 1 right / 2 left, dx/dy signed), bit5 = ack wanted. TT -> fractal: 0x06 ack,
+ * (serial), bit4 = mouse (code = buttons 1 right / 2 left, dx/dy signed), bit5 = ack wanted. TT -> the remote system management host: 0x06 ack,
  * 0x05 = pointer reached the hot corner (-c N: 1 top-right [default], 2 top-left, 3/4 bottom, 0 off).
  * Session: load the unpatched key table (D2: remote ; and [ must type ; and [), inject frames,
  * then release every key still held and restore the space-patched table — also on SIGTERM,
@@ -54,8 +54,8 @@
 #define F_QUIT 8	/* serial only: end the session and exit, so ttygetty respawns the console */
 #define F_MOUSE 0x10	/* code = buttons (1 right, 2 left), dx/dy signed (FR-8) */
 #define F_ACK 0x20	/* sender asks for an ack: only the latency tool sets it — a write per frame cost ~1.5 points of CPU */
-#define MSG_ACK 0x06	/* TT -> fractal: frame injected (NFR-1 timing), only when F_ACK is set */
-#define MSG_CORNER 0x05	/* TT -> fractal: pointer reached the hot corner, hand control back (FR-10) */
+#define MSG_ACK 0x06	/* TT -> the remote system management host: frame injected (NFR-1 timing), only when F_ACK is set */
+#define MSG_CORNER 0x05	/* TT -> the remote system management host: pointer reached the hot corner, hand control back (FR-10) */
 #define S_LOADKBD 27
 #define KBRATE_BOOT 0x0f02	/* delay 15, rate 2 (1/50 s); confirmed on the TT by --bench */
 
@@ -239,7 +239,7 @@ static int frame(const uint8_t f[4], int reply_fd)
 	if (f[0] & F_MOUSE) {
 		mouse(f[1], (signed char)f[2], (signed char)f[3]);
 		if (reply_fd >= 0 && in_corner() && write(reply_fd, "\005", 1) == 1)
-			fprintf(stderr, "ttkbdd: hot corner — control back to fractal\n");
+			fprintf(stderr, "ttkbdd: hot corner — control back to the remote system management host\n");
 		return 0;
 	}
 	ok = key(f[1], f[0] & ~F_ACK) == 0;
@@ -427,9 +427,9 @@ static int bench(int n)
 /* ---- network (Phase 2): handshake + XChaCha20-Poly1305 records; see scripts/ttkbd_send.py ---- */
 
 #define SILENCE_S 3	/* heartbeat is 1 s; 3 s of nothing = link lost -> release (FR-6) */
-#define AUTH_S 60	/* time allowed for the fractal side to answer the hello */
+#define AUTH_S 60	/* time allowed for the remote system management host side to answer the hello */
 
-static uint8_t f_verify_pub[32];	/* fractal's Ed25519 public key (/etc/ttkbd.pub) */
+static uint8_t f_verify_pub[32];	/* the remote system management host's Ed25519 public key (/etc/ttkbd.pub) */
 
 /* Read exactly n bytes, giving up after `secs` of silence. 0 ok, -1 closed/error, -2 timeout. */
 static int recv_exact(int fd, uint8_t *b, int n, int secs)
@@ -467,7 +467,7 @@ static int urandom(uint8_t *b, int n)
 /* v3 record: XChaCha20-Poly1305 with the counter in the LAST 8 nonce bytes, so the HChaCha20 input
  * (first 16 bytes) is constant and the subkey is derived once per session; each record is then the
  * RFC 8439 ChaCha20-Poly1305 construction. Same bytes as Python's XChaCha sealing (interop-checked on
- * fractal 2026-09-23); saves one ChaCha block per frame — NFR-3 on WiFi. */
+ * The remote system management host 2026-09-23); saves one ChaCha block per frame — NFR-3 on WiFi. */
 static int v3_unlock(uint8_t pt[4], const uint8_t rec[20], const uint8_t subkey[32], uint64_t ctr)
 {
 	uint8_t n12[12] = {0}, pk[32] = {0}, mac[16], buf[32] = {0};

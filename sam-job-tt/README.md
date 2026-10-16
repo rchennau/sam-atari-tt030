@@ -37,14 +37,14 @@ decompresses to the input. bzip2 at the default level 9 fails on the T425 (needs
 back to the 68030; it then reported "op not in the resident image" — now `ST_FAILED` ("kernel failed on the T425"),
 built but not yet re-run on the TT. Timings were not captured in this run.
 
-**Phase 2 gaps closed (real TT + fractal, 2026-10-13):** T425 deflate built with `-dATARI` → **gzip via `ttjobd`
+**Phase 2 gaps closed (real TT + the remote system management host, 2026-10-13):** T425 deflate built with `-dATARI` → **gzip via `ttjobd`
 is now byte-identical to the 68030's** (md5 `2086e583…` both). Timings on the 2,125,272-byte file: gzip **121 s
 via `ttjobd` vs 196 s on the 68030 (0.62×)**; bzip2 -1 **201 s vs 359 s (0.56×)**, byte-identical. bzip2 at
 level 9 now reports "kernel failed on the T425" (`ST_FAILED`) and falls back. Host test `test_libttjob.c` (fake
 `ttjobd`): no daemon, out-of-order collection, poll, cap too small, damaged checksum, bad op, lost connection —
 all pass; a mutant without the reply-checksum check aborts.
 
-**Emulated test lane (2026-10-13, `emu/run_emu_tests.sh`, fractal only, ~2 min at 1,000 jobs):** (1) `test_libttjob`;
+**Emulated test lane (2026-10-13, `emu/run_emu_tests.sh`, the remote system management host only, ~2 min at 1,000 jobs):** (1) `test_libttjob`;
 (2) `emu/jobtest.c` — JOBS pseudo-random jobs per op through `t4/jobexec.c` (the op code the resident image runs,
 factored out of `jobnode.c`), built with host gcc and with INMOS icc `-t4` under the `t4` emulator (`-sm 23`); the
 digest listings must be identical, every job must succeed, SHA-256 known answers must match, inflate and bzip2 must
@@ -53,7 +53,7 @@ round-trip. Result: **1,000 jobs × 7 ops identical, 0 failures**. Mutation chec
 attempt (shared fault, no known answers) passed the diff, which is why the known answers exist. Not covered here:
 the real link driver, FreeMiNT, the TRAMs' missing FPU (t4 emulates an FPU), timings.
 
-**CI (2026-10-13, FR-9):** every commit in this repo (and 03:40 nightly) runs `scripts/ci.sh` on fractal via
+**CI (2026-10-13, FR-9):** every commit in this repo (and 03:40 nightly) runs `scripts/ci.sh` on the remote system management host via
 `sam-tt030-ci.{path,timer,service}` (`iac/fractal`). Result: `~sam/.local/state/tt030-ci/last.txt`, full log
 `last.log` alongside, and the `tt030.ci.run` event in the central log; `journalctl -u sam-tt030-ci`.
 

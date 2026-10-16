@@ -1,8 +1,8 @@
 #!/bin/bash
-# Serial console on Modem 2 (SCC) at 38400 baud (fractal: picocom /dev/atari-tt 38400) — scc.xdd refuses 57600 (termios and TIOCOBAUD both return 38400 as nearest, TT 2026-09-13).
+# Serial console on Modem 2 (SCC) at 38400 baud (the remote system management host: picocom /dev/atari-tt 38400) — scc.xdd refuses 57600 (termios and TIOCOBAUD both return 38400 as nearest, TT 2026-09-13).
 # Device /dev/ttyS1 = SCC Modem 2 (scc.xdd, minor 5, paired with /dev/modem2 minor 4).
 # Started from mint.cnf. Only one USB-serial cable: move it from Modem 1 to Modem 2 for the
-# console, and stop atari-tt-slip.service on fractal first (Modem 1 stays the TOS/STiNG SLIP link).
+# console, and stop atari-tt-slip.service on the remote system management host first (Modem 1 stays the TOS/STiNG SLIP link).
 # Not Modem 1: FreeMiNT mfp.xdd reports the TT's ST-MFP "unsupported", so modem1 has no termios.
 # Not mgetty/stty/login: SpareMiNT's (mintlib 0.59) all fail tcgetattr with ENOSYS on MiNT 1.19
 # (Hatari, 2026-09-12). ttygetty (src/ttygetty.c, mintlib 0.60) sets the line up and runs the

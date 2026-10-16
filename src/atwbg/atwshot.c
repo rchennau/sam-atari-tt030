@@ -1,6 +1,6 @@
 /* atwshot — save the ATW800/2 screen to a file (the inverse of atwbg), so the TT's display can be checked remotely.
  * Framebuffer 0xFEC00000, 1024x768, 16-bit RGB565 little-endian, stride 2048 bytes (atwbg.c, measured 2026-09-13).
- * Read-only: copies video memory in supervisor mode. Convert on fractal: src/atwbg/atwshot2png.py FILE.raw OUT.png
+ * Read-only: copies video memory in supervisor mode. Convert on the remote system management host: src/atwbg/atwshot2png.py FILE.raw OUT.png
  * Usage: atwshot FILE.raw */
 #include <mint/osbind.h>
 #include <stdio.h>

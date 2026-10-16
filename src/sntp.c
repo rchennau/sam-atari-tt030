@@ -1,7 +1,7 @@
 /* sntp — set the TT's clock from an NTP server (one SNTP query), for FreeMiNT.
  *
  * Why: the TT booted with its clock at 22 Jun 1989 (2026-09-12). No LAN host answers NTP (router and
- * fractal's chrony were probed) and SpareMiNT's rdate speaks RFC 868 (port 37), which nothing on the
+ * The remote system management host's chrony were probed) and SpareMiNT's rdate speaks RFC 868 (port 37), which nothing on the
  * LAN serves. The TT has a default route, so this asks a public pool. Accuracy: +/- network delay.
  *
  * Usage: sntp [server]          (default pool.ntp.org; prints the time set, exits 1 on failure)

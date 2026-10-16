@@ -1,5 +1,5 @@
 #!/bin/bash
-# ci.sh — TT030 side-repo CI (tt030-transputer-job-queue FR-9, operator MCQ 2026-10-13). Runs on fractal, no TT:
+# ci.sh — TT030 side-repo CI (tt030-transputer-job-queue FR-9, operator MCQ 2026-10-13). Runs on the remote system management host, no TT:
 #   1. host test suites: scripts/test_*.py under pytest (excludes the two that need the TT or Hatari:
 #      test_e2e_ping_rpm.py, test_hatari_ping_rpm.sh)
 #   2. the job-queue emulated lane: sam-job-tt/emu/run_emu_tests.sh (libttjob + host-vs-t4 jobtest)

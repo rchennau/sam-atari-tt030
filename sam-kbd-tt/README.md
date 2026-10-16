@@ -1,27 +1,27 @@
-# SAM KBD TT (`sam-kbd-tt`) — fractal's keyboard and mouse as the Atari TT030's own
+# SAM KBD TT (`sam-kbd-tt`) — the remote system management host's keyboard and mouse as the Atari TT030's own
 
 > **Status: complete (2026-09-24) — keyboard and mouse working on the real TT, operator-confirmed; ttkbdd starts at
-> boot; about 1 key in 8,100 lost at fast typing (target ≤ 1 in 5,000).** Keys typed on fractal reach XaAES, TeraDesk and
+> boot; about 1 key in 8,100 lost at fast typing (target ≤ 1 in 5,000).** Keys typed on the remote system management host reach XaAES, TeraDesk and
 > TosWin2 exactly as if typed on the TT's own keyboard — including Alt, Control, F-keys and the space bar,
 > which the TT's physical keyboard cannot send (space and M are dead, Alt and Left Control unusable) — and
-> fractal's mouse drives the TT pointer. Moving the TT pointer into its top-right corner hands control
+> the remote system management host's mouse drives the TT pointer. Moving the TT pointer into its top-right corner hands control
 > back. The attached keyboard and mouse keep working alongside.
 
 `sam-kbd-tt` is the plan `tt030-remote-keyboard` in the SAM monorepo
 (`maestro/tracks/tt030-remote-keyboard/`, approved 2026-09-23, decisions D1 direct TCP, D2 swap the key
 table while connected, D3 encrypt every frame). A daemon on the TT, `ttkbdd`, accepts one signed,
 encrypted session at a time on `192.168.0.30:7590` and feeds each key into FreeMiNT's own keyboard
-path; `ttkbd_send.py` on fractal captures the keyboard and streams it.
+path; `ttkbd_send.py` on the remote system management host captures the keyboard and streams it.
 
 | Part | What it does |
 | :--- | :--- |
 | [`../src/ttkbdd.c`](../src/ttkbdd.c) | TT daemon: WiFi listener or raw serial (`-S` on stdin, `-s DEV`, `-v` hex dump), handshake, XChaCha20-Poly1305 frames, inject via the kbdvec slot, key-table swap, key-repeat off for the session, release on end / signal / 3 s silence; `--release` recovery; `-f FILE` replay; `--bench N` |
-| [`../scripts/ttkbd-session.sh`](../scripts/ttkbd-session.sh) | one-command session on fractal: serial (default) or `--wifi`, keyboard + mouse; restores the console on the stop chord or TT hot corner |
-| [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | fractal sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`, `latency N`; Linux keycode → Atari scancode map |
+| [`../scripts/ttkbd-session.sh`](../scripts/ttkbd-session.sh) | one-command session on the remote system management host: serial (default) or `--wifi`, keyboard + mouse; restores the console on the stop chord or TT hot corner |
+| [`../scripts/ttkbd_send.py`](../scripts/ttkbd_send.py) | The remote system management host sender: `keygen`, `grab` (evdev, exclusive), `type "text"`, `frames HEX…`, `latency N`; Linux keycode → Atari scancode map |
 | [`../scripts/test_ttkbd_send.py`](../scripts/test_ttkbd_send.py) | checks the map against the TT's own `en_uk.tbl` and the key-pump rules |
 | [`../src/kbdinj.c`](../src/kbdinj.c) | Phase 0 spike and test tool: inject raw scancodes, read the BIOS queue back (`-r`), swap the table (`-k`) |
 | `../staging/HD10_OVERLAY/etc/rc.ttkbdd` | boot script: `ttkbdd --release`, then the WiFi listener — **installed on the card 2026-09-23**, verified by a reboot |
-| iac/fractal `70-atari-tt-kbd-uaccess.rules` (SAM monorepo) | gives the desktop user of fractal read access to the KB104 keyboard, nothing else |
+| iac/fractal `70-atari-tt-kbd-uaccess.rules` (SAM monorepo) | gives the desktop user of the remote system management host read access to the KB104 keyboard, nothing else |
 
 ## How keys get in
 
@@ -35,13 +35,13 @@ end; `Keytbl()` writes are ignored under MiNT, so the table swap uses `Ssystem(S
 ## Wire
 
 ```
-TT -> fractal   ver(1)=3 | challenge(16) | TT X25519 public key(32)
-fractal -> TT   fractal X25519 public key(32) | Ed25519 signature(64) over challenge | both keys | "ttkbd1"
-key = BLAKE2b-256(X25519 shared | challenge | TT key | fractal key)
-fractal -> TT   mac(16) | ciphertext(4)   XChaCha20-Poly1305, nonce = 16 zero bytes | 64-bit counter
+TT -> the remote system management host   ver(1)=3 | challenge(16) | TT X25519 public key(32)
+the remote system management host -> TT   the remote system management host X25519 public key(32) | Ed25519 signature(64) over challenge | both keys | "ttkbd1"
+key = BLAKE2b-256(X25519 shared | challenge | TT key | The remote system management host key)
+the remote system management host -> TT   mac(16) | ciphertext(4)   XChaCha20-Poly1305, nonce = 16 zero bytes | 64-bit counter
                 plaintext {flags, code, dx, dy}: bit0 key up, bit1 heartbeat, bit3 quit (serial),
                 bit4 mouse (code = buttons), bit5 ack wanted
-TT -> fractal   0x06 ack (only when bit5 is set) · 0x05 pointer reached the hot corner
+TT -> the remote system management host   0x06 ack (only when bit5 is set) · 0x05 pointer reached the hot corner
 serial          {0xA5, flags, code, dx, dy}, no crypto
 ```
 
@@ -49,7 +49,7 @@ Protocol v3 keeps the counter in the last 8 nonce bytes, so the TT derives the X
 session and each record costs one ChaCha20-Poly1305 (1.47 ms verify vs 2.53 ms for v2, `--bench`).
 A forged key types nothing; a tampered, replayed or reordered record ends the session untyped; one
 heartbeat a second, and 3 s of silence releases every held key. The TT uses Monocypher 4.0.3 (the copy
-Dropbear already uses); fractal uses Python `cryptography` plus a small HChaCha20, cross-checked
+Dropbear already uses); the remote system management host uses Python `cryptography` plus a small HChaCha20, cross-checked
 against Monocypher byte for byte.
 
 ## Results (real TT, 2026-09-23)
@@ -75,7 +75,7 @@ What the measurements changed:
   injects at most one frame per 20 ms (25 keys/s), sleeping only for what is left of the 20 ms and
   re-reading the clock afterwards.
 - **Doubled keys** came from the TT's own key repeat firing whenever a key-up arrived late. The session
-  sets `Kbrate` delay to 255 (5.1 s) and fractal sends the repeats; the saved rate comes back after.
+  sets `Kbrate` delay to 255 (5.1 s) and the remote system management host sends the repeats; the saved rate comes back after.
 - **CPU vs loss trade-off (four pacing variants, 2,700-key run / ttkbdd CPU at 10 keys/s):** fixed 20 ms
   wait per frame 2,699 of 2,699 sent ✓ / 23.8 %; wait only in bursts 2,600 (scrambled backlog) / 9.1 %; 20 ms cap
   assuming the sleep was exact 2,693 / 9.8 %; **20 ms cap re-reading the clock (shipped) 2,700 and
@@ -87,7 +87,7 @@ What the measurements changed:
 
 ## Mouse (FR-8…11, added 2026-09-23)
 
-fractal's Logitech mouse drives the TT pointer through `Kbdvbase()->mousevec`, the path FreeMiNT's own
+the remote system management host's Logitech mouse drives the TT pointer through `Kbdvbase()->mousevec`, the path FreeMiNT's own
 mouse emulation uses, on both transports. Frames (introduced in v2, kept in v3) are `{flags, code, dx, dy}` (flag 0x10 =
 mouse, code = buttons 1 right / 2 left). Motion is scaled (`--mouse-scale`, default 4 counts per TT unit;
 the TT moves 4 px per unit), coalesced to one frame per 20 ms and split into ±127 steps.
@@ -103,14 +103,14 @@ ungrabs and ends the session (serial: the console returns). `ttkbdd -c N` picks 
 
 **Live run with the real mouse: works (operator, 2026-09-23)**, after re-installing the uaccess rule, which
 now covers the Logitech receiver. Not yet: a separate button click / release check (FR-11), the mouse's
-CPU cost on the TT, and a hot corner on **fractal's** screen to *take* control (COSMIC is Wayland: a
+CPU cost on the TT, and a hot corner on **The remote system management host's** screen to *take* control (COSMIC is Wayland: a
 client cannot see the global pointer; `ttkbd-session.sh` starts a session for now).
 
 ## Raw serial transport (decision D4, 2026-09-23)
 
 No TCP/IP: `ttkbdd` reads 3-byte frames `{0xA5, scancode, flags}` straight off the null-modem cable on
 Modem 2 at 38400 and injects them the same way; no handshake, no crypto (the cable is the trust
-boundary). fractal: `ttkbd_send.py --serial /dev/atari-tt type|frames|grab`.
+boundary). the remote system management host: `ttkbd_send.py --serial /dev/atari-tt type|frames|grab`.
 
 **Start it from the serial console itself:** at the console's bash prompt, `exec /usr/sbin/ttkbdd -S`
 (`scripts/ttkbd-session.sh` does this for you). It takes over the console's line; when it exits, `ttygetty` respawns the
@@ -131,7 +131,7 @@ tests. A forced `TIOCSCTTY` would be the fix for `-s`; untested.
 ```
 src/ttkbdd.c              the TT daemon
 src/kbdinj.c              raw-scancode test tool
-scripts/ttkbd_send.py     fractal sender
+scripts/ttkbd_send.py     the remote system management host sender
 scripts/test_ttkbd_send.py
 staging/HD10_OVERLAY/etc/rc.ttkbdd, etc/ttkbd.pub, usr/sbin/ttkbdd   boot install (on the card since 2026-09-23)
 tools/monocypher-4.0.3/   crypto (gitignored toolchain dir)
@@ -150,7 +150,7 @@ tools/cross-mint/usr/bin/m68k-atari-mint-gcc -m68020-60 -O2 -o build/kbdinj.prg 
 
 ## Run
 
-**One command (on fractal, from your desktop session):** `scripts/ttkbd-session.sh` — raw serial, no key
+**One command (on the remote system management host, from your desktop session):** `scripts/ttkbd-session.sh` — raw serial, no key
 needed, works with WiFi down. It types `exec ttkbdd -S` at the TT's Modem 2 console, grabs the keyboard,
 and on **Right Ctrl + Right Alt + Esc** sends a quit frame: ttkbdd exits, `ttygetty` respawns the console,
 and the script checks it answers. `scripts/ttkbd-session.sh --wifi` uses the encrypted WiFi path instead
@@ -163,12 +163,12 @@ and the script checks it answers. `scripts/ttkbd-session.sh --wifi` uses the enc
 Manual steps, if you are not using the script:
 
 
-1. **Key (once, on fractal, as the user who will type):** `python3 scripts/ttkbd_send.py keygen` writes
+1. **Key (once, on the remote system management host, as the user who will type):** `python3 scripts/ttkbd_send.py keygen` writes
    `~/.config/atari-tt/ttkbd.key` (mode 600) and prints the public key; write its 32 raw bytes to the
    TT's `/etc/ttkbd.pub`. The TT accepts exactly one key.
 2. **TT:** the WiFi listener starts at boot (`/etc/rc.ttkbdd` from `mint.cnf`; log `/var/log/ttkbdd.log`).
-3. **fractal, from the desktop session:** `python3 scripts/ttkbd_send.py grab`. Keys stop typing on
-   fractal and type on the TT. **Right Ctrl + Right Alt + Esc** stops.
+3. **The remote system management host, from the desktop session:** `python3 scripts/ttkbd_send.py grab`. Keys stop typing on
+   the remote system management host and type on the TT. **Right Ctrl + Right Alt + Esc** stops.
 4. Scripted input: `ttkbd_send.py type "text\n"`; raw frames: `ttkbd_send.py frames 2a 1e 11e 12a`.
 5. **Stuck key or wrong table after a crash:** on the TT, `ttkbdd --release` (breaks every scancode,
    restores the space-patched table and the boot key-repeat rate `0x0f02`).
@@ -179,5 +179,5 @@ Clr/Home; F11 → Undo; F12 → Help; the UK 102nd key → `\`; keypad mapped to
 ## Hardware
 
 - Atari TT030, FreeMiNT 1.19 (`4eb44d14`) with XaAES, BlueSCSI DaynaPORT WiFi at 192.168.0.30
-- fractal: KB104 keyboard (`/dev/input/by-id/usb-05ac_KB104_Dongle-event-kbd`), readable through the
+- The remote system management host: KB104 keyboard (`/dev/input/by-id/usb-05ac_KB104_Dongle-event-kbd`), readable through the
   uaccess rule

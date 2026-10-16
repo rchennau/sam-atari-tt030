@@ -85,7 +85,7 @@ fi
 check_port() {
     if [[ ! -c "${PORT}" ]]; then
         echo "Warning: Serial port device '${PORT}' does not exist or is not a character device." >&2
-        echo "Ensure the USB-to-Serial adapter is connected to fractal." >&2
+        echo "Ensure the USB-to-Serial adapter is connected to the remote system management host." >&2
     fi
 }
 

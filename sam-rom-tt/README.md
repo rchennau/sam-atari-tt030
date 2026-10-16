@@ -83,7 +83,7 @@ Hatari's TT emulation "emulates their presence but does not emulate the actual S
 was true of Hatari 2.1 and is **not** true of 2.5, where `rom3` completes a real INQUIRY and
 FreeMiNT boots from `--scsi` images.
 
-## Helpers on fractal
+## Helpers on the remote system management host
 
 | Script (side repo `scripts/`) | Purpose |
 |---|---|

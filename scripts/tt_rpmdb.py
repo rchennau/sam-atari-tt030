@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tt_rpmdb — write the TT's rpm 3.0.6 database on fractal, without the TT's rpm.
+"""tt_rpmdb — write the TT's rpm 3.0.6 database on the remote system management host, without the TT's rpm.
 
     scripts/tt_rpmdb.py check DBDIR [PKG.rpm ...]   prove the model against a real db (run this first)
     scripts/tt_rpmdb.py add   DBDIR PKG.rpm ...     register packages, like `rpm -i --justdb` on the TT

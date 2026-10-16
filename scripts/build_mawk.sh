@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cross-build mawk for the TT and package it as an m68kmint RPM (tt030-rpm-pipeline FR-6, first recipe).
 # The TT has no awk at all (2026-09-21) and the yum client (FR-3) is sh+awk. mawk: autotools, ships its
-# own generated parser (no yacc on fractal), smallest/fastest awk. Signature checked 2026-09-21 against
+# own generated parser (no yacc on the remote system management host), smallest/fastest awk. Signature checked 2026-09-21 against
 # Thomas Dickey's key (invisible-island.net/public/); the pin below is that verified tarball.
 #
 #   scripts/build_mawk.sh   -> build/mawk-<ver>-1.m68kmint.rpm   (needs scripts/setup_cross_mint.sh)

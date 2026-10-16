@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tt_reach_probe.py — can fractal REACH the TT? (RCA 2026-09-21-tt030-inbound-outage D1/A2)
+"""tt_reach_probe.py — can the remote system management host REACH the TT? (RCA 2026-09-21-tt030-inbound-outage D1/A2)
 
 ttmon's telemetry only proves the TT can reach the broker; on 2026-09-21 it said READY for minutes
 while nothing could reach the TT. This probes the other direction and publishes, retained:
@@ -24,7 +24,7 @@ TOPIC = "sam/node/reachability/atari-tt030"
 def neigh(ip):
     out = subprocess.run(["ip", "neigh", "show", ip], capture_output=True, text=True).stdout.split()
     states = [w for w in out if w.isupper() and w not in ("PERMANENT",)] or ["NONE"]
-    # worst state across interfaces (fractal reaches the LAN on two)
+    # worst state across interfaces (the remote system management host reaches the LAN on two)
     order = ["FAILED", "INCOMPLETE", "NONE", "STALE", "DELAY", "PROBE", "REACHABLE"]
     return min(states, key=lambda s: order.index(s) if s in order else 2)
 

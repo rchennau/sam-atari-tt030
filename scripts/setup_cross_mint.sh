@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up the 68k Atari cross-compiler on fractal (TT/TOS/FreeMiNT programs). No root.
+# Set up the 68k Atari cross-compiler on the remote system management host (TT/TOS/FreeMiNT programs). No root.
 # Thorsten Otto's Linux-hosted m68k-atari-mint GCC 15.2.0 + binutils 2.45 + mintlib/fdlibm/gemlib,
 # unpacked from staging/CROSSMINT/ (checksums in SHA256SUMS) into tools/cross-mint (gitignored).
 # The tarballs expect /usr; gcc is relocatable, so everything lives under tools/cross-mint/usr.

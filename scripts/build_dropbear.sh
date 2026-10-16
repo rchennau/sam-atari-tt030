@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cross-build Dropbear for the TT (FreeMiNT, m68k-atari-mint) and a native dropbearkey for fractal.
+# Cross-build Dropbear for the TT (FreeMiNT, m68k-atari-mint) and a native dropbearkey for the remote system management host.
 #
 #   scripts/build_dropbear.sh      -> tools/dropbear-<ver>/{dropbear,dropbearkey,dbclient}  (m68k)
 #                                     tools/dropbear-native/dropbear-<ver>/dropbearkey     (host)
@@ -39,6 +39,6 @@ patch_curve $VER
 
 rm -rf dropbear-native && mkdir dropbear-native && tar xjf $VER.tar.bz2 -C dropbear-native
 patch_curve dropbear-native/$VER
-# Native dropbear too: an interop test against OpenSSH on fractal proves the Monocypher swap is correct.
+# Native dropbear too: an interop test against OpenSSH on the remote system management host proves the Monocypher swap is correct.
 ( cd dropbear-native/$VER && ./configure --disable-zlib >/dev/null && make -s PROGRAMS="dropbear dropbearkey dropbearconvert" -j"$(nproc)" )
 ls -l $VER/dropbear $VER/dropbearkey $VER/dbclient dropbear-native/$VER/dropbearkey

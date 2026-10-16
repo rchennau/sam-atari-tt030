@@ -16,7 +16,7 @@ const struct sha512_state sha512_initial_state = { {
 } };
 
 #if defined(__GNUC__) && !defined(FORCE_EMU64)
-/* Native path (fractal): lets sha512_32.c be diff-tested against the reference sha512.c. */
+/* Native path (the remote system management host): lets sha512_32.c be diff-tested against the reference sha512.c. */
 typedef uint64_t u64;
 #define U64(hi, lo) (((uint64_t)(hi) << 32) | (lo))
 #define ADD(a, b) ((a) + (b))

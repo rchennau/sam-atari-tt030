@@ -53,7 +53,7 @@ int main(int argc, char **argv)
                 cfsetispeed(&t, speed(argv[2]));
                 cfsetospeed(&t, speed(argv[2]));
                 /* No flow control. CRTSCTS was on by default: the TT then transmits only while CTS
-                 * (fractal's RTS) is up, and fractal drops RTS whenever a program closes the port —
+                 * (the remote system management host's RTS) is up, and the remote system management host drops RTS whenever a program closes the port —
                  * output froze mid-stream, the shell spun, and each respawn sat in state D waiting to
                  * drain. `stty -crtscts` on the TT released it at once (2026-09-13). No IXON either:
                  * a stray ^S in serial data would stop output the same way. */

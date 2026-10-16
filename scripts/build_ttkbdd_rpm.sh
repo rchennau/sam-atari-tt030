@@ -23,7 +23,7 @@ open(out, "wb").write(R.write_rpm("ttkbdd", v, "1", [
     ("/usr/sbin/ttkbdd", 0o100755, open("build/ttkbdd.prg", "rb").read()),
     ("/etc/rc.ttkbdd", 0o100755, open("staging/HD10_OVERLAY/etc/rc.ttkbdd", "rb").read()),
 ], summary="TT030 remote keyboard + mouse daemon, protocol v3 (sam)",
-   description="Injects keys and mouse from fractal (scripts/ttkbd_send.py) over WiFi or serial; Monocypher crypto. "
+   description="Injects keys and mouse from the remote system management host (scripts/ttkbd_send.py) over WiFi or serial; Monocypher crypto. "
                "The sender key /etc/ttkbd.pub is not in the package."))
 print(out)
 PY

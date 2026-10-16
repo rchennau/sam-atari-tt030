@@ -84,7 +84,7 @@ def build_mp4(mp4_filename, title, script_steps):
 
 # Scripts
 ssh_script = [
-    ("sam@fractal:~$ ssh -i ~/.ssh/id_ed25519 sam@192.168.0.30", PROMPT_COLOR, 8),
+    ("sam@remote:~$ ssh -i ~/.ssh/id_ed25519 sam@192.168.0.30", PROMPT_COLOR, 8),
     ("Connecting to Atari TT030 (192.168.0.30:22)...", DIM_COLOR, 4),
     ("[T425] Hardware handshake offload request -> fpgabios.tos", CYAN_COLOR, 5),
     ("[T425] Offloading Curve25519 (X25519) key exchange to T425 RISC @ 40MHz...", CYAN_COLOR, 6),
@@ -99,13 +99,13 @@ ssh_script = [
 ]
 
 scp_script = [
-    ("sam@fractal:~$ sam-scp-tt /etc/dropbear/xserv.btl", PROMPT_COLOR, 8),
+    ("sam@remote:~$ sam-scp-tt /etc/dropbear/xserv.btl", PROMPT_COLOR, 8),
     ("Initializing ATW800/2 Transputer SCP Bridge...", DIM_COLOR, 4),
     ("fpgabios.tos resident check: PASSED (trap_1 vector $0x17)", GREEN_COLOR, 5),
     ("Booting T425 FPGA Transputer firmware xserv.btl (22,349 bytes)...", CYAN_COLOR, 6),
     ("sam-scp-tt: SCP transputer acceleration bridge active on ATW800/2 T425", GREEN_COLOR, 8),
     ("", TEXT_COLOR, 2),
-    ("sam@fractal:~$ scp -P 22 mint_kernel.sys sam@192.168.0.30:/drive_c/mint/", PROMPT_COLOR, 8),
+    ("sam@remote:~$ scp -P 22 mint_kernel.sys sam@192.168.0.30:/drive_c/mint/", PROMPT_COLOR, 8),
     ("[SCP-TT] Hardware stream framing & checksum offload enabled.", CYAN_COLOR, 5),
     ("mint_kernel.sys      100% 1240KB   412.3KB/s   00:03", GREEN_COLOR, 12),
 ]

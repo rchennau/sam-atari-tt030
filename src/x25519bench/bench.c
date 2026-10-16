@@ -1,7 +1,7 @@
 /* x25519bench — kanban a764de13 step 1: time one X25519 scalar multiply with the SAME C code on the
  * TT's 68030 (gcc) and the ATW800/2's T425 (INMOS icc, no 64-bit type). Uses Daniel Beer's public-domain
  * c25519 (8-bit digits, 32-bit accumulators), because icc cannot build Monocypher's i64 field math.
- * Checks the result against RFC 7748 §6.1 (Alice), computed independently on fractal.
+ * Checks the result against RFC 7748 §6.1 (Alice), computed independently on the remote system management host.
  *
  * Usage: bench [reps]      (default 1)
  */

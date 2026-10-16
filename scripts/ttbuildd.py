@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ttbuildd — build-on-miss for the TT (tt030-rpm-pipeline FR-4). Runs on fractal as sam.
+"""ttbuildd — build-on-miss for the TT (tt030-rpm-pipeline FR-4). Runs on the remote system management host as sam.
 
 Subscribes sam/tt030/build/request and answers on
 sam/tt030/build/{progress,done,failed,queued}/<request_id> with a short plain-text payload, so the
@@ -8,7 +8,7 @@ TT never parses JSON:
   done      on-mirror | built          -> the client re-reads the index and installs
   failed    <one line why>             -> build broke, or exceeded BUILD_TIMEOUT
   queued    no-recipe                  -> appended to tt030/queue.jsonl + a board card (deduplicated)
-One build at a time (fractal is the operator's desktop); BUILD_TIMEOUT is under the client's 15-min
+One build at a time (the remote system management host is the operator's desktop); BUILD_TIMEOUT is under the client's 15-min
 wait, so a slow build answers `failed`, never a silent client timeout. Every RPM it writes is
 recorded in tt030/built/provenance.jsonl.
 

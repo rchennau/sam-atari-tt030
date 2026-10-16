@@ -12,7 +12,7 @@
   `bluescsi.ini` uses `System="MegaSTE"`; it holds the WiFi password — never copy it into docs.
 - **Disk layout:** 3 ICD-formatted FAT16 partitions with **8192 B logical sectors** (not readable by
   Linux vfat/mtools/pyfatfs/7z — use `scripts/atari_fat16_ls.py` / `scripts/atari_fat16.py`).
-- **Host mounts on fractal:** `/media/atari/sd` and `/media/atari/floppy` (fstab `user` entries — sam
+- **Host mounts on the remote system management host:** `/media/atari/sd` and `/media/atari/floppy` (fstab `user` entries — sam
   mounts them without sudo).
 
 ## 2. Partitions
@@ -36,7 +36,7 @@ E: `DRIVERS\` and `ARCHIVE\`. The original is kept at `backups/HD00_512-orig-202
   SERIAL. *Corrected:* the old `C:\STING` had only `DAYNAPOR.STX`/`SCSILINK.STX` — no TCP/UDP/RESOLVE.
 - *Corrected:* `00JAR032.PRG` (64 bytes) is a broken stub that crashes TOS with 11 bombs — removed;
   `STRAMONLY` is not a STiNG 1.26 key; `DEFAULT.CFG` needs `ACTIVATE = TRUE` and has no port/IP keys.
-- **Port IPs** are set on the TT in `STNGPORT.CPX` (SCSI/Link for WiFi, Modem 1 for SLIP to fractal);
+- **Port IPs** are set on the TT in `STNGPORT.CPX` (SCSI/Link for WiFi, Modem 1 for SLIP to the remote system management host);
   routes are in `STING\ROUTE.TAB`.
 
 ## 5. SpareMiNT RPM Packaging & Target Database Management

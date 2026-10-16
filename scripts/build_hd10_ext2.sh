@@ -34,7 +34,7 @@ done
 # rebuilds `.sam1`, the T425 ports and their `-t425-on` switches win) and is unpacked AFTER the base
 # set, so it overrides it. The RPM files also go into /var/cache/yum.tt/pkgs and /var/lib/rpm gets a
 # marker: at first boot /etc/rc.firstboot registers them with the TT's own rpm (`--justdb`, local, no
-# network) — fractal cannot write rpm 3.0.6's db1 database. Operator 2026-09-26: a fresh card ships
+# network) — the remote system management host cannot write rpm 3.0.6's db1 database. Operator 2026-09-26: a fresh card ships
 # with the optimized packages installed instead of reinstalling them over SSH.
 MIRROR=${TT_MIRROR:-/mnt/vault/tt030}
 mkdir -p "$WORK/pkgs"
@@ -49,9 +49,9 @@ if [ -n "${HD10_PKGLIST:-}" ]; then
   done < "$HD10_PKGLIST"
   echo "HD10_PKGLIST: $n packages from $MIRROR" >&2
 fi
-# SSH for fractal -> TT (OpenSSH 5.6 predates ed25519/ecdsa-by-default, so RSA). Host keys are
+# SSH for the remote system management host -> TT (OpenSSH 5.6 predates ed25519/ecdsa-by-default, so RSA). Host keys are
 # generated once into build/hd10-keys/ (gitignored) so rebuilds keep the same fingerprint; the
-# login key is fractal's ~/.ssh/atari_tt_rsa.pub. Overlay files (passwd, group, resolv.conf) come
+# login key is the remote system management host's ~/.ssh/atari_tt_rsa.pub. Overlay files (passwd, group, resolv.conf) come
 # from staging/HD10_OVERLAY/.
 KEYS=$REPO/build/hd10-keys
 mkdir -p "$KEYS"
@@ -71,8 +71,8 @@ cp -a "$WORK/snap/mint/1-19-4eb/sys-root/opt" "$WORK/overlay/"
 find "$WORK/overlay/opt" -type f \( -iname '*.prg' -o -iname '*.app' -o -iname '*.ttp' -o -iname '*.tos' -o -iname '*.gtp' \) -exec chmod 755 {} +
 cp "$KEYS/ssh_host_rsa_key" "$KEYS/ssh_host_rsa_key.pub" "$WORK/overlay/etc/ssh/"
 cp "$PUB" "$WORK/overlay/root/.ssh/authorized_keys"
-# Dropbear (scripts/build_dropbear.sh, Monocypher crypto): ed25519 only, so also fractal's ed25519 key.
-# Host key generated once on fractal (native dropbearkey) so the fingerprint survives rebuilds.
+# Dropbear (scripts/build_dropbear.sh, Monocypher crypto): ed25519 only, so also the remote system management host's ed25519 key.
+# Host key generated once on the remote system management host (native dropbearkey) so the fingerprint survives rebuilds.
 DB=$REPO/tools/dropbear-2026.94/dropbear
 DBKEY=$KEYS/dropbear_ed25519_host_key
 PUB25519=${ATARI_TT_PUBKEY_ED25519:-$HOME/.ssh/atari_tt_ed25519.pub}
@@ -82,7 +82,7 @@ cp "$DB" "$WORK/overlay/usr/sbin/dropbear"
 cp "$DBKEY" "$WORK/overlay/etc/dropbear/"
 cat "$PUB25519" >> "$WORK/overlay/root/.ssh/authorized_keys"
 # Root password for telnet/ftp (plain text on the LAN). DES crypt: MiNTLib 0.57's login knows no $1$.
-# The hash lives only on fractal (~/.config/atari-tt/root-password.des, mode 600), never in the repo.
+# The hash lives only on the remote system management host (~/.config/atari-tt/root-password.des, mode 600), never in the repo.
 PWHASH_FILE=${ATARI_TT_PWHASH:-$HOME/.config/atari-tt/root-password.des}
 [ -f "$PWHASH_FILE" ] || { echo "missing $PWHASH_FILE" >&2; exit 1; }
 sed -i "s|^root::|root:$(cat "$PWHASH_FILE"):|" "$WORK/overlay/etc/passwd"

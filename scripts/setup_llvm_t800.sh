@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up the llvm-t800 cross toolchain (clang + lld for the T425) on fractal, no root — PMS
+# Set up the llvm-t800 cross toolchain (clang + lld for the T425) on the remote system management host, no root — PMS
 # tt030-llvm-t800-adoption FR-1. Extracts the pinned .debs into tools/llvm-t800 (gitignored); the drivers
 # find their prefix from their own path, so /opt is not needed.
 #

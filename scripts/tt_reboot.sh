@@ -1,5 +1,5 @@
 #!/bin/bash
-# tt_reboot.sh — restart the TT030 from fractal and wait for it to go down.
+# tt_reboot.sh — restart the TT030 from the remote system management host and wait for it to go down.
 #
 # FreeMiNT on this machine ships no reboot/halt/shutdown binary (/sbin holds only tzinit), so
 # `ssh atari-tt reboot` is a SILENT no-op — it once left the machine up for 1 h 47 m while a poller

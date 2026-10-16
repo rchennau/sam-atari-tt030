@@ -7,7 +7,7 @@
 shell, pulling SpareMiNT RPMs from a LAN mirror (plan: SAM monorepo
 `maestro/tracks/tt030-rpm-pipeline/`, locked 2026-09-14, revisions 1–5). The mirror is
 `http://mirror.sam.int/tt030/` (NAS `/vault/tt030`, served by CT104's Caddy to LAN sources only), 420
-packages, index RSA-signed on fractal.
+packages, index RSA-signed on the remote system management host.
 
 | Part | What it does |
 | :--- | :--- |
@@ -21,7 +21,7 @@ packages, index RSA-signed on fractal.
 Built and packaged by `../scripts/build_yum_tt.sh`; installed on the TT like any other package.
 
 **Measured on the TT:** `makecache` 17.7 s · `install less` 46.7 s · `install pv` with pv absent (built
-on fractal first) 1 m 47 s · `update` of the client itself 35 s · dependency walk over a 415-row index
+on the remote system management host first) 1 m 47 s · `update` of the client itself 35 s · dependency walk over a 415-row index
 6.1–6.6 s with `mawk`.
 
 **Limits:** versioned requirements are not resolved (the index keeps the newest entry per name); a
@@ -120,8 +120,8 @@ reads `/tmp/t425.loaded` and boots its own at once, and a login *during* a run t
 | `src/t4call.[ch]` | TT | boot a package's server once, frame requests, cap reads at `0x7000`, adler32-check results, `t4_enabled(pkg)` switch |
 | `src/t4lock.[ch]` | TT (+ Dropbear) | `/tmp/t425.lock` (pid + program path) and `/tmp/t425.loaded`; libc only, `#include`d by `staging/DROPBEAR/atwx25519.c` |
 | `src/t4serv.[ch]` | T425 | generic server loop; a family adds `t4_kernel()` + `t4_out_cap()` (`src/compserv.c`) |
-| `../scripts/build_recipe.py` | fractal | a recipe's `"t425"` block builds a T425 variant + a held `<pkg>-t425-on` switch RPM |
-| `../scripts/t425_inventory.py`, `t425_icc_trial.py` | fractal | the porting inventory and the icc trial compile |
+| `../scripts/build_recipe.py` | The remote system management host | a recipe's `"t425"` block builds a T425 variant + a held `<pkg>-t425-on` switch RPM |
+| `../scripts/t425_inventory.py`, `t425_icc_trial.py` | The remote system management host | the porting inventory and the icc trial compile |
 
 ## Layout
 

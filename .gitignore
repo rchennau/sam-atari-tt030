@@ -15,7 +15,7 @@ emulator/fr8/
 # Emulator working state, not sources (2026-09-17)
 # TOS ROM images (Atari copyright) + saved 404 pages
 emulator/roms/
-# symlink into the SD card, fractal-only
+# symlink into the SD card, the remote system management host-only
 emulator/hd00_512.hda
 emulator/staging_floppy.st
 emulator/hd0/TMP/

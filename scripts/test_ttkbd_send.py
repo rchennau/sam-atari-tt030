@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-# evdev is the host keyboard library (fractal desktop); the CI venv may lack it — skip, do not fail (2026-10-13)
+# evdev is the host keyboard library (the remote system management host desktop); the CI venv may lack it — skip, do not fail (2026-10-13)
 e = pytest.importorskip("evdev").ecodes
 
 sys.path.insert(0, str(Path(__file__).parent))

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Package the TT yum client (sam-yum-tt) as build/yum-tt-<ver>-1.m68kmint.rpm (tt030-rpm-pipeline FR-3).
 # Contents: /usr/bin/yum, /usr/lib/yum.tt/resolve.awk, /etc/yum.tt/index.pub (the mirror's public
-# signing key; the private half is ~/.config/tt030-mirror/index-sign.key on fractal only).
+# signing key; the private half is ~/.config/tt030-mirror/index-sign.key on the remote system management host only).
 set -eu
 cd "$(dirname "$0")/.."
 V=${1:-1.0}

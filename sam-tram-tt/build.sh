@@ -1,5 +1,5 @@
 #!/bin/bash
-# build.sh — build the ATW800/2 TRAM probes on fractal. Outputs build/*.btl.
+# build.sh — build the ATW800/2 TRAM probes on the remote system management host. Outputs build/*.btl.
 # The t4-hosted INMOS tools fail under long paths, so the build runs in a short /tmp dir.
 # Run on the TT (no `kill -9` on a hung iserver — it crashed XaAES; use scripts/tt_reboot.sh --wait-back):
 #   TRANSPUTER=1 IBOARDSIZE='#200000' /c/ATW800_2/atwtools/iserver.ttp -sb tramprobe.btl

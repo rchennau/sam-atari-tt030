@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ttkbd_send.py — fractal side of the TT030 remote keyboard (track tt030-remote-keyboard, Phases 2-3).
+"""ttkbd_send.py — the remote system management host side of the TT030 remote keyboard (track tt030-remote-keyboard, Phases 2-3).
 
 Connects to ttkbdd on the TT, runs the handshake, then sends encrypted key frames.
 
@@ -8,21 +8,21 @@ Connects to ttkbdd on the TT, runs the handshake, then sends encrypted key frame
   ttkbd_send.py type "text"                  type text (UK layout subset), then close
   ttkbd_send.py frames HEX...                send raw frames: each HEX is scancode|flags<<8 (e.g. 2a 1e 19e)
   ttkbd_send.py grab [--device PATH] [--mouse [PATH]] [--mouse-scale N]
-                                             capture fractal's keyboard (and mouse) and drive the TT; the TT
+                                             capture the remote system management host's keyboard (and mouse) and drive the TT; the TT
                                              pointer entering its hot corner (top-right) also hands back; type on
                                              the TT until Right Ctrl + Right Alt + Esc; needs read access to
-                                             the event device (root:input 660 on fractal)
+                                             the event device (root:input 660 on the remote system management host)
   options: --host 192.168.0.30 --port 7590 --hold SECONDS (keep the session open, heartbeats on)
            --serial /dev/atari-tt  raw serial to Modem 2 instead of WiFi (D4; TT runs ttkbdd -s /dev/ttyS1)
 
 Wire (all TT-side reads are fixed sizes):
-  TT -> fractal  hello  : ver(1)=1 | chal(16) | tt_x25519_pub(32)
-  fractal -> TT  auth   : f_x25519_pub(32) | sig(64)   sig = Ed25519(chal | tt_pub | f_pub | b"ttkbd1")
+  TT -> the remote system management host  hello  : ver(1)=1 | chal(16) | tt_x25519_pub(32)
+  the remote system management host -> TT  auth   : f_x25519_pub(32) | sig(64)   sig = Ed25519(chal | tt_pub | f_pub | b"ttkbd1")
   key = BLAKE2b-256(x25519(f_sk, tt_pub) | chal | tt_pub | f_pub)
-  fractal -> TT  record : mac(16) | ct(4)   XChaCha20-Poly1305, nonce = 16 zero bytes | counter (u64 LE) — v3,
+  the remote system management host -> TT  record : mac(16) | ct(4)   XChaCha20-Poly1305, nonce = 16 zero bytes | counter (u64 LE) — v3,
                           plaintext v2 {flags, code, dx, dy}; flags bit0 break, bit1 heartbeat, bit3 quit
                           (serial), bit4 mouse (code = buttons 1 right / 2 left), bit5 ack wanted
-  TT -> fractal          : 0x06 ack after an inject (only if bit5 set), 0x05 pointer reached the hot corner
+  TT -> the remote system management host          : 0x06 ack after an inject (only if bit5 set), 0x05 pointer reached the hot corner
 Heartbeat every 1 s; the TT releases all keys after 3 s of silence.
 Python `cryptography` has no XChaCha20-Poly1305, so HChaCha20 is done here (RFC draft-irtf-cfrg-xchacha
 §2.3) and the IETF ChaCha20-Poly1305 does the rest — the same construction as Monocypher's crypto_aead_lock.
@@ -43,7 +43,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 KEYFILE = Path("~/.config/atari-tt/ttkbd.key").expanduser()
 F_BREAK, F_HEARTBEAT, F_QUIT, F_MOUSE, F_ACK = 1, 2, 8, 0x10, 0x20
-MSG_ACK, MSG_CORNER = b"\x06", b"\x05"   # TT -> fractal: injected; pointer hit the hot corner
+MSG_ACK, MSG_CORNER = b"\x06", b"\x05"   # TT -> the remote system management host: injected; pointer hit the hot corner
 
 # UK Atari scancodes (keyboard/en_uk.tbl, unpatched — the TT loads it for the session, D2).
 # ponytail: letters/digits/common punctuation only; Phase 3's evdev map replaces this.
@@ -231,7 +231,7 @@ RELEASE_CHORD = {97, 100, 1}                   # Right Ctrl + Right Alt + Esc
 class KeyPump:
     """Turns evdev (code, value) events into TT frames. value: 1 down, 0 up, 2 autorepeat — sent as
     another make. ttkbdd turns the TT's own repeat off for the session: it fired on every late break
-    and doubled keys (NFR-2, 2026-09-23), so repeat timing now comes from fractal."""
+    and doubled keys (NFR-2, 2026-09-23), so repeat timing now comes from the remote system management host."""
 
     def __init__(self, send):
         self.send, self.down = send, set()
@@ -298,13 +298,13 @@ class MousePump:
 
 def grab(host, port, device, serial=None, mouse_dev=None, scale=4.0):
     import select
-    import evdev  # python3-evdev (system python on fractal)
+    import evdev  # python3-evdev (system python on the remote system management host)
     kbd = evdev.InputDevice(device)
     mouse = evdev.InputDevice(mouse_dev) if mouse_dev else None
     sess = SerialLink(serial) if serial else Session(host, port)
     devs = [kbd] + ([mouse] if mouse else [])
     for d in devs:
-        d.grab()  # keys and pointer stop acting on fractal while the session runs
+        d.grab()  # keys and pointer stop acting on the remote system management host while the session runs
     kp, mp = KeyPump(sess.send), MousePump(sess.send_mouse, scale)
     print("ttkbd_send: driving the TT — Right Ctrl + Right Alt + Esc"
           + (", or the TT pointer into its hot corner," if mouse else "") + " to stop", file=sys.stderr)
@@ -334,7 +334,7 @@ def grab(host, port, device, serial=None, mouse_dev=None, scale=4.0):
         if serial:
             sess.send(0, F_QUIT)  # ttkbdd exits; ttygetty respawns the serial console
         sess.close()  # the TT releases every held key and button when the session closes (FR-6, FR-11)
-        print(f"ttkbd_send: control back on fractal ({why})", file=sys.stderr)
+        print(f"ttkbd_send: control back on the remote system management host ({why})", file=sys.stderr)
 
 
 def latency(host, port, serial, n):

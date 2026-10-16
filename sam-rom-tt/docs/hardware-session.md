@@ -12,7 +12,7 @@ later depends on an earlier step succeeding. Emulator-side values to compare aga
 
 ## 0. Before you start
 
-- Serial cable on **Modem 2**, `picocom -b 38400 /dev/atari-tt` from fractal (57600 is refused by
+- Serial cable on **Modem 2**, `picocom -b 38400 /dev/atari-tt` from the remote system management host (57600 is refused by
   FreeMiNT's `scc.xdd`). Log the session: `picocom -b 38400 --logfile ~/tt-session.log /dev/atari-tt`.
 - Copy files with `scripts/tt_put.sh <local> <remote>` (verified; never hand-roll `ssh 'cat > …'`).
   Already on the card: `C:\VDIBENCH.PRG`, `C:\EMUTOS.PRG`, `C:\TTRUN.PRG`, `C:\TTREBOOT.PRG`.

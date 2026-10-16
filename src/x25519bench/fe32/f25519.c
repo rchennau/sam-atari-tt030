@@ -21,7 +21,7 @@ const uint8_t f25519_one[F25519_SIZE] = {1};
 typedef uint32_t w8[8];
 
 /* (x * y + c) as hi:lo. INMOS icc (the only non-GCC compiler here) uses the T425 instruction; GCC
- * builds use a 64-bit multiply so this file can be checked on fractal against the original f25519.c. */
+ * builds use a 64-bit multiply so this file can be checked on the remote system management host against the original f25519.c. */
 #ifdef __GNUC__
 static void mac(uint32_t x, uint32_t y, uint32_t c, uint32_t *lo, uint32_t *hi)
 {

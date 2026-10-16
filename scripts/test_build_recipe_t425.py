@@ -1,6 +1,6 @@
 """build_recipe T425 path (tt030-t425-kernel-ports FR-3), on the t4demo fixture: the package links
 libt4call, ships its .btl, and a separate -t425-on RPM holds the enable file. Needs the m68k cross
-toolchain and the INMOS toolset (fractal); skipped elsewhere."""
+toolchain and the INMOS toolset (the remote system management host); skipped elsewhere."""
 import hashlib
 import os
 import sys

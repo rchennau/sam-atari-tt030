@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up the transputer cross-toolchain on fractal (FR-5): the INMOS ANSI C toolset that ships in the
+# Set up the transputer cross-toolchain on the remote system management host (FR-5): the INMOS ANSI C toolset that ships in the
 # ATW800/2 basepack (d72uni, 1991: icc/ilink/icollect/oc/...) run under the t4 transputer emulator.
 # No root. Installs into tools/ (gitignored) and ends with a hello-world self-test.
 #

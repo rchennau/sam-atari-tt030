@@ -30,7 +30,7 @@
    │
    ├── 1. Why? /var/lib/rpm/Packages contains no package header records for the 23 installed base RPMs.
    │
-   ├── 2. Why? Base RPMs were installed on host (fractal) by extracting raw cpio payloads directly into fakeroot.
+   ├── 2. Why? Base RPMs were installed on host (the remote system management host) by extracting raw cpio payloads directly into fakeroot.
    │
    ├── 3. Why? build_hd10_ext2.sh used `7z` + `cpio -idm` to bypass target-native `rpm -ivh` execution.
    │
@@ -48,7 +48,7 @@
    Because the 23 base packages were populated onto the `HD10_512.hda` ext2 disk image during host-side image construction (`scripts/build_hd10_ext2.sh`) by extracting the payload files directly from `.rpm` archives into a `fakeroot` directory tree, completely bypassing the `rpm` package manager binary execution.
 
 3. **Why was direct file payload extraction (`7z` + `cpio -idm`) used instead of running `rpm -ivh` to install the packages?**  
-   Because the disk image build script ran on the x86_64 Linux build host (`fractal`), which lacks a native `m68k-mint` execution environment or an offline cross-platform RPM database builder capable of writing the 1990s/2000s m68k SpareMiNT Berkeley DB formats (`db2`/`db3`) offline without target binary execution.
+   Because the disk image build script ran on the x86_64 Linux build host (`the remote system management host`), which lacks a native `m68k-mint` execution environment or an offline cross-platform RPM database builder capable of writing the 1990s/2000s m68k SpareMiNT Berkeley DB formats (`db2`/`db3`) offline without target binary execution.
 
 4. **Why was target-side database initialization (`rpm --initdb` / `rpm -ivh --justdb`) or emulator-driven package registration omitted from the automated build workflow?**  
    Because the build automation prioritized fast, non-interactive, host-native reproducible image generation (`fakeroot` + `mke2fs`) to establish shell prompt readiness (`INIT=/bin/bash`) and verify ext2 filesystem boot, treating package archive unpacking as a raw filesystem provisioning step rather than a full package management lifecycle operation.
@@ -64,7 +64,7 @@
 The SpareMiNT base package deployment pipeline (`scripts/build_hd10_ext2.sh`) used host-side SVR4 `cpio` payload extraction (`7z x` + `cpio -idm`) to unpack `.rpm` files directly into a `fakeroot` directory tree prior to running `mke2fs`. While this correctly placed all filesystem contents (binaries, headers, configuration files, man pages) onto the ext2 disk image, it bypassed `librpm` header parsing and database generation. Consequently, no package records were written to `/var/lib/rpm/Packages`, leaving the RPM database empty while the filesystem was populated.
 
 ### Contributing Factors
-1. **Architecture Impedance (Host vs. Target):** Host `fractal` (x86_64 Linux) cannot execute `m68k-mint` binaries directly without emulation. Standard host `rpm` tools cannot manipulate legacy SpareMiNT Berkeley DB v2/v3 database formats natively.
+1. **Architecture Impedance (Host vs. Target):** Host `the remote system management host` (x86_64 Linux) cannot execute `m68k-mint` binaries directly without emulation. Standard host `rpm` tools cannot manipulate legacy SpareMiNT Berkeley DB v2/v3 database formats natively.
 2. **Scope Creep Workaround:** Direct payload extraction was introduced to overcome target-side execution slowness (running `rpm -ivh` for 23 packages on a 32-MHz 68030 CPU takes significant time).
 3. **Acceptance Criteria Blindspot:** Validation tests confirmed file existence (`ls /bin/bash`) and execution (`INIT=/bin/bash` booting into prompt) but did not query the package database (`rpm -qa`).
 

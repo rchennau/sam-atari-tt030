@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dependency-free RPM header reader and v3 RPM writer (tt030-rpm-pipeline FR-2, FR-6).
 
-fractal has no `rpm` binary, so the index is built from the bytes: 96-byte lead, signature
+the remote system management host has no `rpm` binary, so the index is built from the bytes: 96-byte lead, signature
 header (padded to 8), main header, then the gzip cpio payload. Tag numbers are rpm's own.
 """
 import gzip

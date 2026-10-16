@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """tt_serial.py — run a command on the TT's serial console (Modem 2, 38400, ttygetty + bash) and print
-its output. For when WiFi/SSH to the TT is degraded; stdlib only (no pyserial on fractal).
+its output. For when WiFi/SSH to the TT is degraded; stdlib only (no pyserial on the remote system management host).
 
   tt_serial.py [--timeout S] [--port /dev/atari-tt] 'COMMAND'     exit = the command's exit code
                                                                      (124 = no end marker in time)

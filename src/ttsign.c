@@ -2,7 +2,7 @@
  *
  *   ttsign KEYFILE < message        prints the 64-byte RFC 8032 signature as 128 hex digits
  *
- * KEYFILE holds the 32-byte seed, mode 600, on the card only; fractal keeps just the public key.
+ * KEYFILE holds the 32-byte seed, mode 600, on the card only; the remote system management host keeps just the public key.
  * Why not openssl: RSA-2048 signing took 2 min 29 s on the 68030 (RSA-1024 28.5 s, 2026-09-21);
  * Monocypher's Ed25519 — the copy Dropbear already uses on this machine — signs in ~2.7 s.
  * Exit 0 signed · 1 key/input error · 2 usage.

@@ -28,7 +28,7 @@ LIB=${LIB:-/usr/lib/yum.tt}   # CACHE/LIB: overridable for host tests
 export UNIXMODE
 
 # Every outcome also goes to syslog (/var/log/messages): on 2026-09-23 a failed `yum install top`
-# left no trace on the TT, only in ttbuildd's journal on fractal. logger ships in mint-util.
+# left no trace on the TT, only in ttbuildd's journal on the remote system management host. logger ships in mint-util.
 log() {
     pri=$1; shift
     if command -v logger >/dev/null 2>&1; then logger -t "yum[$$]" -p "user.$pri" -- "$*"
@@ -71,7 +71,7 @@ need_cache() { [ -f "$CACHE/index.tsv" ] || makecache; }
 # since dropped or replaced (seen 2026-09-21: pv removed from built/, the stale cache 404'd).
 fresh_cache() { [ -n "$(find "$CACHE/index.tsv" -mmin -10 2>/dev/null)" ] || makecache; }
 
-# FR-4 build-on-miss: ask ttbuildd on fractal to cross-build PKG. Subscribes to the request's own
+# FR-4 build-on-miss: ask ttbuildd on the remote system management host to cross-build PKG. Subscribes to the request's own
 # reply topics BEFORE publishing (ttmqtt -S says when that is live), prints each status as it
 # arrives, and returns 0 only on `done`. The id rides the topic, so no JSON is parsed here.
 # Optional credentials for the broker ACL: /etc/yum.tt/mqtt.cred sets MQTT_USER / MQTT_PASS.

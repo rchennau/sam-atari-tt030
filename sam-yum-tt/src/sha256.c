@@ -1,5 +1,5 @@
 /* sha256 — minimal FIPS 180-4 SHA-256, C89, 32-bit `unsigned long` (T425 and 68030 alike).
- * Shared by shaserv (T425, INMOS icc) and shabench (68030, m68k gcc). Checked on fractal against
+ * Shared by shaserv (T425, INMOS icc) and shabench (68030, m68k gcc). Checked on the remote system management host against
  * sha256sum by sha256test.c.
  */
 #include "sha256.h"

@@ -1,4 +1,4 @@
-/* test_libttjob — host test (fractal, gcc) for libttjob against a fake ttjobd (tt030-transputer-job-queue FR-3).
+/* test_libttjob — host test (the remote system management host, gcc) for libttjob against a fake ttjobd (tt030-transputer-job-queue FR-3).
  * The fake answers in submit order: op 'E' echoes, 'X' echoes with a damaged output checksum, 'B' -> ST_BADOP,
  * 'Q' -> closes the connection. Build/run: cc -I. -I../sam-yum-tt/src test_libttjob.c libttjob.c
  * ../sam-yum-tt/src/t4adler.c -o /tmp/test_libttjob && /tmp/test_libttjob */

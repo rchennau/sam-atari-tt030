@@ -1,5 +1,5 @@
 #!/bin/bash
-# Setup Hatari TAP network interface bridge for STiNG emulation on fractal
+# Setup Hatari TAP network interface bridge for STiNG emulation on the remote system management host
 set -e
 
 echo "========================================================"
@@ -17,7 +17,7 @@ else
     echo "[OK] tap0 created and configured (IP: 192.168.0.254)."
 fi
 
-# Enable IP forwarding on fractal
+# Enable IP forwarding on the remote system management host
 sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null
 
 echo "--------------------------------------------------------"

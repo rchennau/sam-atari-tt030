@@ -20,7 +20,7 @@ Track `tt030-atw800-video-modes` (SAM repo `maestro/tracks/`).
 | Tool | What it does |
 | :--- | :--- |
 | `scripts/atw_modes.py` | decode `XVDI.BIB` → `docs/atw-modes.tsv` (size, depth, VRAM, 2 MB fit) |
-| `scripts/atw_mode.sh show\|set <mode>\|restore` | set the next boot's mode from fractal; backup + SHA-256-verified upload over the serial line |
+| `scripts/atw_mode.sh show\|set <mode>\|restore` | set the next boot's mode from the remote system management host; backup + SHA-256-verified upload over the serial line |
 | `scripts/atw_moderun.sh MODE...` | per mode: set, reboot, check size (`atwres`), XaAES log and `xVDI`/`EdDI` cookies, then `vdibench` ×3 over serial |
 | `src/atwbg/atwres.c` | prints the live `W H PLANES` from the Line-A variables |
 | `src/vdibench.c` | VDI lines / filled bars / text / blits per second |

@@ -5,7 +5,7 @@
  * ttjobd wire id, mapped back to the client's own id in the reply. If the image cannot be booted, or a reply does
  * not come by its deadline, the watchdog (FR-7) answers ST_DOWN for everything outstanding so clients run the op on
  * the 68030 (C4), resets and re-boots the image, and logs the recovery time. Messages go to stderr
- * (rc.ttjobd: /var/log/ttjobd.log) and syslog (forwarded to fractal, central logging).
+ * (rc.ttjobd: /var/log/ttjobd.log) and syslog (forwarded to the remote system management host, central logging).
  * Usage: ttjobd [IMAGE.BTL] [SOCKET]   defaults /usr/lib/t425/jobfull.btl, /var/run/ttjob.sock */
 #include "atwboot.h"
 #include "t4lock.h"

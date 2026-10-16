@@ -1,10 +1,10 @@
 #!/bin/bash
-# ttkbd-session.sh — use fractal's keyboard as the Atari TT030's keyboard (track tt030-remote-keyboard).
+# ttkbd-session.sh — use the remote system management host's keyboard as the Atari TT030's keyboard (track tt030-remote-keyboard).
 #
 #   scripts/ttkbd-session.sh            raw serial on Modem 2 (default; no key needed, works with WiFi down)
 #   scripts/ttkbd-session.sh --wifi     encrypted TCP to 192.168.0.30:7590 (needs your key on the TT)
 #
-# Run it on fractal from your desktop session (the keyboard is readable there via the uaccess rule).
+# Run it on the remote system management host from your desktop session (the keyboard is readable there via the uaccess rule).
 # Stop with  Right Ctrl + Right Alt + Esc,  or by moving the TT pointer into the TT's top-right corner.
 #
 # Serial mode takes over the TT's Modem 2 console for the session: it types `exec ttkbdd -S` at the

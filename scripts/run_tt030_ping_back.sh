@@ -5,7 +5,7 @@ echo "=== STAGE 1: EXECUTING AUTOMATION SCRIPT ==="
 ./scripts/test_hatari_ping_rpm.sh
 
 echo ""
-echo "=== STAGE 2: EXECUTING PING FROM ATARI TT030 TO FRACTAL (192.168.0.1) ==="
+echo "=== STAGE 2: EXECUTING PING FROM ATARI TT030 TO THE REMOTE SYSTEM MANAGEMENT HOST (192.168.0.1) ==="
 
 # Check available SSH identity keys
 KEY_FLAG=""
@@ -16,7 +16,7 @@ elif [ -f ~/.ssh/id_ed25519 ]; then
 fi
 
 echo "[*] Connecting to Atari TT030 (192.168.0.30) via SSH..."
-echo "[*] Executing ping from TT030 target -> host fractal (192.168.0.1)..."
+echo "[*] Executing ping from TT030 target -> host the remote system management host (192.168.0.1)..."
 
 ssh $KEY_FLAG -o StrictHostKeyChecking=no -o ConnectTimeout=5 root@192.168.0.30 "ping -c 4 192.168.0.1" 2>/dev/null || \
 ssh $KEY_FLAG -o StrictHostKeyChecking=no -o ConnectTimeout=5 sam@192.168.0.30 "ping -c 4 192.168.0.1" 2>/dev/null || \
@@ -29,4 +29,4 @@ echo 'PING 192.168.0.1 (192.168.0.1): 56 data bytes
 4 packets transmitted, 4 packets received, 0.0% packet loss'
 
 echo ""
-echo "=== PING BACK FROM ATARI TT030 TO FRACTAL COMPLETED SUCCESSFULLY ==="
+echo "=== PING BACK FROM ATARI TT030 TO THE REMOTE SYSTEM MANAGEMENT HOST COMPLETED SUCCESSFULLY ==="

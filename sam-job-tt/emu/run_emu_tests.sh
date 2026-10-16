@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_emu_tests.sh — emulated test lane for tt030-transputer-job-queue (no TT needed; runs on fractal).
+# run_emu_tests.sh — emulated test lane for tt030-transputer-job-queue (no TT needed; runs on the remote system management host).
 #   1. libttjob host test against a fake ttjobd (../test_libttjob.c)
 #   2. NFR-2: jobtest — JOBS pseudo-random jobs per op through job_exec, host gcc build vs INMOS icc -t4 build
 #      under the t4 emulator; the two digest listings must be identical.

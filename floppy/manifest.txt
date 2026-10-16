@@ -22,12 +22,12 @@ AUTO/ICDBOOT.PRG           staging/AUTO/ICDBOOT.PRG      # ICD AdSCSI Pro 6.5.5 
 
 # STiNG loads every *.STX in the folder named by STING.INF.
 STING/DEFAULT.CFG          floppy/DEFAULT.CFG            # distribution template, ACTIVATE = TRUE
-STING/ROUTE.TAB            floppy/ROUTE.TAB              # Modem 1 SLIP routes to fractal 192.168.10.1
+STING/ROUTE.TAB            floppy/ROUTE.TAB              # Modem 1 SLIP routes to the remote system management host 192.168.10.1
 STING/TCP.STX              staging/STING/TCP.STX
 STING/UDP.STX              staging/STING/UDP.STX
 STING/RESOLVE.STX          staging/STING/RESOLVE.STX
 STING/SCSILINK.STX         staging/AUTO_EXTRA/SCSILINK.STX   # Anodyne DaynaPORT driver (BlueSCSI ID 3)
-STING/SERIAL.STX           staging/STING/SERIAL.STX      # SLIP/PPP on Modem 1 -> fractal /dev/atari-tt (null modem)
+STING/SERIAL.STX           staging/STING/SERIAL.STX      # SLIP/PPP on Modem 1 -> the remote system management host /dev/atari-tt (null modem)
 STING/PING.PRG             staging/STING/TOOLS/PING.PRG
 
 # Port IP config is done on the TT in the Control Panel (STNGPORT.CPX).

@@ -114,7 +114,7 @@ def build_index(pkgs):
 
 
 # RSA, not Ed25519: the TT's openssl 1.0.0c has no Ed25519 (measured 2026-09-21). The private key
-# never leaves fractal; the public half ships in the yum-tt RPM as /etc/yum.tt/index.pub.
+# never leaves the remote system management host; the public half ships in the yum-tt RPM as /etc/yum.tt/index.pub.
 SIGN_KEY = os.path.expanduser("~/.config/tt030-mirror/index-sign.key")
 
 
