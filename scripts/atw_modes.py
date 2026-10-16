@@ -6,8 +6,8 @@
 XVDI.BIB is N fixed 86-byte records: a 34-byte text name, big-endian u16 fields (depth code, bytes per
 line, bits per pixel, colours, ?, visible w-1/h-1, virtual w-1/h-1, timings), ending in the marker 11 22 33 44 55 66.
 Video RAM = bytes per line x virtual height, which also covers the "(Split)" rows (virtual wider than visible).
-The mode number is the record's position (1-based); XVDIMENU.INF word 0 is the selected one: 14 = 1024 x 768 256 on the TT (2026-10-14), the mode XaAES
-boots in. XVDI_R.BIB names 640x480x2 and is NOT the desktop mode (the redirector's own screen).
+The mode number is the record's position (1-based); XVDIMENU.INF word 0 is the selected one, 0-BASED (word 0 = mode - 1): the TT's 14 = mode 15 = 1024 x 768 65536,
+the mode XaAES boots in (measured 2026-10-15: word 10 booted 800x600x16 by Line-A; atwshot reads RGB565). XVDI_R.BIB names 640x480x2 and is NOT the desktop mode (the redirector's own screen).
 Fails loudly (exit 1) on a size that is not a multiple of 86, a missing marker, or a
 row length that does not match the virtual width.
 """
@@ -46,7 +46,7 @@ def main(argv):
     except ValueError as e:
         print(f"atw_modes: {bib}: {e}", file=sys.stderr)
         return 1
-    current = struct.unpack(">H", open(inf, "rb").read(2))[0] if os.path.exists(inf) else None
+    current = struct.unpack(">H", open(inf, "rb").read(2))[0] + 1 if os.path.exists(inf) else None
     cols = ["mode", "name", "w", "h", "virt_w", "virt_h", "bpp", "bytes_per_line", "vram_kb", "fits_2mb", "split"]
     print("\t".join(cols + ["current"]))
     for r in rows:
