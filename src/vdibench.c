@@ -20,6 +20,7 @@ static double rate(long n, clock_t t0)
 int main(int argc, char **argv)
 {
 	int only = argc > 1 ? atoi(argv[1]) : 15;   /* bitmask: 1 lines, 2 bars, 4 text, 8 blits */
+	short bs = argc > 2 ? atoi(argv[2]) : 100;  /* bar edge in pixels */
 	short work_in[11] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2}, d, i, xy[8];
 	MFDB scr = {0};
 	short w, hgt;
@@ -46,7 +47,7 @@ int main(int argc, char **argv)
 	vsf_interior(h, FIS_SOLID);
 	t0 = clock();
 	for (i = 0; i < 1000 && (only & 2); i++) {
-		xy[0] = i % (w - 100); xy[1] = i % (hgt - 100); xy[2] = xy[0] + 99; xy[3] = xy[1] + 99;
+		xy[0] = i % (w - bs); xy[1] = i % (hgt - bs); xy[2] = xy[0] + bs - 1; xy[3] = xy[1] + bs - 1;
 		vsf_color(h, i & 15);
 		v_bar(h, xy);
 	}
@@ -67,8 +68,8 @@ int main(int argc, char **argv)
 	graf_mouse(M_ON, NULL);
 	f = fopen("VDIBENCH.TXT", "a");
 	if (f) {
-		fprintf(f, "screen %dx%d colours %d | lines/s %.0f | bars100/s %.0f | text25/s %.0f | blit256/s %.1f\n",
-			w, hgt, work_out[13], r[0], r[1], r[2], r[3]);
+		fprintf(f, "screen %dx%d colours %d | lines/s %.0f | bars%d/s %.0f | text25/s %.0f | blit256/s %.1f\n",
+			w, hgt, work_out[13], r[0], bs, r[1], r[2], r[3]);
 		fclose(f);
 	}
 	v_clsvwk(h);
