@@ -3,6 +3,8 @@
  * the first key, mouse move or mouse button switches it back on. Idle = no change in the IKBD buffer tail index and
  * the Line-A mouse position/buttons, polled every 0.25 s; polling only reads, so no keystroke is swallowed.
  * Serial traffic does not wake the screen (automation over Modem 2 needs no picture).
+ * SIGTERM/SIGINT/SIGHUP switch the picture back on before exiting (killing it while blanked left the screen dark,
+ * 2026-10-17); SIGKILL cannot be caught, so after `kill -9` recover with `vtgprobe CTRL 0`.
  * The mode's ctrl_reg comes from the driver's VTG shadow (ATWInfo + 32), so it works in every mode.
  * Usage: ttsaver [-m MINUTES] [-s SECONDS]   default 10 minutes; -s for testing.
  * Installed as C:\TTSAVER.PRG (a .TTP would make XaAES open a toswin2 window for it).
@@ -10,6 +12,7 @@
  */
 #include <mint/osbind.h>
 #include <mint/linea.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,10 +22,11 @@
 #define SHADOW (*(volatile unsigned short *)0xFEDFDC20UL)      /* driver's copy of the mode's ctrl_reg */
 
 static unsigned short on_val;
-static int off;
+static volatile int off;
 
 static long vtg_off(void) { on_val = SHADOW; CTRL = on_val & ~0x01; return 0; }
 static long vtg_on(void) { CTRL = on_val; return 0; }
+static void bye(int sig) { if (off) Supexec(vtg_on); _exit(128 + sig); }
 
 int main(int argc, char **argv)
 {
@@ -34,6 +38,7 @@ int main(int argc, char **argv)
 		if (!strcmp(argv[i], "-m")) limit = atol(argv[i + 1]) * 60;
 		if (!strcmp(argv[i], "-s")) limit = atol(argv[i + 1]);
 	}
+	signal(SIGTERM, bye); signal(SIGINT, bye); signal(SIGHUP, bye);
 	linea0();
 	tail = kb->ibuftl; mx = GCURX; my = GCURY; mb = MOUSE_BT;
 	if (isatty(1)) {                                     /* silent when started from XaAES autorun (.PRG, no window) */
