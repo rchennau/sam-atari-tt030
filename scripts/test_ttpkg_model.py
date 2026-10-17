@@ -39,3 +39,51 @@ def test_vectors_agree_with_awk_and_c(tmp_path):
     got_c = subprocess.run([tmp_path / "d"], input=pairs, text=True, capture_output=True, check=True).stdout.split()
     want = [e for _, _, e in rows]
     assert got_awk == want and got_c == want
+
+
+# FR-2: the window's filter (pkg_match) against yum's own search rule, taken from the shipped yum script so the
+# two cannot drift. Patterns cover each column: name, provides-only (windowmanager, /bin/sh), command-only (ppmto),
+# a broad hit (lib) and case-sensitivity (Magick vs magick).
+FR2_PATTERNS = ["lib", "windowmanager", "/bin/sh", "ppmto", "Magick", "magick"]
+FR2_DRV = '#include <stdio.h>\n#include <stdlib.h>\n#include "pkgmodel.h"\nstatic struct pkg p[2000];\n' \
+          'int main(int c,char**v){int n=pkg_load_index(v[1],p,2000);for(int a=2;a<c;a++){printf("=%s\\n",v[a]);' \
+          'for(int i=0;i<n;i++)if(pkg_match(&p[i],v[a]))printf("%s\\n",p[i].name);}return 0;}\n'
+
+
+def _yum_search_awk():
+    with open(f"{R}/sam-yum-tt/src/yum") as fh:
+        src = fh.read()
+    body = src[src.index("list|search)"):]
+    start = body.index("'/^#/") + 1                  # the program string, after -F'\\t' and the -v options
+    return body[start:body.index("' \\", start)]
+
+
+def _sets(lines):
+    out, cur = {}, None
+    for line in lines:
+        if line.startswith("="):
+            cur = out.setdefault(line[1:], set())
+        else:
+            cur.add(line)
+    return out
+
+
+def test_filter_matches_yum_search(tmp_path):
+    import pytest
+    idx = os.path.join(os.environ.get("TT030_MIRROR", "/mnt/vault/tt030"), "index.tsv")
+    if not os.path.exists(idx):
+        pytest.skip(f"no mirror index at {idx}")
+    prog = _yum_search_awk()
+    want = {}
+    for pat in FR2_PATTERNS:
+        r = subprocess.run(["awk", "-F\t", "-v", f"pat={pat}", "-v", "s=search", prog, idx], text=True,
+                           capture_output=True, check=True)
+        want[pat] = {line.split("\t")[0] for line in r.stdout.splitlines()}
+    (tmp_path / "d.c").write_text(FR2_DRV)
+    subprocess.run(["gcc", "-std=c99", "-I", SRC, "-o", tmp_path / "d", tmp_path / "d.c", f"{SRC}/pkgmodel.c"], check=True)
+    got = _sets(subprocess.run([tmp_path / "d", idx, *FR2_PATTERNS], text=True, capture_output=True,
+                               check=True).stdout.splitlines())
+    for pat in FR2_PATTERNS:
+        assert want[pat], f"pattern {pat!r} hits nothing; it tests nothing"
+        assert got.get(pat, set()) == want[pat], pat
+    assert want["Magick"] != want["magick"]
