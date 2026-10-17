@@ -29,6 +29,20 @@ Facts the rows rely on (all measured, README / `docs/resolution-management.md` /
 | `atwpal`, `vtgprobe`, `atwres`, `mxprobe`, `blitchk`, `fillchk`, `vdiprof`, `vdibench` | none / measurement tools | 68030 | reasoned | Register pokes and probes. The benchmarks measure the 68030→card path on purpose. |
 | `sam-rom-tt` | firmware | n/a | — | No-TOS ROM skeleton, unproven, before any OS or ttjobd. |
 
+## Third-party apps (packaged by FHS FR-3, added 2026-10-17)
+
+The first version of this table covered only our own programs. These apps were packaged into `/opt`. Without
+source, a program cannot be rebuilt or split for the T425.
+
+| App | Heavy work | Where it runs | Basis | Note |
+| :--- | :--- | :--- | :--- | :--- |
+| `nethack-atw` (NetHack 3.6.0) | game engine | **T425** (`NETHACK.BTL`) | vendor build | Ships its own T425 image. It talks to the card directly, not through `ttjobd`. Coexistence with `ttjobd` is unmeasured; the README asks for a cold boot. |
+| `xptr-tos` (XPTR) | ray tracing | **T425** (184 `ATW\*.BTL`) | vendor build | Same: own T425 images, coexistence with `ttjobd` unmeasured. |
+| `turbocad-tools-tos` (TurboCAD 3.6 converters, TBPARTS, TBCAD2TT/TBOUT/TBSHELL) | file-format conversion (DXF/HPGL/ASCII/GEM ↔ TC2), plotting | 68030 | blocker: closed binaries | No source (Technobox, proprietary), so nothing can move to a transputer. Converters are file-I/O-sized jobs. Unmeasured: how long a typical conversion takes on the 68030. |
+| `wordplus-tos` (1st Word Plus 3.20) | text editing | 68030 | blocker: closed binary | Interactive and latency-bound. |
+| `nvdi-tools-tos` (NVDI 5 utilities, GEM-TEST) | font/printer config, VDI benchmark | 68030 | blocker: closed binaries | Config tools. NVDI drawing itself is replaced by xVDI on the ATW800/2. |
+| `highwire-tos` (HighWire 0.5.0 browser) | HTML layout, image decode | 68030 | reasoned (GPL source exists) | Source is available, so a T425 image decoder is possible in principle. Its JPEG/PNG decode is the candidate (`djpeg` on the T425: 0.37 of stock). Not evaluated further; low use. |
+
 ## Findings
 
 1. **The default mode blocks transputer use for anything interactive.** Mode 32 blanks the screen during every T425
