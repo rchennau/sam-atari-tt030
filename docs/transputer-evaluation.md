@@ -97,3 +97,30 @@ certificates, with better entropy than the TT's timer-jitter seed.
 | GIF decode (`img_gif.c`, LZW) | no | LZW decode lost on the T425 (measured and declined). |
 | TLS | not needed | 0.4.8 delegates TLS to a proxy. The proxy removes it from the TT (4–5 s vs 28–53 s per 200 KB, measured). |
 | HTML parse, layout, render (`parser.c`, `render.c`, `Table.c`) | no | Pointer-heavy DOM in 68030 memory, and drawing must go through the VDI on the 68030. Shipping the DOM over the link costs more than the work. |
+
+## HighWire image cost on the real TT (2026-10-17)
+
+These are HighWire's own `LOGGING` timings for a local page on the TT: SAM fork 0.4.8-sam1, xVDI mode 32, 8 bpp.
+"Decode" includes the conversion to the screen's pixel format. Drawing took 0–80 ms in every case.
+
+| Image | Decode, dithered | Decode, `FAST_IMAGES = 1` (no dither) |
+| :--- | ---: | ---: |
+| JPEG 320×240 | 7.9 s | 9.9 s |
+| JPEG 640×480 | **27.5 s** | 20.8 s |
+| JPEG 1024×768 | **68.3 s** | 53.1 s |
+| PNG 640×480 truecolour | 21.5 s | 16.5 s |
+| PNG 640×480 256-colour palette | 4.9 s | 4.9 s |
+| GIF 640×480 | 8.4 s | 8.4 s |
+
+- **JPEG decoding is the cost; dithering is about a quarter of it.** Our `djpeg` port measured the T425 at 15.4 s
+  against 29.7 s on the 68030 for 800×600 (`sam-t425-ports`).
+- **T425 estimate for a 640×480 JPEG** (not measured): about 10 s to decode, plus 0.7 s to return one byte per
+  pixel if the T425 also dithers. That is roughly 11 s against 27.5 s, about 2.5× faster.
+  - It needs a new ttjobd op (jpegserv already exists) and a HighWire hook in `img_jpg.c`.
+  - It blanks the picture in mode 32.
+  - The two TRAMs could decode further images in parallel. Whether TRAM jobs also blank is unmeasured.
+- **Proxy transcoding, the alternative** (not measured end to end): HighWire already sends `UA-pixels`, `UA-color`
+  and its pixel aspect "so a transcoding proxy can size images for the display".
+  - CT114 could turn each JPEG or truecolour PNG into a 256-colour palette PNG at display size. That PNG decodes in
+    4.9 s on the TT, plus about 2 s more transfer (153 KB against 70 KB): roughly 7 s, about 4× faster.
+  - No T425, no blanking, and no TT-side code.
