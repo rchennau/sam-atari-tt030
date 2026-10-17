@@ -29,7 +29,8 @@ Track `tt030-atw800-video-modes` (SAM repo `maestro/tracks/`).
 
 Benchmarks are medians of 3 `vdibench` runs. Pixel clock, H and V rates are computed from the record's dividers and
 timing. "T425 load" = one SSH login (X25519 + Ed25519 verify through `ttjobd`) and, for mode 22, three `tgzip` jobs,
-watched by the operator.
+watched by the operator. Modes 24 and 28 (FR-6, 2026-10-17): two runs each of one login + three `tgzip` jobs, all
+on the T425, 0 blanks per run.
 
 | Mode | Size | Colours | VRAM KB | Pixel clock MHz | H kHz | V Hz | ASUS VS247H-P | lines/s | bars/s | text/s | blits/s | T425 load |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -39,9 +40,9 @@ watched by the operator.
 | 18 | 1280×720 | 256 | 900 | 75.6 | 45.8 | 61.1 | shown | 1043 | 2222 | 739 | 1429 | — |
 | 11 | 800×600 | 65536 | 938 | 40.0 | 37.8 | 60.3 | shown | 1336 | 1887 | 495 | 769 | — |
 | 21 | 1280×800 | 256 | 1000 | 82.8 | 49.3 | 59.5 | shown | 995 | 2128 | 710 | 1429 | — |
-| 24 | 1280×960 | 256 | 1200 | 102.6 | 59.9 | 60.3 | shown | 904 | 2105 | 709 | 1379 | — |
+| 24 | 1280×960 | 256 | 1200 | 102.6 | 59.9 | 60.3 | shown | 904 | 2105 | 709 | 1379 | stable |
 | 26 | 1280×1024 | 256 | 1280 | 108.0 | 64.0 | 60.0 | shown | 834 | 1802 | 678 | 1379 | blanks |
-| 28 | 1440×960 | 256 | 1350 | 102.6 | 53.9 | 54.2 | shown | 887 | 2083 | 714 | 1290 | — |
+| 28 | 1440×960 | 256 | 1350 | 102.6 | 53.9 | 54.2 | shown | 887 | 2083 | 714 | 1290 | stable |
 | 15 | 1024×768 | 65536 | 1536 | 64.8 | 48.2 | 59.8 | shown | 1117 | 1980 | 486 | 714 | stable |
 | 30 | 1600×1200 | 256 | 1875 | 135.0 | 62.5 | 50.0 | OUT OF RANGE | 754 | 2128 | 705 | 1290 | — |
 | 22 | 1280×800 | 65536 | 2000 | 82.8 | 49.3 | 59.5 | shown | 993 | 1786 | 474 | 656 | stable |
@@ -61,7 +62,7 @@ Mode 28 computes to 54.2 Hz, just under the monitor's stated 55 Hz, and still di
 2. **High pixel clock + T425 work = HDMI dropouts.** At 108 MHz (mode 26) and 137.7 MHz (mode 32) the picture goes
    black and back (~6 times per SSH login) whenever the T425 runs a job; quiet otherwise. 65 MHz (mode 15) and
    82.8 MHz (mode 22, same memory traffic as mode 32) stay stable — so the trigger tracks pixel clock, not video
-   memory bandwidth. Threshold: between 82.8 MHz (stable) and 108 MHz (blanks); the 102.6 MHz modes (24, 28) are untested under load.
+   memory bandwidth. Threshold: between **102.6 MHz** (modes 24 and 28 stable, FR-6 2026-10-17) and 108 MHz (blanks).
 3. **Mono is slower than 256 colours** at the same size (mode 37 vs 32): lines 1.7×, bars 2.5×, blits 4.8× slower;
    text about equal. Under investigation (FR-8).
 4. **SSH cost of keeping the T425 idle:** login 16–18 s with offload vs **27.1 s** on the 68030 (X25519 6.3 s,
@@ -71,5 +72,5 @@ Mode 28 computes to 54.2 Hz, just under the monitor's stated 55 Hz, and still di
 
 Default **mode 32** (1920×1080, 256 colours). Dropbear runs with `DROPBEAR_NO_ATW=1` (`/etc/dropbear/dropbear.conf`, dropbear-2026.94-2.sam1, `%config(noreplace)`) so logins
 do not touch the T425; the serial console (Modem 2) is preferred for connections in this mode. Other `ttjobd` work
-(tgzip, lha, bzip2) still blanks the picture briefly while it runs. For full offload with no blanking use mode 22
-(1280×800, 65536 colours) or 15 (1024×768, 65536 colours) and comment out `DROPBEAR_NO_ATW` in that file.
+(tgzip, lha, bzip2) still blanks the picture briefly while it runs. For full offload with no blanking use mode 24
+(1280×960, 256 colours), 28 (1440×960, 256 colours), 22 (1280×800, 65536 colours) or 15 (1024×768, 65536 colours) and comment out `DROPBEAR_NO_ATW` in that file.
