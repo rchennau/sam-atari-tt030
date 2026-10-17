@@ -41,7 +41,19 @@ source, a program cannot be rebuilt or split for the T425.
 | `turbocad-tools-tos` (TurboCAD 3.6 converters, TBPARTS, TBCAD2TT/TBOUT/TBSHELL) | file-format conversion (DXF/HPGL/ASCII/GEM ↔ TC2), plotting | 68030 | blocker: closed binaries | No source (Technobox, proprietary), so nothing can move to a transputer. Converters are file-I/O-sized jobs. Unmeasured: how long a typical conversion takes on the 68030. |
 | `wordplus-tos` (1st Word Plus 3.20) | text editing | 68030 | blocker: closed binary | Interactive and latency-bound. |
 | `nvdi-tools-tos` (NVDI 5 utilities, GEM-TEST) | font/printer config, VDI benchmark | 68030 | blocker: closed binaries | Config tools. NVDI drawing itself is replaced by xVDI on the ATW800/2. |
-| `highwire-tos` (HighWire 0.5.0 browser; Mbed TLS 3.6.6, libjpeg, libpng, zlib linked in) | TLS 1.3 handshake + bulk cipher; image decode | 68030 | **measured kernels** (OpenSSL 1.0.0c `speed` on the TT 2026-10-17, a proxy for Mbed TLS) | 68030: RSA-2048 verify 3.41 s, ECDSA P-256 verify 7.42 s, ECDH P-256 6.16 s, AES-128-CBC 46 KB/s, SHA-256 55 KB/s; X25519 6.3 s (Dropbear's, measured 10-16) vs **2.7 s on the T425**. Estimated (not measured): 15–20 s per HTTPS handshake, ~4 s per 200 KB of AES. Image decode is the smaller cost (`djpeg` T425 0.37; inflate loses on the T425). Next: headless Mbed TLS prototype with X25519/ChaCha20 via `ttjobd` (operator 2026-10-17). |
+| `highwire-tos` (HighWire 0.5.0 browser; Mbed TLS 3.6.6, libjpeg, libpng, zlib linked in) | TLS 1.3 handshake + bulk cipher; image decode | 68030 | **measured kernels** (OpenSSL 1.0.0c `speed` on the TT 2026-10-17, a proxy for Mbed TLS) | 68030: RSA-2048 verify 3.41 s, ECDSA P-256 verify 7.42 s, ECDH P-256 6.16 s, AES-128-CBC 46 KB/s, SHA-256 55 KB/s; X25519 6.3 s (Dropbear's, measured 10-16) vs **2.7 s on the T425**. Estimated (not measured): 15–20 s per HTTPS handshake, ~4 s per 200 KB of AES. Image decode is the smaller cost (`djpeg` T425 0.37; inflate loses on the T425). Measured with `tlsbench` (Mbed TLS 3.6.6, TLS 1.3, X25519, RSA CA + ECDSA P-256 server, LAN, 2026-10-17): handshake median **25.9 s** on the 68030 (26.6/20.2/25.9) vs **19.0 s** with X25519 on the T425 (12.4/19.0/19.0; −27 %, spread ~6 s, n = 3); T425 X25519 results checked equal to the 68030's. 200 KB body: **34.2 s AES-128-GCM, 8.7 s ChaCha20-Poly1305** on the 68030. Through `scripts/tt_tlsproxy.py` (plain HTTP to a TLS-terminating proxy on fractal) the same 200 KB took **4–5 s** (one 48 s outlier, unexplained), md5 identical. **HighWire does not start on the real TT:** `HW-FATAL: needs SpeedoGDOS or NVDI ≥ 3` (xVDI desktop; `C:\AUTO\NVDI.PR*` disabled). |
+
+## TLS on the TT: offload vs proxy (2026-10-17)
+
+| Path | Handshake | 200 KB body | 68030 crypto |
+| :--- | :--- | :--- | :--- |
+| All on the 68030 | 25.9 s | 8.7 s (ChaCha20) / 34.2 s (AES-GCM) | all of it |
+| X25519 on the T425 | 19.0 s | same | certificate checks + cipher |
+| TLS-terminating LAN proxy | none on the TT | 4–5 s total | none |
+
+The proxy removes TLS from the TT entirely. The T425 can only take the X25519 part: ECDSA, RSA and the bulk cipher
+are not ported. The cost is a cleartext hop on the LAN between the TT and the proxy. The proxy verifies upstream
+certificates, with better entropy than the TT's timer-jitter seed.
 
 ## Findings
 
