@@ -1,0 +1,19 @@
+--- a/library/ecp.c
++++ b/library/ecp.c
+@@ -2606,6 +2606,16 @@
+ #if defined(MBEDTLS_ECP_INTERNAL_ALT)
+     char is_grp_capable = 0;
+ #endif
++#if defined(TLSBENCH_ECP_HOOK)       /* tlsbench (atari-tt030-enhancement): X25519 on the T425 via ttjobd */
++    {
++        extern int tlsbench_ecp_hook(mbedtls_ecp_group *, mbedtls_ecp_point *, const mbedtls_mpi *,
++                                     const mbedtls_ecp_point *);
++        int hook = tlsbench_ecp_hook(grp, R, m, P);   /* 0 = done, > 0 = not handled, < 0 = error */
++        if (hook <= 0) {
++            return hook;
++        }
++    }
++#endif
+ 
+ #if defined(MBEDTLS_ECP_RESTARTABLE)
+     /* reset ops count for this call if top-level */
