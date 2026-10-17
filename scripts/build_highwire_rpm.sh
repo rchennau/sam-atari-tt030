@@ -36,7 +36,7 @@ for top, dirs, names in os.walk(os.path.join(f, "html")):
     files += [(f"{D}/{rel}/{n}", 0o100644, rd(os.path.join(rel, n))) for n in sorted(names)]
 out = f"build/highwire-{ver}-{sam}.sam.m68kmint.rpm"
 open(out, "wb").write(R.write_rpm("highwire", ver, f"{sam}.sam", files,
-    summary=f"HighWire web browser {ver}, SAM TT030 fork (fork {sha}); HTTPS via ttproxy.sam.int (sam)",
+    summary=f"HighWireTT web browser {ver} (HighWire, SAM TT030 fork {sha}); HTTPS via ttproxy.sam.int (sam)",
     description="GPL-3.0. github.com/rchennau/highwire-sam-tt030 (branch sam-tt030), upstream "
                 "github.com/neilrackett/atarist-highwire. No TLS on the TT: HTTP_PROXY terminates it on CT114.",
     fileflags={f"{D}/highwire.cfg": 1}))   # RPMFILE_CONFIG: a local edit survives updates
