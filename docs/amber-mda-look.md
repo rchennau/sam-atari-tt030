@@ -7,7 +7,7 @@ Target: an amber IBM MDA monitor — black backgrounds, amber text, the MDA char
 | :--- | :--- | :--- | :--- |
 | Palette: inverted luminance, pen -> (L, .85L, 0); desktop pen 3 black | `C:\AUTO\DEFAULT.PAL` | `scripts/atw_palette.py amber`, installed by `scripts/tt_palette.sh amber` | ec78ef25 |
 | System font 8x16 slot = IBM MDA | `C:\GEMSYS\IBMMDA.FNT` + `C:\AUTO\XVDI.INF` (`16x8=c:\gemsys\ibmmda.fnt`) | `scripts/mda_gemfont.py Px437_IBM_MDA.ttf IBMMDA.FNT` | 030e6cc8 (INF) |
-| toswin2: 8x16 font (size 10), background ANSI 7, text ANSI 0 | `/f/root/toswin2.cfg` | saved in toswin2, colours swapped by hand | 92cda697 |
+| toswin2: 8x16 font (size 10), background ANSI 7, text ANSI 0 | `/f/root/toswin2.cfg` | saved in toswin2, colours swapped by hand | 92cda697 at install; operator re-saved 10-16 17:25 (fg/bg 0/7, bold) → 557ec152 |
 
 Why toswin2's colours are swapped: toswin2 maps ANSI black to VDI pen 1 and ANSI white to pen 0. The inverted palette
 makes pen 0 black and pen 1 amber, so "background white / text black" in toswin2 shows as amber text on black.
