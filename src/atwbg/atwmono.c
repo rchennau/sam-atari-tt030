@@ -5,6 +5,7 @@
  * does), and redirects the generic fill's call site so solid REPLACE fills replicate row 0 with the engine.
  * Everything else goes to the original routines.
  * Usage: atwmono      install (stays resident; a reboot removes it)
+ *        atwmono -s   copy statistics of the resident hook (FR-2 gate)
  *        atwmono -u   restore the original slot (the resident copy stays in memory, unused)
  * Refuses unless the driver's bytes match the build it was written against.
  * Build: m68k-atari-mint-gcc -m68020-60 -O2 -s -o atwmono.ttp src/atwbg/atwmono.c
@@ -28,6 +29,9 @@ typedef struct { void *addr; short w, h, wdw, stand, planes, r1, r2, r3; } MFDB;
 unsigned long mono_orig __asm__("mono_orig");
 unsigned long mono_xvdi __asm__("mono_xvdi");
 unsigned long mono_hits __asm__("mono_hits");
+/* FR-2 gate counters: screen-to-screen S_ONLY copies by class, count and bytes:
+   0/1 byte-aligned (engine), 2/3 misaligned same bit phase, 4/5 different phase, 6 other (not S_ONLY/screen) */
+unsigned long mono_st[7] __asm__("mono_st");
 void mono_blit(void) __asm__("mono_blit");
 void mono_fill(void) __asm__("mono_fill");
 void mono_fill_c(unsigned char *ws) __asm__("mono_fill_c");
@@ -73,8 +77,10 @@ long mono_blit_c(unsigned char *ws)
 	long pitch = W(0x8c2), so, d, spin = 4000000;
 	volatile unsigned char *e;
 
-	if (intin[0] != 3 || src->addr || dst->addr || W(0x4b0) || W(0x918) != 1)
+	if (intin[0] != 3 || src->addr || dst->addr || W(0x4b0) || W(0x918) != 1) {
+		mono_st[6]++;
 		return 0;
+	}
 	if (p[6] - p[4] + 1 != w || p[7] - p[5] + 1 != h)
 		return 0;
 	if (W(0x4b4)) {                          /* clip the destination, move the source with it */
@@ -86,8 +92,12 @@ long mono_blit_c(unsigned char *ws)
 		if (w <= 0 || h <= 0)
 			return 1;
 	}
-	if ((sx | dx | w) & 7 || sx < 0 || sy < 0 || dx < 0 || dy < 0)
+	if ((sx | dx | w) & 7 || sx < 0 || sy < 0 || dx < 0 || dy < 0) {
+		int k = (sx & 7) == (dx & 7) ? 2 : 4;
+		mono_st[k]++;
+		mono_st[k + 1] += (long)((w + 7) / 8 + 1) * h;
 		return 0;
+	}
 	e = *(volatile unsigned char **)(mono_xvdi + V_ENGINE);
 	if (!e)
 		return 0;
@@ -111,6 +121,8 @@ long mono_blit_c(unsigned char *ws)
 	while (*(volatile short *)(e + 0x110) && --spin)   /* bounded: a stuck engine must not hang the VDI */
 		;
 	mono_hits++;
+	mono_st[0]++;
+	mono_st[1] += (long)(w / 8) * h;
 	return 1;
 }
 
@@ -168,7 +180,8 @@ void mono_fill_c(unsigned char *ws)
 
 static const unsigned char head[6] = {0x2a, 0x6f, 0x00, 0x04, 0x4f, 0xf9};
 static char banner[24];
-static int uninstall;
+static int uninstall, stats;
+static unsigned long st[7];
 static long rc;
 
 static const unsigned short fill_site[3] = {0x204a, 0x6100, 0x91d8};   /* move.l a2,a0; bsr.w F_FILL */
@@ -203,6 +216,12 @@ static long patch(void)
 		return rc = 1;
 	slot = (unsigned long *)(*(unsigned long *)(mono_xvdi + V_TABLE) + SLOT_BLIT);
 	site = (unsigned short *)(mono_xvdi + C_FILL);
+	if (stats) {                             /* read the resident copy's counters: same build, same layout */
+		if (*slot == mono_xvdi + F_BLIT1)
+			return rc = 3;
+		memcpy(st, (void *)(*slot - ((unsigned long)mono_blit - (unsigned long)mono_st)), sizeof st);
+		return rc = 0;
+	}
 	if (uninstall) {
 		if (*slot == mono_xvdi + F_BLIT1)
 			return rc = 3;
@@ -225,6 +244,7 @@ int main(int argc, char **argv)
 {
 	extern long _PgmSize;
 	uninstall = argc > 1 && !strcmp(argv[1], "-u");
+	stats = argc > 1 && !strcmp(argv[1], "-s");
 	strcpy(banner, "yVDI 68000 Jul 30 2026");
 	banner[0] = 'x';
 	Supexec(patch);
@@ -234,6 +254,14 @@ int main(int argc, char **argv)
 	case 3: printf("atwmono: not installed\n"); return 0;
 	}
 	if (uninstall) { printf("atwmono: original mono blit restored\n"); return 0; }
+	if (stats) {
+		unsigned long bytes = st[1] + st[3] + st[5];
+		printf("atwmono: aligned %lu (%lu B), misaligned same phase %lu (%lu B), different phase %lu (%lu B), other %lu\n",
+			st[0], st[1], st[2], st[3], st[4], st[5], st[6]);
+		printf("atwmono: FR-2 share of screen-copy bytes = %lu.%lu %%\n", bytes ? st[3] * 100 / bytes : 0,
+			bytes ? st[3] * 1000 / bytes % 10 : 0);
+		return 0;
+	}
 	printf("atwmono: xVDI at 0x%lx, mono blits and fills use the copy engine\n", mono_xvdi);
 	fflush(stdout);
 	Ptermres(_PgmSize, 0);
