@@ -50,7 +50,7 @@ on the T425, 0 blanks per run.
 | 37 | 1920×1080 | 2 | 253 | 137.7 | 66.2 | 59.6 | shown | 427 | 816 | 671 | 250 | — |
 | 38 | 1600×1200 | 256 | 1875 | 129.6 | 73.6 | 59.8 | OUT OF RANGE | 753 | 2041 | 717 | 1250 | — |
 
-Mode 39 (**proposed 2026-10-17, not yet on the card**): 1664×936×8 (16:9) on mode 32's reduced-blanking timing at the
+Mode 39 (**live and the boot default since 2026-10-17 ~16:55 PDT; the operator confirmed a normal desktop; `XVDI.BIB` d238c3ac on the card, previous table deb47fbb in `~/.local/state/tt030-deploy/xvdi-1664/card.bib.orig`**): 1664×936×8 (16:9) on mode 32's reduced-blanking timing at the
 proven-stable 102.6 MHz clock (PLL 19/1): htotal 1824, vtotal 967 → 56.25 kHz, 58.2 Hz, 1521 KB. The goal is mode 32's
 aspect with offload that does not blank. Built from the live table (md5 deb47fbb) → `XVDI.BIB` md5 d238c3ac
 (`~/.local/state/tt030-deploy/xvdi-1664/`). Width is a multiple of 32 like every vendor mode.
