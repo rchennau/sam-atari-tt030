@@ -17,6 +17,8 @@ Recipe keys:
   replace    {"WORDPLUS.INF": [["D:\\WORDPLUS\\", "U:\\OPT\\WORDPLUS\\"]]}   byte rewrites in config files that
                                                     hold the old FAT path (each pair must match at least once)
   config     ["WORDPLUS.INF"]                      files the program rewrites (settings): %config, kept on update
+  extra      {"GEM_TEST.PRG": "C:\\GEM_TEST.PRG"}  single files from outside `dir` (rel path under dest -> FAT path);
+                                                    --fat-plan deletes them too
 """
 import fnmatch
 import json
@@ -40,6 +42,16 @@ def fat_tree(img, top):
     sys.exit(f"tt_tospkg: drive {drive} not in this image")
 
 
+def fat_file(img, path):
+    """Bytes of one FAT file (DRIVE:\\DIR\\NAME), matched case-insensitively."""
+    parent, base = path.rsplit("\\", 1)
+    tree = fat_tree(img, parent + "\\")
+    hit = [b for rel, b in tree.items() if rel.upper() == base.upper()]
+    if not hit:
+        sys.exit(f"tt_tospkg: extra: {path} not in the image")
+    return hit[0]
+
+
 def excluded(rel, patterns):
     up = rel.upper()
     return any(up.startswith(p.upper().replace("\\", "/")) if not p.startswith("*") else fnmatch.fnmatch(up, p.upper())
@@ -54,14 +66,20 @@ def fat_plan(hd00, recipes):
         top = r["dir"].rstrip("\\")
         ops += [{"op": "del", "path": f"{top}\\{rel.replace('/', chr(92))}"}
                 for rel in sorted(fat_tree(img, r["dir"])) if not excluded(rel, r.get("exclude", []))]
+        ops += [{"op": "del", "path": src} for src in r.get("extra", {}).values()]
     print(json.dumps(ops, indent=1))
 
 
 def main(recipe, hd00, out_dir):
     r = json.load(open(recipe))
-    tree = fat_tree(open(hd00, "rb").read(), r["dir"])
+    img = open(hd00, "rb").read()
+    tree = fat_tree(img, r["dir"])
     if not tree:
         sys.exit(f"tt_tospkg: {r['dir']} is empty or missing in {hd00}")
+    for rel, src in r.get("extra", {}).items():
+        if rel in tree:
+            sys.exit(f"tt_tospkg: extra: {rel} already comes from {r['dir']}")
+        tree[rel] = fat_file(img, src)
     for rel, pairs in r.get("replace", {}).items():
         if rel not in tree:
             sys.exit(f"tt_tospkg: replace: {rel} is not in {r['dir']}")
