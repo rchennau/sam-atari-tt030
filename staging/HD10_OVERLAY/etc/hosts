@@ -3,3 +3,5 @@
 # addresses: 192.168.0.20 is CT104 (gateway: mirror.sam.int; broker: mqtt.sam.int).
 127.0.0.1	localhost
 192.168.0.20	mirror.sam.int mqtt.sam.int
+# 192.168.0.49 is CT114: sam-tt-tlsproxy, the TLS-terminating proxy HighWire uses (iac/ct114 tag tt-tlsproxy).
+192.168.0.49	ttproxy.sam.int

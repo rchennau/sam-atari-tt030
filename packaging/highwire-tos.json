@@ -11,5 +11,6 @@
   },
   "config": [
     "EXAMPLE.CFG"
-  ]
+  ],
+  "superseded_by": "highwire (SAM TT030 fork, scripts/build_highwire_rpm.sh): the vendor 0.5.0 binary exits 'needs SpeedoGDOS or NVDI >= 3' on the xVDI desktop (2026-10-17). Kept only so --fat-plan still removes D:\\HIGHWIRE; do not install."
 }
