@@ -243,12 +243,12 @@ static long patch(void)
 }
 
 #include <stdarg.h>
-static void say(const char *fmt, ...)       /* stdout and C:\ATWMONO.LOG (the boot-time run has no visible console) */
+static void say(const char *fmt, ...)       /* stdout and /var/log/atwmono.log (the boot-time run has no visible console) */
 {
 	va_list ap;
 	FILE *f;
-	if (isatty(1)) { va_start(ap, fmt); vprintf(fmt, ap); va_end(ap); }   /* silent as C:\\ATWMONO.PRG at boot */
-	if (!uninstall && !stats && (f = fopen("C:\\ATWMONO.LOG", "w"))) {
+	if (isatty(1)) { va_start(ap, fmt); vprintf(fmt, ap); va_end(ap); }   /* silent as /usr/sbin/atwmono.prg at boot */
+	if (!uninstall && !stats && (f = fopen("/var/log/atwmono.log", "w"))) {
 		va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
 		fclose(f);
 	}

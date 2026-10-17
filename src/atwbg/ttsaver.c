@@ -16,7 +16,7 @@
  * T425 renderer is possible but unmeasured (68030: 11.7 fps in mode 32, 2026-10-17).
  * -T SECONDS: test — animate at once for SECONDS, restore, print frames, fps and the VRAM checksum before/after.
  * Usage: ttsaver [-m MINUTES] [-s SECONDS] [-x matrix] [-f MINUTES] [-T SECONDS]   default 10 minutes, -f 10.
- * Installed as C:\TTSAVER.PRG (a .TTP would make XaAES open a toswin2 window for it).
+ * Installed as /usr/sbin/ttsaver.prg by the atwtools RPM (a .TTP would make XaAES open a toswin2 window for it).
  * Build: m68k-atari-mint-gcc -m68020-60 -O2 -s -o ttsaver.prg src/atwbg/ttsaver.c src/atwbg/matrix.c
  */
 #include <mint/osbind.h>

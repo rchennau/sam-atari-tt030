@@ -13,7 +13,8 @@ set -u
 HOST=${TT_HOST:-atari-tt}
 SSH="ssh -o ConnectTimeout=${TT_CONNECT:-90} $HOST"
 
-timeout 90 $SSH 'cd /c && (./TTREBOOT.PRG &)' >/dev/null 2>&1 || true   # connection dies with the reset
+# /usr/sbin/ttreboot.prg (atwtools RPM, FHS audit 2026-10-17); C:\TTREBOOT.PRG only on a TT without the package
+timeout 90 $SSH 'R=/usr/sbin/ttreboot.prg; [ -x $R ] || R=/c/TTREBOOT.PRG; ($R &)' >/dev/null 2>&1 || true   # connection dies with the reset
 for i in $(seq 1 20); do
     sleep 5
     ping -c1 -W2 "$(getent hosts ${TT_IP:-192.168.0.30} | awk '{print $1}' || echo ${TT_IP:-192.168.0.30})" >/dev/null 2>&1 || {
@@ -27,5 +28,5 @@ for i in $(seq 1 20); do
         exit 2
     }
 done
-echo "tt_reboot: machine never went down — TTREBOOT.PRG missing or not executable?" >&2
+echo "tt_reboot: machine never went down — ttreboot.prg (atwtools) / TTREBOOT.PRG missing or not executable?" >&2
 exit 1
