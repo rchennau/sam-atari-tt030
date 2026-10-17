@@ -77,9 +77,14 @@ certificates, with better entropy than the TT's timer-jitter seed.
   overlay (`modules/network.src`) builds too.
 - **0.4.8 runs on the real TT.** Started from `/tmp/hw048` over SSH, it opened its window and menus under
   xVDI on the system font (`romvdi.c` fallback; 0.5.0 refuses instead). It has no TLS by design: with
-  `HTTP_PROXY` it sends `GET https://…` to the proxy (`example.cfg`), exactly what `tt_tlsproxy.py` serves. Open:
-  HighWire reported "No route to host" for the proxy at 192.168.0.239 while `wget` from the same TT reached it.
-  Not yet debugged. Config lives in `$HOME` (`/root/highwire.cfg`), not beside the program.
+  `HTTP_PROXY` it sends `GET https://…` to the proxy (`example.cfg`), exactly what `tt_tlsproxy.py` serves.
+  **Working on the TT 2026-10-17:** `https://example.com/` rendered in HighWire through the proxy on fractal
+  (proxy log `GET https://example.com/ -> https 200 577 B 218 ms`).
+  - The earlier "No route to host" was the network overlay failing to load (`LOG_FILE` showed `Pexec failed: -36`,
+    EACCES). The file had no execute bit after the move off FAT, and ext2 enforces it.
+  - Also: `modules\network.ovl` must be lower case on ext2. The config is read from `$HOME/highwire.cfg`.
+  - `packaging/highwire/build.sh` reproduces the build. Its numeric-address patch to `inet.c` is harmless, but not
+    shown to be needed.
 - **Where the time goes** (the repo's own 0.4.8 measurements, 16-colour ST under Hatari): image decode plus
   dither dominate, e.g. RGBA PNG 500×180 36 s, palette PNG 32 s; dithering costs about 1,000 cycles per pixel on a
   68000.

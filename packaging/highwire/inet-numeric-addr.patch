@@ -1,0 +1,25 @@
+--- a/src/inet.c	2026-10-17 12:55:05.677448481 -0700
++++ b/src/inet.c	2026-10-17 13:25:37.802328471 -0700
+@@ -108,6 +108,7 @@
+ #elif defined(USE_MINT) || defined(USE_MAGICNET) /*****************************/
+ #if   defined(USE_MINT)
+ # include <netdb.h>
++# include <arpa/inet.h>
+ # include <sys/socket.h>
+ # include <netinet/in.h>
+ # include <unistd.h>
+@@ -256,7 +257,13 @@
+ 	short ret = -1;
+ 
+ #if defined(USE_MINT) || defined(USE_MAGICNET)
+-	struct hostent * host = gethostbyname (name);
++	struct hostent * host;
++	unsigned long    num = inet_addr (name);  /* dotted quad: mintlib's gethostbyname() does not take one */
++	if (num != (unsigned long)-1) {
++		*addr = (long)num;
++		return E_OK;
++	}
++	host = gethostbyname (name);
+ 	if (host) {
+ 		*addr = *(long*)host->h_addr;
+ 		ret   = E_OK;
