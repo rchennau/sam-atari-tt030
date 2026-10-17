@@ -16,7 +16,8 @@ static long apply(void)
     short t;
     ht0 = V_CEL_HT; my0 = V_CEL_MY; fg0 = V_COL_FG; bg0 = V_COL_BG;
     if (keep) {                                   /* the console reads the font for as long as it runs */
-        V_FNT_AD = (char *)keep;
+        V_FNT_AD = (char *)keep + 1;                /* this console indexes char - 1 (operator photo 2026-10-16:
+                                                     every glyph showed one code low with keep + 0) */
         V_FNT_WR = 256;
         V_FNT_ST = 0;
         V_FNT_ND = 255;
@@ -35,9 +36,11 @@ int main(void)
     FILE *f;
     int i;
     linea0();
-    if ((keep = (unsigned char *)Malloc(sizeof linux_8x8)))
+    if ((keep = (unsigned char *)Malloc(sizeof linux_8x8 + 1))) {   /* + 1: the last glyph row reads one past */
         for (i = 0; i < (int)sizeof linux_8x8; i++)
             keep[i] = linux_8x8[i];
+        keep[i] = 0;
+    }
     Supexec(apply);
     Cconws("\033E");                              /* clear to the new background, cursor home */
     if ((f = fopen("C:\\BOOTLOG.TXT", "w"))) {
