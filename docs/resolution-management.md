@@ -75,7 +75,9 @@ Mode 28 computes to 54.2 Hz, just under the monitor's stated 55 Hz, and still di
 
 ## Chosen configuration (operator, 2026-10-15)
 
-Default **mode 32** (1920×1080, 256 colours). Dropbear runs with `DROPBEAR_NO_ATW=1` (`/etc/dropbear/dropbear.conf`, dropbear-2026.94-2.sam1, `%config(noreplace)`) so logins
+**2026-10-17 update (operator watching):** in mode 32, T425 X25519 jobs, TRAM-pinned X25519 jobs and an SSH login with T425 offload (20 s, against ~28 s on the 68030) did **not** blank the picture. So compute-only jobs are fine, and the blanks came with bulk-data jobs (tgzip). Dropbear offload is now ON in mode 32 (`DROPBEAR_NO_ATW` commented out). Whether 300 KB SHA-256 jobs blank was not answered.
+
+Default **mode 32** (1920×1080, 256 colours). Until 2026-10-17 Dropbear ran with `DROPBEAR_NO_ATW=1` (`/etc/dropbear/dropbear.conf`, dropbear-2026.94-2.sam1, `%config(noreplace)`) so logins
 do not touch the T425; the serial console (Modem 2) is preferred for connections in this mode. Other `ttjobd` work
 (tgzip, lha, bzip2) still blanks the picture briefly while it runs. For full offload with no blanking use mode 24
 (1280×960, 256 colours), 28 (1440×960, 256 colours), 22 (1280×800, 65536 colours) or 15 (1024×768, 65536 colours) and comment out `DROPBEAR_NO_ATW` in that file.
