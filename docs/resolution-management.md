@@ -81,3 +81,26 @@ Default **mode 32** (1920×1080, 256 colours). Until 2026-10-17 Dropbear ran wit
 do not touch the T425; the serial console (Modem 2) is preferred for connections in this mode. Other `ttjobd` work
 (tgzip, lha, bzip2) still blanks the picture briefly while it runs. For full offload with no blanking use mode 24
 (1280×960, 256 colours), 28 (1440×960, 256 colours), 22 (1280×800, 65536 colours) or 15 (1024×768, 65536 colours) and comment out `DROPBEAR_NO_ATW` in that file.
+
+## PLL limits (operator-supplied driver header + GW2AR-18 datasheet table, 2026-10-17)
+
+- **Mode record:** the xVDI driver's `RESOLUTION` struct (`res.h`) holds name, mode, bytes/line, planes, sizes,
+  VTG porches/sync/display, PLL fbdsel/idsel/odsel and `ctrl_reg`.
+  - `ctrl_reg` bits: a = VTG enable, b = positive H sync, c = positive V sync, d = 0→1 latches the PLL, fe = depth
+    (00 1 bpp, 01 8 bpp LUT, 10 16 bpp, 11 15 bpp), **g = LUT owner: 0 = Atari, 1 = transputer**.
+  - The header says fbdsel/idsel are "real value − 1". The BIB values are the real dividers: read as "−1", mode
+    32 would be 40.5 Hz and mode 24 32 Hz, and the monitor shows both while it rejects < 55 Hz (modes 30 and 34).
+    So pixel clock = 27 MHz × fb ÷ in ÷ 5 stands.
+- **VCO = CLKOUT × ODIV** (Gowin rPLL), with CLKOUT = 5 × pixel clock and ODIV = 2 in every vendor record.
+  The GW2AR-18 allows VCO 500–1250 MHz (speed grade C8/I7, A6) or 400–1000 MHz (C7/I6).
+
+| Pixel clock | VCO | C8/I7 | C7/I6 | Modes |
+| ---: | ---: | :--- | :--- | :--- |
+| 82.8 MHz | 828 MHz | in spec | in spec | 22 |
+| 102.6 MHz | 1026 MHz | in spec | 3 % over | 24, 28, 39 |
+| 108.0 MHz | 1080 MHz | in spec | over | 26 |
+| 137.7 MHz | **1377 MHz** | **over** | **over** | 32, 37 (the default) |
+
+  ODIV cannot go below 2, so a 137.7 MHz pixel clock cannot be in spec. **Hypothesis, not measured:** the
+  intermittent blanking at ≥ 108 MHz is the PLL past its limits, not T425 load. On 2026-10-17 neither T425 nor TRAM
+  load reproduced it. To settle it: read the FPGA's speed-grade marking, and run mode 39 (1026 MHz VCO) long-term.
