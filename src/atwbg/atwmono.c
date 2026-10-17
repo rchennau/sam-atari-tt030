@@ -16,6 +16,7 @@
 #include <mint/linea.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define SPAN 0x1df4eUL               /* xVDI text size */
 #define V_TABLE 0x1ecceUL             /* BSS: pointer to the live op table (a RAM copy made at init) */
@@ -246,7 +247,7 @@ static void say(const char *fmt, ...)       /* stdout and C:\ATWMONO.LOG (the bo
 {
 	va_list ap;
 	FILE *f;
-	va_start(ap, fmt); vprintf(fmt, ap); va_end(ap);
+	if (isatty(1)) { va_start(ap, fmt); vprintf(fmt, ap); va_end(ap); }   /* silent as C:\\ATWMONO.PRG at boot */
 	if (!uninstall && !stats && (f = fopen("C:\\ATWMONO.LOG", "w"))) {
 		va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
 		fclose(f);
