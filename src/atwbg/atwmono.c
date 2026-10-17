@@ -13,6 +13,7 @@
  * if misaligned window moves matter.
  */
 #include <mint/osbind.h>
+#include <mint/linea.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -24,7 +25,7 @@
 #define F_FILL 0xd4f6UL              /* generic rectangle fill (ws in a0) */
 #define C_FILL 0x1431aUL             /* its only call site: move.l a2,a0; bsr.w F_FILL (6 bytes) */
 
-typedef struct { void *addr; short w, h, wdw, stand, planes, r1, r2, r3; } MFDB;
+typedef struct { void *addr; short w, h, wdw, stand, planes, r1, r2, r3; } XFDB;
 
 unsigned long mono_orig __asm__("mono_orig");
 unsigned long mono_xvdi __asm__("mono_xvdi");
@@ -72,7 +73,7 @@ __asm__(
 long mono_blit_c(unsigned char *ws)
 {
 	short *contrl = (short *)L(0x8dc), *intin = (short *)L(0x8e0), *p = (short *)L(0x8e4);
-	MFDB *src = *(MFDB **)((char *)contrl + 14), *dst = *(MFDB **)((char *)contrl + 18);
+	XFDB *src = *(XFDB **)((char *)contrl + 14), *dst = *(XFDB **)((char *)contrl + 18);
 	short sx = p[0], sy = p[1], w = p[2] - p[0] + 1, h = p[3] - p[1] + 1, dx = p[4], dy = p[5];
 	long pitch = W(0x8c2), so, d, spin = 4000000;
 	volatile unsigned char *e;
@@ -240,6 +241,18 @@ static long patch(void)
 	return rc = 0;
 }
 
+#include <stdarg.h>
+static void say(const char *fmt, ...)       /* stdout and C:\ATWMONO.LOG (the boot-time run has no visible console) */
+{
+	va_list ap;
+	FILE *f;
+	va_start(ap, fmt); vprintf(fmt, ap); va_end(ap);
+	if (!uninstall && !stats && (f = fopen("C:\\ATWMONO.LOG", "w"))) {
+		va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
+		fclose(f);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	extern long _PgmSize;
@@ -247,10 +260,15 @@ int main(int argc, char **argv)
 	stats = argc > 1 && !strcmp(argv[1], "-s");
 	strcpy(banner, "yVDI 68000 Jul 30 2026");
 	banner[0] = 'x';
+	linea0();
+	if (!uninstall && !stats && VPLANES != 1) {   /* FR-1: boot-time call in a colour mode is a quiet no-op */
+		say("atwmono: %d-plane mode, nothing to do (not resident)\n", VPLANES);
+		return 0;
+	}
 	Supexec(patch);
 	switch (rc) {
-	case 1: printf("atwmono: xVDI Jul 30 2026 68000 build not found\n"); return 1;
-	case 2: printf("atwmono: mono blit slot not as expected (already installed, or another driver build)\n"); return 1;
+	case 1: say("atwmono: refused: xVDI Jul 30 2026 68000 build not found\n"); return 1;
+	case 2: say("atwmono: refused: mono blit slot not as expected (already installed, or another driver build)\n"); return 1;
 	case 3: printf("atwmono: not installed\n"); return 0;
 	}
 	if (uninstall) { printf("atwmono: original mono blit restored\n"); return 0; }
@@ -262,7 +280,7 @@ int main(int argc, char **argv)
 			bytes ? st[3] * 1000 / bytes % 10 : 0);
 		return 0;
 	}
-	printf("atwmono: xVDI at 0x%lx, mono blits and fills use the copy engine\n", mono_xvdi);
+	say("atwmono: xVDI at 0x%lx, mono blits and fills use the copy engine\n", mono_xvdi);
 	fflush(stdout);
 	Ptermres(_PgmSize, 0);
 	return 0;
