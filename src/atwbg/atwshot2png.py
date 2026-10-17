@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""atwshot2png.py FILE.raw OUT.png — convert an atwshot dump (1024x768 RGB565, little-endian) to PNG."""
+"""atwshot2png.py FILE.raw OUT.png — convert an atwshot dump to PNG.
+Headerless = the old 1024x768 RGB565 little-endian dump; "ATWSHOT W H PLANES\n" = the mode-aware one (8 planes: 512-byte
+big-endian RGB565 LUT + index bytes; 16 planes: RGB565 little-endian)."""
 import struct
 import sys
 import zlib
 
 W, H = 1024, 768
+
+
+def rgb(p):
+    return bytes(((p >> 11 & 31) * 255 // 31, (p >> 5 & 63) * 255 // 63, (p & 31) * 255 // 31))
 
 
 def png(path, rows):
@@ -17,15 +23,21 @@ def png(path, rows):
 
 
 def main(src, out):
+    global W, H
     data = open(src, "rb").read()
-    assert len(data) == W * H * 2, f"expected {W * H * 2} bytes, got {len(data)}"
-    px = struct.unpack(f"<{W * H}H", data)
-    rows = []
-    for y in range(H):
-        row = bytearray()
-        for p in px[y * W:(y + 1) * W]:
-            row += bytes(((p >> 11 & 31) * 255 // 31, (p >> 5 & 63) * 255 // 63, (p & 31) * 255 // 31))
-        rows.append(bytes(row))
+    planes = 16
+    if data.startswith(b"ATWSHOT "):
+        head, data = data.split(b"\n", 1)
+        W, H, planes = (int(v) for v in head.split()[1:])
+    if planes == 8:
+        lut = [rgb(p) for p in struct.unpack(">256H", data[:512])]
+        px = data[512:]
+        assert len(px) == W * H, f"expected {W * H} pixel bytes, got {len(px)}"
+        rows = [b"".join(lut[i] for i in px[y * W:(y + 1) * W]) for y in range(H)]
+    else:
+        assert len(data) == W * H * 2, f"expected {W * H * 2} bytes, got {len(data)}"
+        px = struct.unpack(f"<{W * H}H", data)
+        rows = [b"".join(rgb(p) for p in px[y * W:(y + 1) * W]) for y in range(H)]
     png(out, rows)
 
 
