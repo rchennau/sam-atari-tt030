@@ -65,3 +65,30 @@ certificates, with better entropy than the TT's timer-jitter seed.
    serial-bound, or its kernel was measured and lost.
 3. **Reasoned rows that could be measured cheaply:** `ttkbdd` per-record cost through `ttjobd` (confirms the ≥ 7 ms
    loss), and a T425 matrix renderer in mode 24 (only if the operator moves off mode 32).
+
+## HighWire source analysis (2026-10-17)
+
+- **Source and licence.** `neilrackett/atarist-highwire` (`freemint/highwire` redirects there), GPL-3.0, head
+  9af7034 "0.4.8", 73 C files, 43.6 k lines. The installed 0.5.0 Beta (Mbed TLS, `HW-FATAL` without NVDI) has no
+  public source: the release zip carries binaries only, and the Highwire-Browser org publishes forks of Mbed TLS
+  and NanoSVG, not the browser. GPL-3 entitles us to it on request.
+- **It can be altered.** 0.4.8 builds here for the 68030 with the side toolchain plus three changes: cflib
+  include/lib path, `-lz` from `tools/rpm-src/sysroot`, and `-Werror` off for gcc 15's new warnings. The MiNTnet
+  overlay (`modules/network.src`) builds too.
+- **0.4.8 runs on the real TT.** Started from `/tmp/hw048` over SSH, it opened its window and menus under
+  xVDI on the system font (`romvdi.c` fallback; 0.5.0 refuses instead). It has no TLS by design: with
+  `HTTP_PROXY` it sends `GET https://…` to the proxy (`example.cfg`), exactly what `tt_tlsproxy.py` serves. Open:
+  HighWire reported "No route to host" for the proxy at 192.168.0.239 while `wget` from the same TT reached it.
+  Not yet debugged. Config lives in `$HOME` (`/root/highwire.cfg`), not beside the program.
+- **Where the time goes** (the repo's own 0.4.8 measurements, 16-colour ST under Hatari): image decode plus
+  dither dominate, e.g. RGBA PNG 500×180 36 s, palette PNG 32 s; dithering costs about 1,000 cycles per pixel on a
+  68000.
+
+| Part (source) | T425 candidate? | Why |
+| :--- | :--- | :--- |
+| JPEG decode + colour reduction (`img_jpg.c`, `raster.c` `dither_*`) | **yes, best** | Compressed JPEG in, 1 byte per pixel out (8-bit screen), so little goes over the link. IDCT work is high per byte. `djpeg` on the T425 is 0.37 of stock (measured). Blocker: every decode blanks the picture in mode 32. |
+| Dither/colour conversion alone, for PNG/GIF (`raster.c`) | maybe | ~3–4 bytes in, 1 out per pixel at 462 KB/s ≈ 8–9 µs link cost per pixel against the 68030's dither cost (unmeasured on the TT). Marginal. |
+| PNG decode (`img_png.c`, zlib inflate) | no | Inflate is 1.42–1.67× slower on the T425 incl. transfer (measured). |
+| GIF decode (`img_gif.c`, LZW) | no | LZW decode lost on the T425 (measured and declined). |
+| TLS | not needed | 0.4.8 delegates TLS to a proxy. The proxy removes it from the TT (4–5 s vs 28–53 s per 200 KB, measured). |
+| HTML parse, layout, render (`parser.c`, `render.c`, `Table.c`) | no | Pointer-heavy DOM in 68030 memory, and drawing must go through the VDI on the 68030. Shipping the DOM over the link costs more than the work. |
