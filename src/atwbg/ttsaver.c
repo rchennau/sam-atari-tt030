@@ -11,6 +11,9 @@
  * live LUT, and restores the saved screen on wake or on SIGTERM; after -f more minutes it restores and blanks.
  * Other plane counts, no 2 MB of RAM, or no 8x16 font: plain blanking. ponytail: anything an app draws while the
  * animation runs is overwritten by the restore until that app redraws (an AES full redraw would need the AES).
+ * Transputers (product rule 1): the T425 can write VRAM (0x80600000 up), but in mode 32 the picture blanks while
+ * it runs a job (FR-6), so the animation stays on the 68030; the TRAMs cannot reach VRAM. In <= 102.6 MHz modes a
+ * T425 renderer is possible but unmeasured (68030: 11.7 fps in mode 32, 2026-10-17).
  * -T SECONDS: test — animate at once for SECONDS, restore, print frames, fps and the VRAM checksum before/after.
  * Usage: ttsaver [-m MINUTES] [-s SECONDS] [-x matrix] [-f MINUTES] [-T SECONDS]   default 10 minutes, -f 10.
  * Installed as C:\TTSAVER.PRG (a .TTP would make XaAES open a toswin2 window for it).

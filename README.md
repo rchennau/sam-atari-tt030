@@ -30,6 +30,15 @@ T425 link 1 ── link 3 [Slot-1 TRAM] link 1 ── link 0 [2nd TRAM]      (T4
 ### Project Purpose
 The primary purpose of this project is to adapt and modify legacy and modern Unix/C software to run in tandem with the ATW800/2 Transputer. Computationally heavy work (X25519 key exchange, Ed25519 signature verification, ChaCha20, gzip/bzip2 compression) is offloaded to the T425 and the two TRAMs, which frees the 68030. Since 2026-10-13 one daemon, `ttjobd` (`sam-job-tt`), owns the card: it boots a resident image on all three transputers at startup and queues jobs from any number of local programs. Every client falls back to the 68030 when the transputers are unavailable.
 
+### Product rules (operator, 2026-10-17)
+1. **Every app is evaluated for the transputers by default.** Each new or changed program records, in its plan or
+   README, whether its heavy work runs on the T425, the TRAMs or the 68030 and why, with a measurement or a stated
+   blocker. Known blockers: at pixel clocks of 108 MHz and above (the default 1920×1080 mode) the picture blanks
+   while the T425 runs a job; the TRAMs cannot reach video memory; programs on the T425 go through `ttjobd`.
+2. **Runtime follows the standard Linux filesystem layout** (track `tt030-fhs-layout`): command-line programs in
+   `/usr/bin`, system tools and daemons in `/sbin` or `/usr/sbin`, GEM applications in `/opt/<app>/`, installed by
+   RPM. Only the TOS boot set stays on `C:`; test binaries go to `/tmp`.
+
 ## Project Sub-Utilities & Independent Repositories
 
 Each custom software component contains its own dedicated project directory, README, build instructions, and execution documentation:
