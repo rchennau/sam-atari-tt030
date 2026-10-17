@@ -54,3 +54,21 @@ it booted 3 of 3 nodes again.
    - dithering on the T425, so only one byte per pixel returns;
    - a HighWire hook in `img_jpg.c` with a fallback to the 68030;
    - a measured check that TRAM jobs do or do not blank (operator at the screen).
+
+## Update 2026-10-17 16:40: blanking not reproduced (operator watching)
+
+In mode 32, none of these blanked:
+- X25519 jobs pinned to TRAM 1, TRAM 2 and the T425;
+- 300 KB SHA-256 jobs on each node;
+- an SSH login with T425 offload.
+
+So the blanking that drove FR-6, NFR-5 and this spike's verdict did not show up today, for compute or for 300 KB
+bulk data. The cause of the earlier blanks (tgzip and logins, 2026-10-16) is unknown. Dropbear offload is back on
+in mode 32.
+
+**Revised verdict:**
+- The "blanks in mode 32" blocker for option B (ttjobd op `J`) is lifted, pending a watched tgzip re-test.
+- B becomes the path for images the proxy never sees (local files).
+- B can spread a page's images over the T425 and both TRAMs: measured 15–16 s per 300 KB on a TRAM against 4 s
+  on the T425, for SHA-256.
+- For web pages the proxy (C) is still at least as fast, and needs no TT code.
