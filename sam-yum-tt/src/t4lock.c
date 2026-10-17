@@ -39,6 +39,24 @@ static void prog_of(long pid, char *out, int size)
     }
 }
 
+/* A zombie still answers kill(pid, 0) and keeps its /kern entry, but it will never release the lock: a ttjobd killed
+ * after its parent shell exited sat as /kern/298 and every later ttjobd waited on it forever (2026-10-15, board
+ * 3589fc15). /kern/<pid>/stat is Linux-shaped on FreeMiNT 1.19 ("1 (xaloader) S 0 0 ..."); the state follows ") ". */
+static int is_zombie(long pid)
+{
+    char path[32], line[160], *p;
+    FILE *f;
+    int z = 0;
+
+    sprintf(path, "/kern/%ld/stat", pid);
+    if ((f = fopen(path, "r"))) {
+        if (fgets(line, sizeof line, f) && (p = strrchr(line, ')')) && p[1] == ' ')
+            z = p[2] == 'Z';
+        fclose(f);
+    }
+    return z;
+}
+
 int t4lock_take(const char **why)
 {
     char buf[300], held[256], now[256];
@@ -68,7 +86,7 @@ int t4lock_take(const char **why)
          * is never live: nobody takes the lock while holding it, so the file survived a reboot that gave us the
          * same pid (ttjobd was pid 13 before and after, 2026-10-13, and gave up after 40 tries). */
         prog_of(pid, now, sizeof now);
-        if (pid > 0 && pid != (long)getpid() && kill((int)pid, 0) == 0
+        if (pid > 0 && pid != (long)getpid() && kill((int)pid, 0) == 0 && !is_zombie(pid)
             && (!held[0] || !strcmp(held, "-") || !now[0] || !strcmp(held, now))) {
             sprintf(whybuf, "busy (pid %ld)", pid);
             *why = whybuf;
