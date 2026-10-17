@@ -41,7 +41,7 @@ source, a program cannot be rebuilt or split for the T425.
 | `turbocad-tools-tos` (TurboCAD 3.6 converters, TBPARTS, TBCAD2TT/TBOUT/TBSHELL) | file-format conversion (DXF/HPGL/ASCII/GEM ↔ TC2), plotting | 68030 | blocker: closed binaries | No source (Technobox, proprietary), so nothing can move to a transputer. Converters are file-I/O-sized jobs. Unmeasured: how long a typical conversion takes on the 68030. |
 | `wordplus-tos` (1st Word Plus 3.20) | text editing | 68030 | blocker: closed binary | Interactive and latency-bound. |
 | `nvdi-tools-tos` (NVDI 5 utilities, GEM-TEST) | font/printer config, VDI benchmark | 68030 | blocker: closed binaries | Config tools. NVDI drawing itself is replaced by xVDI on the ATW800/2. |
-| `highwire-tos` (HighWire 0.5.0 browser) | HTML layout, image decode | 68030 | reasoned (GPL source exists) | Source is available, so a T425 image decoder is possible in principle. Its JPEG/PNG decode is the candidate (`djpeg` on the T425: 0.37 of stock). Not evaluated further; low use. |
+| `highwire-tos` (HighWire 0.5.0 browser; Mbed TLS 3.6.6, libjpeg, libpng, zlib linked in) | TLS 1.3 handshake + bulk cipher; image decode | 68030 | **measured kernels** (OpenSSL 1.0.0c `speed` on the TT 2026-10-17, a proxy for Mbed TLS) | 68030: RSA-2048 verify 3.41 s, ECDSA P-256 verify 7.42 s, ECDH P-256 6.16 s, AES-128-CBC 46 KB/s, SHA-256 55 KB/s; X25519 6.3 s (Dropbear's, measured 10-16) vs **2.7 s on the T425**. Estimated (not measured): 15–20 s per HTTPS handshake, ~4 s per 200 KB of AES. Image decode is the smaller cost (`djpeg` T425 0.37; inflate loses on the T425). Next: headless Mbed TLS prototype with X25519/ChaCha20 via `ttjobd` (operator 2026-10-17). |
 
 ## Findings
 
