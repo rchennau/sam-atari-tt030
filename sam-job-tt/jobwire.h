@@ -18,11 +18,14 @@
 #define NODE_ANY 0xFF
 #define NODES 3
 #define JOB_MAX (400L * 1024)          /* payload and output cap per job: tgzip pieces are 256 KB in, <= 385 KB out */
+#define JOB_BIG (2560L * 1024)         /* node 0 (T425) only: payload and output cap, buffers from the heap per job (ttjob-ports FR-7);
+                                          TRAMs and installed clients (Dropbear) keep JOB_MAX, the header is unchanged */
 #define OP_ECHO 'E'
 #define OP_SHA256 'S'
 #define OP_X25519 'X'                  /* Phase 3 crypto ops, every node (integer only) */
 #define OP_ED25519V 'V'
 #define OP_CHACHA20 'C'
+#define OP_CAPS 'K'                    /* ttjobd asks node 0 after each boot: payload cap, largest free block (4 B LE each; FR-7); older images: ST_BADOP */
 #define OP_LEASE 'L'                   /* client takes the T425 for as long as its connection stays open (ttjobd only, never sent on the link) */
 /* compression (T425 node only, compkern.h): 'z' deflate, 'g' gzip, 'r' raw, 'i' inflate, 'b' bzip2 */
 #define ST_OK 0

@@ -22,7 +22,7 @@ static void lost(void) { if (fd >= 0) close(fd); fd = -1; }
 int ttjob_submit(int op, int level, const void *in, long n)
 {
     unsigned char h[JOB_HDR];
-    if (n < 0 || n > JOB_MAX) return -1;
+    if (n < 0 || n > JOB_BIG) return -1;                /* above JOB_MAX ttjobd runs it on the T425 (FR-7) */
     if (fd < 0) {
         struct sockaddr_un sa;
         memset(&sa, 0, sizeof sa); sa.sun_family = AF_UNIX; strncpy(sa.sun_path, ttjob_socket, sizeof sa.sun_path - 1);
@@ -43,7 +43,7 @@ static int take_one(void)
     if (rd(r, REP_HDR)) { lost(); return -1; }
     if (!(d = calloc(1, sizeof *d))) { lost(); return -1; }
     d->id = r[0] | (r[1] << 8); d->st = r[2]; d->olen = (long)g4(r + 3);
-    if (d->olen < 0 || d->olen > JOB_MAX || (d->olen > 0 && (!(d->out = malloc(d->olen)) || rd(d->out, d->olen)))) {
+    if (d->olen < 0 || d->olen > JOB_BIG || (d->olen > 0 && (!(d->out = malloc(d->olen)) || rd(d->out, d->olen)))) {
         free(d->out); free(d); lost(); return -1;
     }
     if (d->st == ST_OK && d->olen > 0 && t4_adler32(d->out, d->olen) != g4(r + 11)) d->st = ST_BADREQ;   /* damaged */

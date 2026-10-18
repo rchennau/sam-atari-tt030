@@ -10,7 +10,7 @@ unsigned long g4(const unsigned char *b)
 void p4(unsigned char *b, unsigned long v)
 { b[0] = (unsigned char)v; b[1] = (unsigned char)(v >> 8); b[2] = (unsigned char)(v >> 16); b[3] = (unsigned char)(v >> 24); }
 
-long job_reply(const unsigned char *hdr, const unsigned char *in, long n, unsigned char *rep, int node)
+long job_reply(const unsigned char *hdr, const unsigned char *in, long n, unsigned char *rep, int node, long cap)
 {
     unsigned long areq = n >= 0 ? t4_adler32(in, n) : 0;
     long olen = 0;
@@ -18,7 +18,7 @@ long job_reply(const unsigned char *hdr, const unsigned char *in, long n, unsign
     if (n < 0) st = ST_TOOBIG;
     else if (areq != g4(hdr + H_ADLER)) st = ST_BADREQ;
     else {
-        olen = job_exec(hdr[2], hdr[H_LEVEL], in, n, rep + LREP_HDR, JOB_MAX);
+        olen = job_exec(hdr[2], hdr[H_LEVEL], in, n, rep + LREP_HDR, cap);
         if (olen < 0) { st = (int)-olen; olen = 0; }
     }
     rep[0] = hdr[0]; rep[1] = hdr[1]; rep[2] = (unsigned char)st;

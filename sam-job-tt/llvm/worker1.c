@@ -18,7 +18,7 @@ static void work1(Channel *go, Channel *done)
     long n, len;
     for (;;) {
         n = (long)ChanInInt(go);
-        len = job_reply(hdr1, in1, n, rep1, 1);
+        len = job_reply(hdr1, in1, n, rep1, 1, JOB_MAX);
         ChanOutInt(done, (int)len);
     }
     ProcStop();

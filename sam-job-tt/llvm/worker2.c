@@ -16,7 +16,7 @@ int main(void)
     long n, len;
     for (;;) {
         n = job_read(ri, hdr, in);
-        len = job_reply(hdr, in, n, rep, 2);
+        len = job_reply(hdr, in, n, rep, 2, JOB_MAX);
         ChanOut(ro, rep, (int)len);
     }
     return 0;

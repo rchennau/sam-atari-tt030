@@ -57,7 +57,7 @@ $CLANG $CFLAGS -DJOB_COMPRESS -c "$here/llvm/jobnode.c" -o "$w/jobnode.o"
 $CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -c "$here/llvm/jobexec.c" -o "$w/jobexec.o"
 # libjpeg runs on the T425 only: with it on every node the 3-node image never reached main() on the card
 # (2026-10-18, atw_boot 2; worker1 grew to 2.24 MB text+bss). ttjobd keeps 'J'/'j' off the TRAMs (est_ms).
-$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -DJOB_JPEG -DJOB_PNG -DJOB_PPMQ -DJOB_BC -c "$here/llvm/jobexec.c" -o "$w/jobexec_root.o"
+$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -DJOB_JPEG -DJOB_PNG -DJOB_PPMQ -DJOB_BC -DJOB_ROOT -c "$here/llvm/jobexec.c" -o "$w/jobexec_root.o"
 # tpnmtopng (op 'p') and tppmquant (op 'q'), root only like libjpeg. pngenc links against the image's own zlib
 # 1.3.2 objects (same version as t4clang's copy), so no duplicate zlib symbols.
 PG=/tmp/pg; PQ=/tmp/pq; PQOBJS=
@@ -102,9 +102,10 @@ DS=$(sz .data); BS=$(sz .bss)
 [ -n "$DS" ] && [ -n "$BS" ] || { echo "build_llvm: bc_all.o has no .data/.bss" >&2; exit 1; }
 $OBJCOPY --add-symbol bc_data_start=.data:0,global --add-symbol bc_data_end=.data:$DS,global \
     --add-symbol bc_bss_start=.bss:0,global --add-symbol bc_bss_end=.bss:$BS,global \
-    --keep-global-symbol=bc_kernel --keep-global-symbol=bc_data_start --keep-global-symbol=bc_data_end \
+    --keep-global-symbol=bc_kernel --keep-global-symbol=bc_out_cap --keep-global-symbol=bc_data_start --keep-global-symbol=bc_data_end \
     --keep-global-symbol=bc_bss_start --keep-global-symbol=bc_bss_end "$w/bc_all.o" "$w/bc.o"
 $CLANG $CFLAGS -c "$here/llvm/bcjob.c" -o "$w/bcjob.o"
+$CLANG $CFLAGS -c "$here/llvm/jobheap.c" -o "$w/jobheap.o"
 
 # lha (ttjob-ports FR-3, first port): the sources t4clang.sh prepares for llvm, lhaserv's hook renamed to lha_kernel
 LH=/tmp/lh
@@ -135,7 +136,9 @@ COMMON_OBJS="$w/jobnode.o $w/jobexec.o $w/chacha20.o $w/sha256.o $w/t4adler.o \
              $w/c25519.o $w/f25519.o $w/sha512_32.o $w/edsign.o $w/ed25519.o $w/fprime.o $w/morph25519.o \
              $w/adler32.o $w/crc32.o $w/deflate.o $w/trees.o $w/zutil.o $w/inflate.o $w/inftrees.o $w/inffast.o \
              $w/blocksort.o $w/huffman.o $w/crctable.o $w/randtable.o $w/decompress.o $w/bzcompress.o $w/bzlib.o $w/compkern.o $LHAOBJS"
-ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS $PQOBJS $w/bc.o $w/bcjob.o"
+ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS $PQOBJS $w/bc.o $w/bcjob.o $w/jobheap.o"
+# FR-7: every root allocation goes through jobheap.c, which frees each job's leftovers
+WRAP="-Wl,--wrap=malloc,--wrap=free,--wrap=realloc,--wrap=calloc"
 
 # 2. Build worker2 (TRAM 2)
 $CLANG $CFLAGS -c "$here/llvm/worker2.c" -o "$w/worker2.o"
@@ -154,14 +157,14 @@ $MKBOOT "$w/worker1.bin" -o "$w/worker1.btl"
 
 # 5. Build root / jobllvm.btl (3 nodes)
 $CLANG $CFLAGS -c "$here/llvm/root.c" -o "$w/root.o"
-$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none "$w/root.o" $ROOT_OBJS -o "$w/jobllvm.elf"
+$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none $WRAP "$w/root.o" $ROOT_OBJS -o "$w/jobllvm.elf"
 $OBJCOPY -O binary "$w/jobllvm.elf" "$w/jobllvm.bin"
 $MKBOOT "$w/jobllvm.bin" -o "$w/jobllvm.btl"
 cp "$w/jobllvm.btl" "$here/build/"
 
 # 6. Build root / jobllvm0.btl (SOLO)
 $CLANG $CFLAGS -DSOLO -c "$here/llvm/root.c" -o "$w/roots.o"
-$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none "$w/roots.o" $ROOT_OBJS -o "$w/jobllvm0.elf"
+$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none $WRAP "$w/roots.o" $ROOT_OBJS -o "$w/jobllvm0.elf"
 $OBJCOPY -O binary "$w/jobllvm0.elf" "$w/jobllvm0.bin"
 $MKBOOT "$w/jobllvm0.bin" -o "$w/jobllvm0.btl"
 cp "$w/jobllvm0.btl" "$here/build/"

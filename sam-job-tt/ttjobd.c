@@ -40,7 +40,8 @@ static int absent[NODES];            /* FR-8: nodes the booted image does not co
 static const char *topo_path = "/var/run/ttjob.topology";
 static time_t down_since;
 static unsigned short nextwid;
-static unsigned char rbuf[LREP_HDR + JOB_MAX];
+static unsigned char rbuf[LREP_HDR + JOB_BIG];          /* node 0 replies up to JOB_BIG (ttjob-ports FR-7) */
+static long big_max = JOB_MAX;      /* FR-7: node 0's payload cap, from the booted image's OP_CAPS answer; JOB_MAX until then */
 static long rgot;
 static clock_t last_io;
 static int busy[NODES];
@@ -78,7 +79,8 @@ static long est_ms(int op, long n, int tram)
     case 'j': us = n * 300; comp = 1; break;            /* libjpeg decode, n = JPEG bytes (HighWire spike: 1024x768 28 s on the T425) */
     default: us = n / 2; break;
     }
-    if (tram && (op == 'J' || op == 'j' || op == 'p' || op == 'q' || op == 'c')) return 0x7fffffffL / 1000;   /* libjpeg is in the T425's image only */
+    if (tram && (op == 'J' || op == 'j' || op == 'p' || op == 'q' || op == 'c' || op == OP_CAPS || n > JOB_MAX))   /* T425-image ops; FR-7 */
+        return 0x7fffffffL / 1000;
     if (tram) us = comp ? us / 10 * 28 : us * 2;
     return us / 1000;
 }
@@ -233,6 +235,11 @@ static int boot_network(void)
                 fprintf(f, "2 TRAM1.L1-L0 T4 20 4096 %s\n", absent[2] ? "absent" : "present");
                 fclose(f);
             }
+            big_max = JOB_MAX;              /* FR-7: ask the image; an older one answers ST_BADOP and keeps JOB_MAX */
+            if (nq < QMAX && (queue[nq].buf = calloc(1, JOB_HDR))) {
+                queue[nq].buf[2] = OP_CAPS; queue[nq].buf[3] = 0; queue[nq].buf[H_ADLER] = 1;   /* adler32 of nothing */
+                queue[nq].fd = -1; queue[nq].cid = 0; queue[nq].n = 0; nq++;
+            }
             return 1;
         }
         say(LOG_WARNING, "image %s did not boot (atw_boot %d)%s", list[i], rc, i + 1 < nimg ? "; trying the next" : "");
@@ -281,11 +288,19 @@ static void poll_link(void)
     int i;
     for (;;) {
         want = rgot < LREP_HDR ? LREP_HDR - rgot : LREP_HDR + (long)g4(rbuf + 3) - rgot;
-        if (rgot >= LREP_HDR && ((long)g4(rbuf + 3) < 0 || (long)g4(rbuf + 3) > JOB_MAX)) { go_down("bad reply length"); rgot = 0; return; }
+        if (rgot >= LREP_HDR && ((long)g4(rbuf + 3) < 0 || (long)g4(rbuf + 3) > JOB_BIG)) { go_down("bad reply length"); rgot = 0; return; }
         if (want == 0) {                                       /* one whole reply */
             unsigned short wid = (unsigned short)(rbuf[0] | (rbuf[1] << 8));
             olen = (long)g4(rbuf + 3);
             for (i = 0; i < nin && inflight[i].wid != wid; i++) ;
+            if (i < nin && inflight[i].buf[2] == OP_CAPS) {
+                big_max = rbuf[2] == ST_OK && olen >= 4 ? (long)g4(rbuf + LREP_HDR) : JOB_MAX;
+                if (big_max > JOB_BIG) big_max = JOB_BIG;
+                if (big_max < JOB_MAX) big_max = JOB_MAX;
+                say(LOG_INFO, "node 0 takes jobs up to %ld B", big_max);
+                if (olen >= 16) say(LOG_INFO, "node 0 heap high-water %ld B of %ld", (long)g4(rbuf + LREP_HDR + 4),
+                                    (long)(g4(rbuf + LREP_HDR + 12) - g4(rbuf + LREP_HDR + 8)));
+            }
             if (i < nin) {
                 rbuf[0] = (unsigned char)inflight[i].cid; rbuf[1] = (unsigned char)(inflight[i].cid >> 8);
                 if (inflight[i].fd >= 0) {          /* client protocol: header without the node byte, ONE write: */
@@ -381,7 +396,9 @@ int main(int argc, char **argv)
             if (cl[i] < 0 || !FD_ISSET(cl[i], &rs)) continue;
             if (rd(cl[i], h, JOB_HDR)) { drop_client(i); continue; }   /* client gone */
             n = (long)g4(h + H_LEN);
-            if (n < 0 || n > JOB_MAX) { answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_TOOBIG); drop_client(i); continue; }
+            if (n < 0 || n > big_max || (n > JOB_MAX && h[3] != NODE_ANY && h[3] != 0)) {   /* above JOB_MAX: the T425 only */
+                answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_TOOBIG); drop_client(i); continue;
+            }
             /* af4039be: a lease hands the T425 to one client (a program that boots its own image, e.g. NetHack-ATW)
              * until its connection closes, which the kernel does when the process exits or crashes: no pid polling,
              * no idle timeout. Meanwhile jobs get ST_DOWN (68030) and the lock file still names ttjobd, so Dropbear
