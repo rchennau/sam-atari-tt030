@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 V=${1:-1.0}
 CC="tools/cross-mint/usr/bin/m68k-atari-mint-gcc -m68020-60 -O2 -s -Wall"
 O=build/atwtools; mkdir -p $O
-$CC -o $O/ttsaver.prg src/atwbg/ttsaver.c src/atwbg/matrix.c
+$CC -o $O/ttsaver.prg src/atwbg/ttsaver.c src/atwbg/matrix.c -lgem
 $CC -o $O/atwmono.prg src/atwbg/atwmono.c
 $CC -o $O/ttreboot.prg sam-rom-tt/src/ttreboot.c
 for t in atwres atwshot mxprobe vdiprof vtgprobe; do $CC -o $O/$t src/atwbg/$t.c; done

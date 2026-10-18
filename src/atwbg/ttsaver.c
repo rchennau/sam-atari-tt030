@@ -9,18 +9,20 @@
  * -x matrix (FR-9): in 8-plane modes, instead of blanking it saves the screen to RAM, draws falling glyphs straight
  * into VRAM (src/atwbg/matrix.c; the VDI is not re-entrant from a background process) in colours picked from the
  * live LUT, and restores the saved screen on wake or on SIGTERM; after -f more minutes it restores and blanks.
- * Other plane counts, no 2 MB of RAM, or no 8x16 font: plain blanking. ponytail: anything an app draws while the
- * animation runs is overwritten by the restore until that app redraws (an AES full redraw would need the AES).
+ * Other plane counts, no 2 MB of RAM, or no 8x16 font: plain blanking. While the saver is on it holds the AES screen
+ * lock (wind_update BEG_UPDATE), so GEM apps that lock before drawing (toswin2's cursor blink, textwin.c) wait instead
+ * of drawing over the animation. ponytail: an app that draws without the lock is still overwritten by the restore.
  * Transputers (product rule 1): the T425 can write VRAM (0x80600000 up), but in mode 32 the picture blanks while
  * it runs a job (FR-6), so the animation stays on the 68030; the TRAMs cannot reach VRAM. In <= 102.6 MHz modes a
  * T425 renderer is possible but unmeasured (68030: 11.7 fps in mode 32, 2026-10-17).
  * -T SECONDS: test — animate at once for SECONDS, restore, print frames, fps and the VRAM checksum before/after.
  * Usage: ttsaver [-m MINUTES] [-s SECONDS] [-x matrix] [-f MINUTES] [-T SECONDS]   default 10 minutes, -f 10.
  * Installed as /usr/sbin/ttsaver.prg by the atwtools RPM (a .TTP would make XaAES open a toswin2 window for it).
- * Build: m68k-atari-mint-gcc -m68020-60 -O2 -s -o ttsaver.prg src/atwbg/ttsaver.c src/atwbg/matrix.c
+ * Build: m68k-atari-mint-gcc -m68020-60 -O2 -s -o ttsaver.prg src/atwbg/ttsaver.c src/atwbg/matrix.c -lgem
  */
 #include <mint/osbind.h>
 #include <mint/linea.h>
+#include <gem.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +39,7 @@
 
 static unsigned short on_val;
 static volatile int off, anim;
+static int ap_id = -1, locked;
 static unsigned char *saved;
 static long scr_bytes;
 static struct mx mx;
@@ -94,7 +97,8 @@ static void matrix_stop(void)
 	free(saved); saved = 0;
 }
 
-static void bye(int sig) { matrix_stop(); if (off) Supexec(vtg_on); _exit(128 + sig); }
+static void lock(int on) { if (ap_id >= 0 && locked != on) { wind_update(on ? BEG_UPDATE : END_UPDATE); locked = on; } }
+static void bye(int sig) { matrix_stop(); if (off) Supexec(vtg_on); lock(0); _exit(128 + sig); }
 
 static long frame(void)     /* one animation step, then sleep out the rest of a 1/15 s frame */
 {
@@ -136,6 +140,7 @@ int main(int argc, char **argv)
 		printf("ttsaver: vram sum before %08lx after %08lx %s\n", before, after, before == after ? "IDENTICAL" : "DIFFERENT");
 		return before != after;
 	}
+	ap_id = appl_init();                                  /* no AES (plain shell): run without the screen lock */
 	tail = kb->ibuftl; mx_ = GCURX; my = GCURY; mb = MOUSE_BT;
 	if (isatty(1)) {                                     /* silent when started from XaAES autorun (.PRG, no window) */
 		printf("ttsaver: %s after %ld s idle\n", matrix ? "matrix" : "blank", limit);
@@ -149,9 +154,11 @@ int main(int argc, char **argv)
 			idle = 0;
 			matrix_stop();
 			if (off) { Supexec(vtg_on); off = 0; }
+			lock(0);
 		} else if (anim) {
 			if (++idle >= fallback * 15) { matrix_stop(); Supexec(vtg_off); off = 1; }   /* idle counts frames here */
 		} else if (!off && ++idle >= limit * 4) {
+			lock(1);
 			if (!matrix || matrix_start()) { Supexec(vtg_off); off = 1; }
 			else idle = 0;
 		}
