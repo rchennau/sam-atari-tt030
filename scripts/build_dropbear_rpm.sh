@@ -8,7 +8,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 V=2026.94
-R=${1:-2.sam1}   # 1.sam1: first packaged build (t4lock self-pid fix, ttjobd client); 2.sam1: /etc/dropbear/dropbear.conf
+# release = commits on the inputs + .sam1 (2026-10-18 audit: the fixed 2.sam1 met changed bytes after t4lock.c and
+# build_dropbear.sh changed, and CI's publish gate went red)
+R=${1:-$(git rev-list --count HEAD -- staging/DROPBEAR scripts/build_dropbear.sh scripts/build_dropbear_rpm.sh sam-yum-tt/src/t4lock.c sam-yum-tt/src/t4lock.h sam-yum-tt/src/t4adler.c sam-yum-tt/src/t4adler.h sam-job-tt/libttjob.c sam-job-tt/libttjob.h sam-job-tt/jobwire.h scripts/rpm_header.py).sam1}   # 1.sam1: first packaged build (t4lock self-pid fix, ttjobd client); 2.sam1: /etc/dropbear/dropbear.conf
 scripts/build_dropbear.sh > /dev/null
 S=tools/cross-mint/usr/bin/m68k-atari-mint-strip
 for b in dropbear dropbearkey dbclient; do $S -o build/$b tools/dropbear-$V/$b; done

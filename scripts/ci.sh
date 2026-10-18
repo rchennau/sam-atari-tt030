@@ -34,12 +34,16 @@ step rpm    build_rpms
 MIRROR=${TT_MIRROR:-/mnt/vault/tt030}
 published=
 publish() {
-    local r
-    for r in $rpms; do
+    local r new= bad=
+    for r in $rpms; do                                                  # pass 1: decide everything, publish nothing
         if [ -e "$MIRROR/built/$(basename "$r")" ]; then             # this NVR is already on the mirror:
             cmp -s "$r" "$MIRROR/built/$(basename "$r")" && continue    # same bytes (builds are reproducible), or
-            echo "publish: $(basename "$r") on the mirror has different content: bump the version" >&2; return 1
+            echo "publish: $(basename "$r") on the mirror has different content: bump the version" >&2; bad=1; continue
         fi
+        new="$new $r"
+    done
+    [ -n "$bad" ] && { echo "publish: nothing published (all or none; 2026-10-18 audit: red runs used to publish the RPMs before the first mismatch)" >&2; return 1; }
+    for r in $new; do                                                   # pass 2
         /opt/sam/venv/bin/python3 scripts/tt_rpm.py add "$MIRROR" "$r" || return 1
         published="$published $(basename "$r")"
     done
