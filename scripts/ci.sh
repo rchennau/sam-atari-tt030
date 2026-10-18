@@ -13,8 +13,16 @@
 set -uo pipefail
 {   # the whole script is one block, so bash parses it before running: editing ci.sh during a run garbled that run (2026-10-13)
 cd "$(dirname "$0")/.."
-st=~/.local/state/tt030-ci; mkdir -p "$st"; log=$st/last.log; : > "$log"
+st=~/.local/state/tt030-ci; mkdir -p "$st/runs"; log=$st/last.log; : > "$log"
 rev=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+# Build the COMMITTED tree, never the working tree agents edit in (2026-10-18 audit): a detached worktree of HEAD,
+# with the gitignored toolchains in tools/ linked in. Uncommitted edits can no longer be built or published, and a
+# build that rewrites a tracked file (build_ttkbdd_rpm.sh refreshes the card overlay) fails the run below instead of
+# leaving the agents' tree dirty.
+src=$(pwd); wt=$(mktemp -d /tmp/tt030-ci-wt.XXXXXX)
+cleanup() { cd "$src"; git worktree remove --force "$wt" >/dev/null 2>&1; rm -rf "$wt"; git worktree prune; }
+trap cleanup EXIT
+git worktree add -q --detach "$wt" HEAD && ln -s "$src/tools" "$wt/tools" && cd "$wt" || { echo "ci: no clean worktree" >&2; exit 1; }
 step() { local name=$1; shift; echo "== $name" | tee -a "$log"; if "$@" >> "$log" 2>&1; then echo "   ok" | tee -a "$log"; else echo "   FAIL" | tee -a "$log"; fails="$fails $name"; fi; }
 fails=
 step pytest /opt/sam/venv/bin/python3 -m pytest -q --ignore=scripts/test_e2e_ping_rpm.py scripts/
@@ -36,6 +44,9 @@ publish() {
         published="$published $(basename "$r")"
     done
 }
+clean() { local d; d=$(git status --porcelain --untracked-files=no); [ -z "$d" ] && return 0
+    echo "a build changed tracked files (commit the refreshed copies):"; echo "$d"; git diff --stat; return 1; }
+step clean  clean
 if [ -z "$fails" ]; then step publish publish; else echo "== publish: skipped (red run)" | tee -a "$log"; fi
 outcome=$([ -z "$fails" ] && echo pass || echo fail)
 # what the TT runs vs the mirror (tt_versions.py): reported, never part of the outcome (a TT that has not run
@@ -47,7 +58,8 @@ from sam.utils.sam_logger import emit
 emit('tt030.ci.run', outcome='$outcome', rev='$rev', failed='${fails:-none}', published='${published:-none}', tt='$tt')" >/dev/null 2>&1 || echo "ci: central log emit failed (result still in $st)" >&2
 # a commit made during this run fired the path unit while the service was active, and systemd dropped that trigger:
 # run again on the new HEAD instead of leaving it untested until the nightly (2026-10-14)
-[ "$(git rev-parse --short HEAD 2>/dev/null)" != "$rev" ] && exec "$0" "$@"
+cp "$log" "$st/runs/$(date -u +%Y%m%dT%H%M%SZ)-$rev-$outcome.log"; ls -1t "$st/runs" | tail -n +51 | sed "s|^|$st/runs/|" | xargs -r rm -f   # keep 50
+[ "$(git -C "$src" rev-parse --short HEAD 2>/dev/null)" != "$rev" ] && { cleanup; trap - EXIT; exec "$src/scripts/ci.sh" "$@"; }
 [ -z "$fails" ]
 exit
 }

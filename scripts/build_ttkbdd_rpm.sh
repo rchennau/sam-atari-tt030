@@ -13,13 +13,17 @@ tools/cross-mint/usr/bin/m68k-atari-mint-gcc -m68020-60 -O2 -s -o build/ttkbdd.p
     $M/monocypher.c $M/optional/monocypher-ed25519.c -I$M -I$M/optional
 grep -q "hello\[0\] = ${V%%.*};" src/ttkbdd.c || { echo "build_ttkbdd_rpm: src/ttkbdd.c does not speak v${V%%.*}" >&2; exit 1; }
 cp build/ttkbdd.prg staging/HD10_OVERLAY/usr/sbin/ttkbdd
-python3 - "$V" <<'PY'
+# Release = commits touching this package's inputs: any input change gets a new NVR, so CI's publish gate never
+# meets "same NVR, different bytes" (ttkbdd-3.0-1 kept CI red from 2026-10-15, 3c7ee96 changed a string). 2026-10-18.
+REL=$(git rev-list --count HEAD -- src/ttkbdd.c staging/HD10_OVERLAY/etc/rc.ttkbdd scripts/build_ttkbdd_rpm.sh scripts/rpm_header.py)
+python3 - "$V" "$REL" <<'PY'
 import sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
 v = sys.argv[1]
-out = f"build/ttkbdd-{v}-1.m68kmint.rpm"
-open(out, "wb").write(R.write_rpm("ttkbdd", v, "1", [
+rel = sys.argv[2]
+out = f"build/ttkbdd-{v}-{rel}.m68kmint.rpm"
+open(out, "wb").write(R.write_rpm("ttkbdd", v, rel, [
     ("/usr/sbin/ttkbdd", 0o100755, open("build/ttkbdd.prg", "rb").read()),
     ("/etc/rc.ttkbdd", 0o100755, open("staging/HD10_OVERLAY/etc/rc.ttkbdd", "rb").read()),
 ], summary="TT030 remote keyboard + mouse daemon, protocol v3 (sam)",

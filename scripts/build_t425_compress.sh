@@ -1,6 +1,6 @@
 #!/bin/bash
 # Package tgzip / tbzip2 (gzip + bzip2 on the ATW800/2 T425, 68030 fallback; tt030-rpm-pipeline Rev. 7)
-# as build/t425-compress-<ver>-1.m68kmint.rpm. Contents: /usr/bin/tgzip, /usr/bin/tbzip2 -> tgzip,
+# as build/t425-compress-<ver>-<rel>.m68kmint.rpm (rel = commits on its inputs). Contents: /usr/bin/tgzip, /usr/bin/tbzip2 -> tgzip,
 # /usr/lib/t425/compserv.btl (deflate, INMOS toolset via sam-yum-tt/t4compress.sh) and bzserv.btl (bzip2, llvm-t800).
 . "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
 set -eu
@@ -26,13 +26,17 @@ PATH=$PWD/tools/cross-mint/usr/bin:$PATH m68k-atari-mint-gcc -m68020-60 -O2 -s -
     sam-yum-tt/src/tgzip.c sam-yum-tt/src/t4call.c sam-job-tt/libttjob.c sam-yum-tt/src/t4lock.c sam-yum-tt/src/t4adler.c sam-yum-tt/src/atwboot.c "$CB"/compkern.c "$CB"/adler32.c "$CB"/crc32.c \
     "$CB"/deflate.c "$CB"/trees.c "$CB"/zutil.c "$CB"/inflate.c "$CB"/inftrees.c "$CB"/inffast.c "$CB"/blocksort.c "$CB"/huffman.c "$CB"/crctable.c \
     "$CB"/randtable.c "$CB"/decompress.c "$CB"/bzcompress.c "$CB"/bzlib.c
-python3 - "$V" "$CB" <<'PY'
+# Release = commits touching this package's inputs: any input change gets a new NVR, so CI's publish gate never
+# meets "same NVR, different bytes" (ttkbdd-3.0-1 kept CI red from 2026-10-15, 3c7ee96 changed a string). 2026-10-18.
+REL=$(git rev-list --count HEAD -- sam-yum-tt sam-job-tt/libttjob.c sam-job-tt/ttjob.h src/zlib-1.3.2 src/bzip2-1.0.8 scripts/build_t425_compress.sh scripts/rpm_header.py)
+python3 - "$V" "$CB"  "$REL" <<'PY'
 import sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
 v, cb = sys.argv[1], sys.argv[2]
-out = f"build/t425-compress-{v}-1.m68kmint.rpm"
-open(out, "wb").write(R.write_rpm("t425-compress", v, "1", [
+rel = sys.argv[3]
+out = f"build/t425-compress-{v}-{rel}.m68kmint.rpm"
+open(out, "wb").write(R.write_rpm("t425-compress", v, rel, [
     ("/usr/bin/tgzip", 0o100755, open("build/tgzip", "rb").read()),
     ("/usr/bin/tbzip2", 0o160777, b"tgzip"),
     ("/usr/lib/t425/compserv.btl", 0o100644, open(f"{cb}/compserv.b4h", "rb").read()),
