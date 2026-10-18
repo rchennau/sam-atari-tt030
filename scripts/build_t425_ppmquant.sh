@@ -9,13 +9,16 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 RT=$REPO/sam-yum-tt/src
 W=/tmp/tppmq-build
 CC=$REPO/tools/cross-mint/usr/bin/m68k-atari-mint-gcc
+# TTJOB=1: t4call goes through ttjobd (tt030-ttjob-ports FR-3; needs a resident image with op 'q')
+TJ=; TJS=; [ "${TTJOB:-0}" = 1 ] && { TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"; TJS="$TJ $REPO/sam-job-tt/libttjob.c"; }
 sh "$REPO/sam-yum-tt/t4ppmq.sh" /tmp/pq > /dev/null
 rm -rf "$W" && mkdir -p "$W" && cp /tmp/pq/*.c /tmp/pq/*.h "$W"/
 rm -f "$W"/unistd.h "$W"/fcntl.h         # T425-only stubs (and /tmp/pq/sys is not copied)
 cp "$RT/tppmquant.c" "$W"/
 cd "$W"
-"$CC" -m68020-60 -O2 -s -w -DPPM_PACKCOLORS -I. -I"$RT" -o tppmquant tppmquant.c ppmquant.c libppm3.c pmshim.c \
-    "$RT/t4call.c" "$RT/t4lock.c" "$RT/t4adler.c" "$RT/atwboot.c"
+"$CC" -m68020-60 -O2 -s -w $TJ -DPPM_PACKCOLORS -I. -I"$RT" -o tppmquant tppmquant.c ppmquant.c libppm3.c pmshim.c \
+    "$RT/t4call.c" "$RT/t4lock.c" "$RT/t4adler.c" "$RT/atwboot.c" $TJS
+[ -n "$TJ" ] && cp "$W/tppmquant" "$REPO/build/tppmquant-ttjob"   # test binary
 cd "$REPO"
 python3 - "$W" <<'PY'
 import sys

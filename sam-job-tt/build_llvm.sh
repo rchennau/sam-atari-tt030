@@ -57,7 +57,22 @@ $CLANG $CFLAGS -DJOB_COMPRESS -c "$here/llvm/jobnode.c" -o "$w/jobnode.o"
 $CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -c "$here/llvm/jobexec.c" -o "$w/jobexec.o"
 # libjpeg runs on the T425 only: with it on every node the 3-node image never reached main() on the card
 # (2026-10-18, atw_boot 2; worker1 grew to 2.24 MB text+bss). ttjobd keeps 'J'/'j' off the TRAMs (est_ms).
-$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -DJOB_JPEG -c "$here/llvm/jobexec.c" -o "$w/jobexec_root.o"
+$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -DJOB_JPEG -DJOB_PNG -DJOB_PPMQ -c "$here/llvm/jobexec.c" -o "$w/jobexec_root.o"
+# tpnmtopng (op 'p') and tppmquant (op 'q'), root only like libjpeg. pngenc links against the image's own zlib
+# 1.3.2 objects (same version as t4clang's copy), so no duplicate zlib symbols.
+PG=/tmp/pg; PQ=/tmp/pq; PQOBJS=
+[ -f "$PG/clang/pngserv.c" ] || sh "$root/sam-yum-tt/t4clang.sh" png "$PG" > /dev/null
+[ -f "$PQ/clang/ppmqserv.c" ] || sh "$root/sam-yum-tt/t4clang.sh" ppmq "$PQ" > /dev/null
+for f in pngserv pngenc; do
+    $CLANG -target t800 -mcpu=t425 -O2 -w -DZ_SOLO -Dz_off_t=long -Dt4_kernel=png_kernel -Dt4_out_cap=png_out_cap \
+        -I"$PG/clang" -I"$y" -c "$PG/clang/$f.c" -o "$w/pg_$f.o"
+    PQOBJS="$PQOBJS $w/pg_$f.o"
+done
+for f in ppmqserv pmshim ppmquant libppm3; do
+    $CLANG -target t800 -mcpu=t425 -O2 -w -std=gnu89 -DPPM_PACKCOLORS -Dt4_kernel=ppmq_kernel -Dt4_out_cap=ppmq_out_cap \
+        -I"$PQ/clang" -I"$y" -c "$PQ/clang/$f.c" -o "$w/pq_$f.o"
+    PQOBJS="$PQOBJS $w/pq_$f.o"
+done
 
 # libjpeg (ttjob-ports FR-3): t4clang.sh's llvm sources, jpegserv's hook renamed to jpeg_kernel (ops 'J'/'j')
 JP=/tmp/jp
@@ -98,7 +113,7 @@ COMMON_OBJS="$w/jobnode.o $w/jobexec.o $w/chacha20.o $w/sha256.o $w/t4adler.o \
              $w/c25519.o $w/f25519.o $w/sha512_32.o $w/edsign.o $w/ed25519.o $w/fprime.o $w/morph25519.o \
              $w/adler32.o $w/crc32.o $w/deflate.o $w/trees.o $w/zutil.o $w/inflate.o $w/inftrees.o $w/inffast.o \
              $w/blocksort.o $w/huffman.o $w/crctable.o $w/randtable.o $w/decompress.o $w/bzcompress.o $w/bzlib.o $w/compkern.o $LHAOBJS"
-ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS"
+ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS $PQOBJS"
 
 # 2. Build worker2 (TRAM 2)
 $CLANG $CFLAGS -c "$here/llvm/worker2.c" -o "$w/worker2.o"

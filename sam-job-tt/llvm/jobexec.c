@@ -1,5 +1,11 @@
 /* jobexec — see jobexec.h. */
 #include "jobexec.h"
+#ifdef JOB_PNG
+long png_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap);
+#endif
+#ifdef JOB_PPMQ
+long ppmq_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap);
+#endif
 #ifdef JOB_JPEG
 long jpeg_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap);
 #endif
@@ -61,6 +67,18 @@ long job_exec(int op, int level, const unsigned char *in, long n, unsigned char 
 #ifdef JOB_JPEG
     case 'J': case 'j': {                    /* libjpeg encode / decode (jpegserv's kernel; ttjob-ports FR-3) */
         long olen = jpeg_kernel(op, level, in, n, out, cap);
+        return olen < 0 ? -ST_FAILED : olen;
+    }
+#endif
+#ifdef JOB_PNG
+    case 'p': {                              /* tpnmtopng (pngserv's kernel; ttjob-ports FR-3) */
+        long olen = png_kernel(op, level, in, n, out, cap);
+        return olen < 0 ? -ST_FAILED : olen;
+    }
+#endif
+#ifdef JOB_PPMQ
+    case 'q': {                              /* tppmquant (ppmqserv's kernel; ttjob-ports FR-3) */
+        long olen = ppmq_kernel(op, level, in, n, out, cap);
         return olen < 0 ? -ST_FAILED : olen;
     }
 #endif

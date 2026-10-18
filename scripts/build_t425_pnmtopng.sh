@@ -12,9 +12,12 @@ CC=$REPO/tools/cross-mint/usr/bin/m68k-atari-mint-gcc
 W=/tmp/tpng-build
 sh "$REPO/sam-yum-tt/t4png.sh" /tmp/pg > /dev/null
 rm -rf "$W" && mkdir -p "$W"
-"$CC" -m68020-60 -O2 -s -w -I"$RT" -I"$Z" -o "$W/tpnmtopng" "$RT/tpnmtopng.c" "$RT/pngenc.c" \
+# TTJOB=1: t4call goes through ttjobd (tt030-ttjob-ports FR-3; needs a resident image with this port's op)
+TJ=; TJS=; [ "${TTJOB:-0}" = 1 ] && { TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"; TJS="$TJ $REPO/sam-job-tt/libttjob.c"; }
+"$CC" -m68020-60 -O2 -s -w $TJ -I"$RT" -I"$Z" -o "$W/tpnmtopng" "$RT/tpnmtopng.c" "$RT/pngenc.c" \
     "$Z"/adler32.c "$Z"/crc32.c "$Z"/deflate.c "$Z"/trees.c "$Z"/zutil.c \
-    "$RT/t4call.c" "$RT/t4lock.c" "$RT/t4adler.c" "$RT/atwboot.c"
+    "$RT/t4call.c" "$RT/t4lock.c" "$RT/t4adler.c" "$RT/atwboot.c" $TJS
+[ -n "$TJ" ] && cp "$W/tpnmtopng" "$REPO/build/tpnmtopng-ttjob"   # test binary
 python3 - "$W" <<'PY'
 import sys
 sys.path.insert(0, "scripts")
