@@ -159,6 +159,60 @@ int bs_fclose(FILE *f)
     return 0;
 }
 
+#ifdef BS_TRACK
+/* Resident job image (ttjob-ports FR-3): bc never frees everything it allocates (one run per process was the
+ * design), so every block bc takes is on a list and bs_run frees what is left after each program. */
+struct bs_blk { struct bs_blk *next, *prev; size_t n; long pad; };   /* 16 B: keeps the caller's block 8-aligned */
+static struct bs_blk bs_live = {&bs_live, &bs_live};
+
+void *bs_malloc(size_t n)
+{
+    struct bs_blk *b = malloc(sizeof *b + n);
+    if (!b)
+        return NULL;
+    b->n = n;
+    b->next = bs_live.next; b->prev = &bs_live;
+    bs_live.next->prev = b; bs_live.next = b;
+    return b + 1;
+}
+
+void bs_free(void *p)
+{
+    struct bs_blk *b;
+    if (!p)
+        return;
+    b = (struct bs_blk *)p - 1;
+    b->prev->next = b->next; b->next->prev = b->prev;
+    free(b);
+}
+
+void *bs_realloc(void *p, size_t n)
+{
+    void *q;
+    if (!p)
+        return bs_malloc(n);
+    if (!(q = bs_malloc(n)))
+        return NULL;
+    memcpy(q, p, n < ((struct bs_blk *)p - 1)->n ? n : ((struct bs_blk *)p - 1)->n);
+    bs_free(p);
+    return q;
+}
+
+void *bs_calloc(size_t k, size_t n)
+{
+    void *p = bs_malloc(k * n);
+    if (p)
+        memset(p, 0, k * n);
+    return p;
+}
+
+static void bs_freeall(void)
+{
+    while (bs_live.next != &bs_live)
+        bs_free(bs_live.next + 1);
+}
+#endif
+
 long bs_run(int mathlib, const char *prog, long n, unsigned char *out, long cap)
 {
     char *argv[3];
@@ -180,6 +234,9 @@ long bs_run(int mathlib, const char *prog, long n, unsigned char *out, long cap)
         return -1;
     if (setjmp(bs_jb) == 0)
         bc_main(argc, argv);
+#ifdef BS_TRACK
+    bs_freeall();
+#endif
     if (bs_full)
         return -1;
     out[0] = (unsigned char)bs_olen; out[1] = (unsigned char)(bs_olen >> 8);

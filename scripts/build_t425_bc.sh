@@ -21,9 +21,12 @@ rm -rf /tmp/bql && sh "$REPO/sam-yum-tt/t4bc.sh" /tmp/bql --copies && rm -rf /tm
     || { echo "bcserv: not confined to 5 MB (NFR-2)" >&2; exit 1; }
 rm -rf "$W" && mkdir -p "$W" && cp /tmp/bq/*.c /tmp/bq/*.h "$W"/ && cp "$RT/tbc.c" "$W"/
 cd "$W"
-"$CC" -m68020-60 -O2 -s -w -std=gnu89 -I. -I"$RT" -o tbc tbc.c bc.c scan.c execute.c global.c load.c main.c \
+# TTJOB=1: t4call goes through ttjobd (tt030-ttjob-ports FR-3; needs a resident image with op 'c')
+TJ=; TJS=; [ "${TTJOB:-0}" = 1 ] && { TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"; TJS="$TJ $REPO/sam-job-tt/libttjob.c"; }
+"$CC" -m68020-60 -O2 -s -w -std=gnu89 $TJ -I. -I"$RT" -o tbc tbc.c bc.c scan.c execute.c global.c load.c main.c \
     storage.c util.c number.c getopt.c getopt1.c bcshim.c \
-    "$RT/t4call.c" "$RT/t4lock.c" "$RT/t4adler.c" "$RT/atwboot.c"
+    "$RT/t4call.c" "$RT/t4lock.c" "$RT/t4adler.c" "$RT/atwboot.c" $TJS
+[ -n "$TJ" ] && cp tbc "$REPO/build/tbc-ttjob"   # test binary
 cd "$REPO"
 python3 - "$W" "$REL" <<'PY'
 import sys

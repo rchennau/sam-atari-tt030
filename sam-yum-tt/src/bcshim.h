@@ -26,5 +26,11 @@ FILE *bs_fopen(const char *name, const char *mode);
 int bs_fclose(FILE *f);
 /* Run bc [-l] over the program text prog (n bytes, as stdin). Result into out: stdout length (4, LE), bc's
  * exit code (1), stdout, then stderr. Returns the result length, or -1 if out is too small. */
+#ifdef BS_TRACK
+void *bs_malloc(size_t n);
+void bs_free(void *p);
+void *bs_realloc(void *p, size_t n);
+void *bs_calloc(size_t k, size_t n);
+#endif
 long bs_run(int mathlib, const char *prog, long n, unsigned char *out, long cap);
 #endif

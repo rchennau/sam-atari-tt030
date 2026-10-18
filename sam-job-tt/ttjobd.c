@@ -73,11 +73,12 @@ static long est_ms(int op, long n, int tram)
     case 'd': us = n * 45; comp = 1; break;             /* lha decode, n = packed bytes: 3.5 s / 95 KB */
     case 'p': us = n * 150; comp = 1; break;            /* tpnmtopng: ~110 us/B on the T425 (2026-09-25 gate, 800x600 ~157 s) */
     case 'q': us = n * 300; comp = 1; break;            /* tppmquant 256: ~210 us/B on the T425 (2026-09-25 gate, 800x600 301 s) */
+    case 'c': us = 300000000L; break;                   /* bc: run time is the program's, not its size; 300 s -> 905 s watchdog */
     case 'J': us = n * 30; comp = 1; break;             /* ponytail: libjpeg encode, raw rows; estimate until FR-5 measures */
     case 'j': us = n * 300; comp = 1; break;            /* libjpeg decode, n = JPEG bytes (HighWire spike: 1024x768 28 s on the T425) */
     default: us = n / 2; break;
     }
-    if (tram && (op == 'J' || op == 'j' || op == 'p' || op == 'q')) return 0x7fffffffL / 1000;   /* libjpeg is in the T425's image only */
+    if (tram && (op == 'J' || op == 'j' || op == 'p' || op == 'q' || op == 'c')) return 0x7fffffffL / 1000;   /* libjpeg is in the T425's image only */
     if (tram) us = comp ? us / 10 * 28 : us * 2;
     return us / 1000;
 }

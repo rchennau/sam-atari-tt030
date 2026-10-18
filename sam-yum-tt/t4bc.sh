@@ -25,7 +25,10 @@ printf '/* t4bc stub */\ntypedef long off_t;\n' > sys/types.h
            exit getenv fopen fclose; do printf '#undef %s\n#define %s bs_%s\n' $n $n $n; done
   # bison grows its parser stack with alloca, which icc lacks; malloc leaks only on very deep parses, and
   # every process runs bc once. ponytail: an arena if tbc ever serves several programs per boot.
-  printf '#undef alloca\n#define alloca malloc\n'; } > bcren.h
+  printf '#undef alloca\n#define alloca malloc\n'
+  # BS_TRACK (resident job image only, sam-job-tt/build_llvm.sh): bc's heap on bcshim's list, freed after each run
+  printf '#ifdef BS_TRACK\n'; for n in malloc free realloc calloc; do printf '#undef %s\n#define %s bs_%s\n' $n $n $n; done
+  printf '#endif\n'; } > bcren.h
 for f in bc scan execute global load main storage util number getopt getopt1; do
     { [ $f = main ] && echo '#define main bc_main'; echo '#include "bcren.h"'; cat $f.c; } > $f.tmp && mv $f.tmp $f.c
 done

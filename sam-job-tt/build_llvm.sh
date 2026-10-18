@@ -57,7 +57,7 @@ $CLANG $CFLAGS -DJOB_COMPRESS -c "$here/llvm/jobnode.c" -o "$w/jobnode.o"
 $CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -c "$here/llvm/jobexec.c" -o "$w/jobexec.o"
 # libjpeg runs on the T425 only: with it on every node the 3-node image never reached main() on the card
 # (2026-10-18, atw_boot 2; worker1 grew to 2.24 MB text+bss). ttjobd keeps 'J'/'j' off the TRAMs (est_ms).
-$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -DJOB_JPEG -DJOB_PNG -DJOB_PPMQ -c "$here/llvm/jobexec.c" -o "$w/jobexec_root.o"
+$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -DJOB_JPEG -DJOB_PNG -DJOB_PPMQ -DJOB_BC -c "$here/llvm/jobexec.c" -o "$w/jobexec_root.o"
 # tpnmtopng (op 'p') and tppmquant (op 'q'), root only like libjpeg. pngenc links against the image's own zlib
 # 1.3.2 objects (same version as t4clang's copy), so no duplicate zlib symbols.
 PG=/tmp/pg; PQ=/tmp/pq; PQOBJS=
@@ -83,6 +83,28 @@ for f in jpegserv $(sed -n '/^LIB="/,/"$/p' "$root/sam-yum-tt/t4jpeg.sh" | tr -d
         -Dt4_kernel=jpeg_kernel -Dt4_out_cap=jpeg_out_cap -I"$JP/clang" -I"$y" -c "$JP/clang/$f.c" -o "$w/jp_$f.o"
     JPOBJS="$JPOBJS $w/jp_$f.o"
 done
+
+# GNU bc (op 'c'), root only: t4bc.sh's patched sources at -Os (llvm-t800 FR-5), heap tracked (BS_TRACK). One
+# relocatable with every symbol but bc_kernel made local (bc's getopt/warn/yy* stay private), and symbols on its
+# .data/.bss bounds so bcjob.c can reset bc's globals before each job.
+BQ=/tmp/bqj
+sh "$root/sam-yum-tt/t4bc.sh" "$BQ" --copies && rm -rf "$BQ/sys"
+BCOBJS=
+for f in bcserv bc scan execute global load main storage util number getopt getopt1 bcshim; do
+    $CLANG -target t800 -mcpu=t425 -Os -w -std=gnu89 -DBS_TRACK -Dwarn=bc_warn -Dt4_kernel=bc_kernel \
+        -Dt4_out_cap=bc_out_cap -I"$BQ" -c "$BQ/$f.c" -o "$w/bc_$f.o"
+    BCOBJS="$BCOBJS $w/bc_$f.o"
+done
+$llvm_bin/ld.lld -r $BCOBJS -o "$w/bc_all.o"
+# Boundary symbols on the merged .data/.bss (renamed sections would land after the image's .bss, inside the heap)
+sz() { $llvm_bin/llvm-size -A "$w/bc_all.o" | awk -v s="$1" '$1 == s { print $2 }'; }
+DS=$(sz .data); BS=$(sz .bss)
+[ -n "$DS" ] && [ -n "$BS" ] || { echo "build_llvm: bc_all.o has no .data/.bss" >&2; exit 1; }
+$OBJCOPY --add-symbol bc_data_start=.data:0,global --add-symbol bc_data_end=.data:$DS,global \
+    --add-symbol bc_bss_start=.bss:0,global --add-symbol bc_bss_end=.bss:$BS,global \
+    --keep-global-symbol=bc_kernel --keep-global-symbol=bc_data_start --keep-global-symbol=bc_data_end \
+    --keep-global-symbol=bc_bss_start --keep-global-symbol=bc_bss_end "$w/bc_all.o" "$w/bc.o"
+$CLANG $CFLAGS -c "$here/llvm/bcjob.c" -o "$w/bcjob.o"
 
 # lha (ttjob-ports FR-3, first port): the sources t4clang.sh prepares for llvm, lhaserv's hook renamed to lha_kernel
 LH=/tmp/lh
@@ -113,7 +135,7 @@ COMMON_OBJS="$w/jobnode.o $w/jobexec.o $w/chacha20.o $w/sha256.o $w/t4adler.o \
              $w/c25519.o $w/f25519.o $w/sha512_32.o $w/edsign.o $w/ed25519.o $w/fprime.o $w/morph25519.o \
              $w/adler32.o $w/crc32.o $w/deflate.o $w/trees.o $w/zutil.o $w/inflate.o $w/inftrees.o $w/inffast.o \
              $w/blocksort.o $w/huffman.o $w/crctable.o $w/randtable.o $w/decompress.o $w/bzcompress.o $w/bzlib.o $w/compkern.o $LHAOBJS"
-ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS $PQOBJS"
+ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS $PQOBJS $w/bc.o $w/bcjob.o"
 
 # 2. Build worker2 (TRAM 2)
 $CLANG $CFLAGS -c "$here/llvm/worker2.c" -o "$w/worker2.o"

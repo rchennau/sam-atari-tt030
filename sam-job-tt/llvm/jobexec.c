@@ -9,6 +9,9 @@ long ppmq_kernel(int op, int level, const unsigned char *in, long n, unsigned ch
 #ifdef JOB_JPEG
 long jpeg_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap);
 #endif
+#ifdef JOB_BC
+long bc_job(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap);
+#endif
 #ifdef JOB_LHA
 long lha_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap);
 #endif
@@ -79,6 +82,12 @@ long job_exec(int op, int level, const unsigned char *in, long n, unsigned char 
 #ifdef JOB_PPMQ
     case 'q': {                              /* tppmquant (ppmqserv's kernel; ttjob-ports FR-3) */
         long olen = ppmq_kernel(op, level, in, n, out, cap);
+        return olen < 0 ? -ST_FAILED : olen;
+    }
+#endif
+#ifdef JOB_BC
+    case 'c': {                              /* GNU bc, level 1 = -l (bcserv's kernel, globals reset per job; ttjob-ports FR-3) */
+        long olen = bc_job(op, level, in, n, out, cap);
         return olen < 0 ? -ST_FAILED : olen;
     }
 #endif
