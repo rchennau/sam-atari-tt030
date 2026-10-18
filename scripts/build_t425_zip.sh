@@ -114,15 +114,20 @@ s = s.replace(anchor, anchor + """#ifdef T425
 open(p, "w", encoding="latin-1").write(s)
 PY
 OBJS=
+# TTJOB=1: t4call goes through ttjobd when it runs (tt030-ttjob-ports FR-3). zip's kernel is compserv's raw deflate,
+# op 'r', which the resident job image already serves (tgzip's ops), so no image change is needed.
+TJ=; [ "${TTJOB:-0}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
 for c in t4call t4lock t4adler atwboot; do
-    "$CC" -m68020-60 -O2 -c -I"$RT" -o "$W/$c.o" "$RT/$c.c"; OBJS="$OBJS $W/$c.o"
+    "$CC" -m68020-60 -O2 -c $TJ -I"$RT" -o "$W/$c.o" "$RT/$c.c"; OBJS="$OBJS $W/$c.o"
 done
+[ -n "$TJ" ] && { "$CC" -m68020-60 -O2 -c -I"$REPO/sam-job-tt" -I"$RT" -o "$W/libttjob.o" "$REPO/sam-job-tt/libttjob.c"; OBJS="$OBJS $W/libttjob.o"; }
 for c in adler32 crc32 deflate trees zutil; do
     "$CC" -m68020-60 -O2 -c -I"$Z" -o "$W/z_$c.o" "$Z/$c.c"; OBJS="$OBJS $W/z_$c.o"
 done
 PATH=$XBIN:$PATH make -s -f unix/Makefile zips CC=m68k-atari-mint-gcc BIND=m68k-atari-mint-gcc \
     CFLAGS="-std=gnu89 -O2 -m68020-60 -I. -DUNIX -DUSE_ZLIB -DT425 -I$RT -I$Z" \
     LFLAGS2="-s $OBJS" > "$W/make.log" 2>&1 || { tail -25 "$W/make.log"; exit 1; }
+[ -n "$TJ" ] && cp "$W/zip-2.3/zip" "$REPO/build/zip-ttjob"   # test binary; the RPMs below are built as before
 sh "$REPO/sam-yum-tt/t4compress.sh" /tmp/cb > /dev/null
 mkdir -p "$W/stock" && (cd "$W/stock" && 7z e -y "/mnt/vault/tt030/m68kmint/zip-2.3-2.m68kmint.rpm" > /dev/null \
     && cpio -idm --quiet < zip-2.3-2.m68kmint.cpio)
