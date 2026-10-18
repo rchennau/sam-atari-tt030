@@ -1,6 +1,6 @@
 #!/bin/bash
 # build_rpm.sh — package the job queue (tt030-transputer-job-queue, Deployment §5) as build/ttjob-<V>-<R>.m68kmint.rpm:
-#   /usr/sbin/ttjobd, /usr/bin/ttjobcli, /usr/lib/t425/job{full,t1,t0}.btl (from build_t4.sh), /etc/rc.ttjobd.
+#   /usr/sbin/ttjobd, /usr/bin/ttjobcli, /usr/bin/ttlease, /usr/lib/t425/job{full,t1,t0}.btl (from build_t4.sh), /etc/rc.ttjobd.
 # Release = number of commits touching sam-job-tt or sam-yum-tt/src (shared sources), so every change gets a newer NVR and an unchanged tree rebuilds the
 # same name (ci.sh publishes only names the mirror lacks). Boot wiring stays outside the package: mint.cnf runs
 # "exec u:/bin/bash /etc/rc.ttjobd" (set once by hand, 2026-10-13). A new ttjobd takes effect at the next reboot.
@@ -14,6 +14,7 @@ for b in jobfull jobt1 jobt0; do [ -s "$here/build/$b.btl" ] || { echo "build_rp
 CC="$root/tools/cross-mint/usr/bin/m68k-atari-mint-gcc -m68020-60 -O2 -Wall -s"   # -s: unstripped symbols carry temp object names, so no two builds match
 $CC -I"$y" -I"$here" -o "$here/build/ttjobd.ttp" "$here/ttjobd.c" "$y/atwboot.c" "$y/t4lock.c"
 $CC -I"$y" -I"$here" -o "$here/build/ttjobcli.ttp" "$here/ttjobcli.c" "$y/sha256.c" "$y/t4adler.c"
+$CC -I"$y" -I"$here" -o "$here/build/ttlease.ttp" "$here/ttlease.c" "$here/libttjob.c" "$y/t4adler.c"
 python3 - "$root" "$here" "$V" "$R" <<'PY'
 import sys
 root, here, v, r = sys.argv[1:]
@@ -23,6 +24,7 @@ rd = lambda p: open(p, "rb").read()
 out = f"{here}/build/ttjob-{v}-{r}.m68kmint.rpm"
 files = [("/usr/sbin/ttjobd", 0o100755, rd(f"{here}/build/ttjobd.ttp")),
          ("/usr/bin/ttjobcli", 0o100755, rd(f"{here}/build/ttjobcli.ttp")),
+         ("/usr/bin/ttlease", 0o100755, rd(f"{here}/build/ttlease.ttp")),
          ("/etc/rc.ttjobd", 0o100755, rd(f"{here}/tt/rc.ttjobd"))]
 files += [(f"/usr/lib/t425/{b}.btl", 0o100644, rd(f"{here}/build/{b}.btl")) for b in ("jobfull", "jobt1", "jobt0")]
 open(out, "wb").write(R.write_rpm("ttjob", v, r, files,

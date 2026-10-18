@@ -23,6 +23,7 @@
 #define OP_X25519 'X'                  /* Phase 3 crypto ops, every node (integer only) */
 #define OP_ED25519V 'V'
 #define OP_CHACHA20 'C'
+#define OP_LEASE 'L'                   /* client takes the T425 for as long as its connection stays open (ttjobd only, never sent on the link) */
 /* compression (T425 node only, compkern.h): 'z' deflate, 'g' gzip, 'r' raw, 'i' inflate, 'b' bzip2 */
 #define ST_OK 0
 #define ST_BADREQ 1                    /* request checksum failed or malformed */

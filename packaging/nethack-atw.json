@@ -1,7 +1,7 @@
 {
   "name": "nethack-atw",
   "version": "3.6.0",
-  "release": "1.sam1",
+  "release": "2.sam1",
   "summary": "NetHack for the ATW800/2 transputer (GEM tiles), relocated to /opt/nethack (sam, local only)",
   "licence": "NetHack General Public License; packaged from the TT's disk",
   "dir": "D:\\NETHACK",
@@ -14,5 +14,10 @@
     "SYSCONF",
     "PERM",
     "RECORD"
-  ]
+  ],
+  "lowercase": true,
+  "dirs": {
+    "save": "0777"
+  },
+  "lease": true
 }

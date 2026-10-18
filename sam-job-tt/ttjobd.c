@@ -34,6 +34,7 @@
 struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; clock_t due; };
 static struct job queue[QMAX], inflight[NODES];
 static int nq, nin, up;
+static int leased = -1;              /* client index holding the T425 lease (OP_LEASE), or -1 */
 static const char *img;
 static int absent[NODES];            /* FR-8: nodes the booted image does not contain (never scheduled) */
 static const char *topo_path = "/var/run/ttjob.topology";
@@ -146,6 +147,7 @@ static void drop_out(int i)                                 /* free (wiped) ever
     while (oq[i]) { struct chunk *c = oq[i]; oq[i] = c->next; wipe_free((unsigned char *)c, (long)sizeof *c + c->len); }
     oqt[i] = NULL;
 }
+static int boot_network(void);
 static void drop_client(int i)                              /* close client i: its jobs' replies go nowhere */
 {
     int k;
@@ -153,6 +155,12 @@ static void drop_client(int i)                              /* close client i: i
     for (k = 0; k < nq; k++) if (queue[k].fd == cl[i]) queue[k].fd = -1;
     close(cl[i]); cl[i] = -1;
     drop_out(i);
+    if (i == leased) {                                      /* lease holder exited (or crashed): take the T425 back */
+        leased = -1; rgot = 0;
+        up = boot_network();
+        say(up ? LOG_INFO : LOG_ERR, "lease released; re-boot %s", up ? "succeeded, serving again" : "failed, retrying");
+        if (!up) down_since = time(NULL);
+    }
 }
 static void flush_out(int i)                                /* write what the client's socket takes now */
 {
@@ -373,6 +381,21 @@ int main(int argc, char **argv)
             if (rd(cl[i], h, JOB_HDR)) { drop_client(i); continue; }   /* client gone */
             n = (long)g4(h + H_LEN);
             if (n < 0 || n > JOB_MAX) { answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_TOOBIG); drop_client(i); continue; }
+            /* af4039be: a lease hands the T425 to one client (a program that boots its own image, e.g. NetHack-ATW)
+             * until its connection closes, which the kernel does when the process exits or crashes: no pid polling,
+             * no idle timeout. Meanwhile jobs get ST_DOWN (68030) and the lock file still names ttjobd, so Dropbear
+             * never boots its own offload over the holder's image. A second lease request is refused with ST_DOWN. */
+            if (h[2] == OP_LEASE) {
+                unsigned short cid = (unsigned short)(h[0] | (h[1] << 8));
+                if (n != 0) { drop_client(i); continue; }
+                if (leased >= 0) { answer(cl[i], cid, ST_DOWN); continue; }
+                go_down("T425 leased to a client");
+                down_since = 0;                             /* no re-boot retries while leased */
+                leased = i;
+                say(LOG_INFO, "T425 leased; jobs run on the 68030 until the holder exits");
+                answer(cl[i], cid, ST_OK);
+                continue;
+            }
             if (h[3] != NODE_ANY && (h[3] >= NODES || absent[h[3]])) { unsigned char sink[256]; long g; for (g = 0; g < n; g += 256) rd(cl[i], sink, n - g > 256 ? 256 : n - g); answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_NONODE); continue; }
             for (k = 0, mine = 0; k < nq; k++) mine += queue[k].fd == cl[i];
             for (k = 0; k < nin; k++) mine += inflight[k].fd == cl[i];

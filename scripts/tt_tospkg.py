@@ -19,6 +19,12 @@ Recipe keys:
   config     ["WORDPLUS.INF"]                      files the program rewrites (settings): %config, kept on update
   extra      {"GEM_TEST.PRG": "C:\\GEM_TEST.PRG"}  single files from outside `dir` (rel path under dest -> FAT path);
                                                     --fat-plan deletes them too
+  lowercase  true                                  also ship a lower-case symlink for every upper-case file (a program
+                                                    that opens "gem_rsc.rsc" on case-sensitive ext2, af4039be)
+  dirs       {"save": "0777"}                      empty directories under dest, with their mode (a SAVEDIR the program
+                                                    writes into)
+  lease      true                                  the /usr/bin wrappers run the program under ttlease (ttjob), for a
+                                                    program that boots its own T425 image while ttjobd runs
 """
 import fnmatch
 import json
@@ -94,14 +100,21 @@ def main(recipe, hd00, out_dir):
         while d != r["dest"] and d.rsplit("/", 1)[0] not in dirs:
             d = d.rsplit("/", 1)[0]
             dirs.add(d)
-    files = [(d, 0o40755, b"") for d in sorted(dirs)] + files
+    extra_dirs = {f"{r['dest']}/{d}": int(m, 8) for d, m in r.get("dirs", {}).items()}
+    files = [(d, 0o40755, b"") for d in sorted(dirs - set(extra_dirs))] + [(d, 0o40000 | m, b"") for d, m in sorted(extra_dirs.items())] + files
+    if r.get("lowercase"):
+        names = {p for p, _, _ in files}
+        files += [(f"{p.rsplit('/', 1)[0]}/{p.rsplit('/', 1)[1].lower()}", 0o160777, p.rsplit("/", 1)[1].encode())
+                  for p, m, _ in list(files) if m & 0o170000 == 0o100000
+                  and f"{p.rsplit('/', 1)[0]}/{p.rsplit('/', 1)[1].lower()}" not in names]
     have = {p for p, _, _ in files}
     for cmd, prog in r.get("commands", {}).items():
         target = f"{r['dest']}/{prog}"
         if target not in have:
             sys.exit(f"tt_tospkg: command {cmd}: {target} is not in the package")
         d, base = target.rsplit("/", 1)
-        files.append((f"/usr/bin/{cmd}", 0o100755, f'#!/bin/sh\ncd "{d}" && exec "./{base}" "$@"\n'.encode()))
+        run = "/usr/bin/ttlease " if r.get("lease") else ""
+        files.append((f"/usr/bin/{cmd}", 0o100755, f'#!/bin/sh\ncd "{d}" && exec {run}"./{base}" "$@"\n'.encode()))
     cfg = {f"{r['dest']}/{c}" for c in r.get("config", [])}
     if cfg - have:
         sys.exit(f"tt_tospkg: config not in the package: {sorted(cfg - have)}")
@@ -109,6 +122,7 @@ def main(recipe, hd00, out_dir):
     open(out, "wb").write(R.write_rpm(r["name"], r["version"], r["release"], files, summary=r["summary"],
                                       description=f"Licence: {r['licence']}. Packaged from the TT's own disk by "
                                                   "tt_tospkg (sam); not for redistribution.",
+                                      requires_=("ttjob",) if r.get("lease") else (),
                                       fileflags={p: 1 for p in cfg}))   # RPMFILE_CONFIG
     print(f"{out}: {len(files)} files")
 
