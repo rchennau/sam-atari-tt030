@@ -168,6 +168,8 @@ static long sof_size(const unsigned char *p, long n)
 long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char *out, long cap)
 {
     long r;
+    if (op == 'J') op = 'C';                     /* ttjob op letters (tt030-ttjob-ports FR-3): the job image's 'C' is ChaCha20 */
+    else if (op == 'j') op = 'D';
     if (op == 'Q') {                             /* diagnostics: libjpeg msg_code + stage of the last failure */
         if (cap < 8)
             return -1;

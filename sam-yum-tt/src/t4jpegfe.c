@@ -5,6 +5,13 @@
  *   cjpeg [-quality N] [-outfile F] FILE            <- a raw PPM/PGM (P6/P5, maxval 255, no comments)
  * Anything else, or any failure before output, returns -1 and the stock code path runs. A failure is
  * said once on stderr. The package offloads only with /etc/t425/enabled/libjpeg (libjpeg-t425-on). */
+#ifdef T4CALL_TTJOB                /* ttjobd's image: 'C' is ChaCha20, so libjpeg uses 'J'/'j'; jpegserv accepts both */
+#define T4J_OP_C 'J'
+#define T4J_OP_D 'j'
+#else
+#define T4J_OP_C 'C'
+#define T4J_OP_D 'D'
+#endif
 #include "t4call.h"
 #include <ctype.h>
 #include <sys/stat.h>
@@ -111,7 +118,7 @@ static int t4_djpeg(int argc, char **argv)
     if (!(out = (unsigned char *)malloc(cap)))
         why = "had no memory";
     else
-        len = t4call(T4J_BTL, 'D', 0, in, n, out, cap, &why);
+        len = t4call(T4J_BTL, T4J_OP_D, 0, in, n, out, cap, &why);
     if (len > 9 && (o = t4j_out(outname)) != NULL) {
         unsigned long w = t4j_get4(out), h = t4j_get4(out + 4);
         int comp = out[8];
@@ -184,7 +191,7 @@ static int t4_cjpeg(int argc, char **argv)
     if (!(out = (unsigned char *)malloc(raw + 4096)))
         why = "had no memory";
     else
-        len = t4call(T4J_BTL, 'C', q, in, raw + 9, out, raw + 4096, &why);
+        len = t4call(T4J_BTL, T4J_OP_C, q, in, raw + 9, out, raw + 4096, &why);
     if (len > 0 && (o = t4j_out(outname)) != NULL) {
         if ((long)fwrite(out, 1, len, o) != len || (outname && fclose(o) != 0)) {
             fprintf(stderr, "%s: write error\n", argv[0]);

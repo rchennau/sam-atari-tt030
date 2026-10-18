@@ -30,12 +30,15 @@ for prog, flag in (("djpeg", "T4J_DJPEG"), ("cjpeg", "T4J_CJPEG")):
 PY
 cp "$RT/t4jpegfe.c" .
 OBJS=
+# TTJOB=1: t4call goes through ttjobd (tt030-ttjob-ports FR-3; needs a resident image with ops 'J'/'j')
+TJ=; [ "${TTJOB:-0}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
 for c in t4call t4lock t4adler atwboot; do
-    "$CC" -m68020-60 -O2 -c -I"$RT" -o "$W/$c.o" "$RT/$c.c"; OBJS="$OBJS $W/$c.o"
+    "$CC" -m68020-60 -O2 -c $TJ -I"$RT" -o "$W/$c.o" "$RT/$c.c"; OBJS="$OBJS $W/$c.o"
 done
+[ -n "$TJ" ] && { "$CC" -m68020-60 -O2 -c -I"$REPO/sam-job-tt" -I"$RT" -o "$W/libttjob.o" "$REPO/sam-job-tt/libttjob.c"; OBJS="$OBJS $W/libttjob.o"; }
 printf 'long _stksize = 64L * 1024;   /* = SpareMiNT spec: stack --fix=64k */\n' > "$W/stksize.c"
 "$CC" -c -o "$W/stksize.o" "$W/stksize.c"; OBJS="$OBJS $W/stksize.o"
-PATH=$XBIN:$PATH CFLAGS="-O2 -m68020-60 -DT425 -I$RT" \
+PATH=$XBIN:$PATH CFLAGS="-O2 -m68020-60 -DT425 $TJ -I$RT" \
     ./configure --host=m68k-atari-mint --prefix=/usr --enable-static --disable-shared > "$W/configure.log" 2>&1 \
     || { tail -20 "$W/configure.log"; exit 1; }
 # per-program link additions (LIBS would also reach libtool's libjpeg.la, which refuses plain objects)
@@ -43,6 +46,7 @@ PATH=$XBIN:$PATH make -s cjpeg_LDADD="libjpeg.la $OBJS" djpeg_LDADD="libjpeg.la 
     jpegtran_LDADD="libjpeg.la $W/stksize.o" rdjpgcom_LDADD="$W/stksize.o" wrjpgcom_LDADD="$W/stksize.o" \
     > "$W/make.log" 2>&1 || { tail -25 "$W/make.log"; exit 1; }
 for b in cjpeg djpeg jpegtran rdjpgcom wrjpgcom; do "$XBIN/m68k-atari-mint-strip" "$b"; done
+[ -n "$TJ" ] && { cp cjpeg "$REPO/build/cjpeg-ttjob"; cp djpeg "$REPO/build/djpeg-ttjob"; }   # test binaries
 sh "$REPO/sam-yum-tt/t4jpeg.sh" /tmp/jp > /dev/null
 mkdir -p "$W/stock" && (cd "$W/stock" && 7z e -y /mnt/vault/tt030/m68kmint/libjpeg-8b-2.m68kmint.rpm > /dev/null \
     && cpio -idm --quiet < libjpeg-8b-2.m68kmint.cpio)

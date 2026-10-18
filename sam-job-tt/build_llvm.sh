@@ -55,6 +55,19 @@ CFLAGS="-target t800 -mcpu=t425 -O2 -Wall -Wno-unused-function -Wno-unused-but-s
 # 1. Compile common kernel objects
 $CLANG $CFLAGS -DJOB_COMPRESS -c "$here/llvm/jobnode.c" -o "$w/jobnode.o"
 $CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -c "$here/llvm/jobexec.c" -o "$w/jobexec.o"
+# libjpeg runs on the T425 only: with it on every node the 3-node image never reached main() on the card
+# (2026-10-18, atw_boot 2; worker1 grew to 2.24 MB text+bss). ttjobd keeps 'J'/'j' off the TRAMs (est_ms).
+$CLANG $CFLAGS -DJOB_COMPRESS -DJOB_LHA -DJOB_JPEG -c "$here/llvm/jobexec.c" -o "$w/jobexec_root.o"
+
+# libjpeg (ttjob-ports FR-3): t4clang.sh's llvm sources, jpegserv's hook renamed to jpeg_kernel (ops 'J'/'j')
+JP=/tmp/jp
+[ -f "$JP/clang/jpegserv.c" ] || sh "$root/sam-yum-tt/t4clang.sh" jpeg "$JP" > /dev/null
+JPOBJS=
+for f in jpegserv $(sed -n '/^LIB="/,/"$/p' "$root/sam-yum-tt/t4jpeg.sh" | tr -d '"' | sed 's/^LIB=//' | tr '\n' ' '); do
+    $CLANG -target t800 -mcpu=t425 -O2 -w -std=gnu89 -DNO_GETENV \
+        -Dt4_kernel=jpeg_kernel -Dt4_out_cap=jpeg_out_cap -I"$JP/clang" -I"$y" -c "$JP/clang/$f.c" -o "$w/jp_$f.o"
+    JPOBJS="$JPOBJS $w/jp_$f.o"
+done
 
 # lha (ttjob-ports FR-3, first port): the sources t4clang.sh prepares for llvm, lhaserv's hook renamed to lha_kernel
 LH=/tmp/lh
@@ -85,6 +98,7 @@ COMMON_OBJS="$w/jobnode.o $w/jobexec.o $w/chacha20.o $w/sha256.o $w/t4adler.o \
              $w/c25519.o $w/f25519.o $w/sha512_32.o $w/edsign.o $w/ed25519.o $w/fprime.o $w/morph25519.o \
              $w/adler32.o $w/crc32.o $w/deflate.o $w/trees.o $w/zutil.o $w/inflate.o $w/inftrees.o $w/inffast.o \
              $w/blocksort.o $w/huffman.o $w/crctable.o $w/randtable.o $w/decompress.o $w/bzcompress.o $w/bzlib.o $w/compkern.o $LHAOBJS"
+ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS"
 
 # 2. Build worker2 (TRAM 2)
 $CLANG $CFLAGS -c "$here/llvm/worker2.c" -o "$w/worker2.o"
@@ -103,14 +117,14 @@ $MKBOOT "$w/worker1.bin" -o "$w/worker1.btl"
 
 # 5. Build root / jobllvm.btl (3 nodes)
 $CLANG $CFLAGS -c "$here/llvm/root.c" -o "$w/root.o"
-$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none "$w/root.o" $COMMON_OBJS -o "$w/jobllvm.elf"
+$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none "$w/root.o" $ROOT_OBJS -o "$w/jobllvm.elf"
 $OBJCOPY -O binary "$w/jobllvm.elf" "$w/jobllvm.bin"
 $MKBOOT "$w/jobllvm.bin" -o "$w/jobllvm.btl"
 cp "$w/jobllvm.btl" "$here/build/"
 
 # 6. Build root / jobllvm0.btl (SOLO)
 $CLANG $CFLAGS -DSOLO -c "$here/llvm/root.c" -o "$w/roots.o"
-$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none "$w/roots.o" $COMMON_OBJS -o "$w/jobllvm0.elf"
+$CLANG -target t800 -mcpu=t425 -mboard=atw800 -mmem=$ROOT_MEM -mhost=none "$w/roots.o" $ROOT_OBJS -o "$w/jobllvm0.elf"
 $OBJCOPY -O binary "$w/jobllvm0.elf" "$w/jobllvm0.bin"
 $MKBOOT "$w/jobllvm0.bin" -o "$w/jobllvm0.btl"
 cp "$w/jobllvm0.btl" "$here/build/"
