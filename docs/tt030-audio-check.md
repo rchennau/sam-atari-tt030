@@ -1,6 +1,6 @@
 # TT030 audio check (2026-10-16)
 
-Tool: `src/ttsound.c` (`/c/ttsound.ttp`): `info`, `psg [0|1]`, `dma [l|r|b]`. Run over serial; listened by the operator.
+Tool: `src/ttsound.c` (`/usr/bin/ttsound`, RPM `atwtools`; was `/c/ttsound.ttp` until 2026-10-17): `info`, `psg [0|1]`, `dma [l|r|b]`. Run over serial; listened by the operator.
 
 | Check | Result |
 | :--- | :--- |
