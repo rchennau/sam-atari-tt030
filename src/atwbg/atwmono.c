@@ -4,6 +4,9 @@
  * routine that sends byte-aligned, S_ONLY, screen-to-screen copies to the engine (exactly as the 8-bit path
  * does), and redirects the generic fill's call site so solid REPLACE fills replicate row 0 with the engine.
  * Everything else goes to the original routines.
+ * In every mode with the 8-plane vrt_cpyfm in the live table it also hooks that slot (db0bb9ec): a screen
+ * destination with clipping off and a corner off the screen gets the driver's own clip forced to the screen for
+ * that call; unpatched, y < 0 is multiplied unsigned and the write bus-errors far past the framebuffer.
  * Usage: atwmono      install (stays resident; a reboot removes it)
  *        atwmono -s   copy statistics of the resident hook (FR-2 gate)
  *        atwmono -u   restore the original slot (the resident copy stays in memory, unused)
@@ -25,6 +28,8 @@
 #define V_ENGINE 0x219f0UL           /* BSS: pointer to the copy engine's register window */
 #define F_FILL 0xd4f6UL              /* generic rectangle fill (ws in a0) */
 #define C_FILL 0x1431aUL             /* its only call site: move.l a2,a0; bsr.w F_FILL (6 bytes) */
+#define SLOT_VRT 0x5c                /* vrt_cpyfm slot (dispatch at +0xf586) */
+#define F_VRT8 0x293eUL              /* 8-plane vrt_cpyfm: screen dest y uses mulu, unclipped when clip is off */
 
 typedef struct { void *addr; short w, h, wdw, stand, planes, r1, r2, r3; } XFDB;
 
@@ -40,6 +45,35 @@ void mono_fill_c(unsigned char *ws) __asm__("mono_fill_c");
 void call_fill(unsigned char *ws) __asm__("call_fill");
 unsigned long mono_fills __asm__("mono_fills");
 long mono_blit_c(unsigned char *ws) __asm__("mono_blit_c");
+unsigned long vrt_orig __asm__("vrt_orig");
+unsigned long vrt_fixes __asm__("vrt_fixes");
+short vrt_xmax, vrt_ymax, vrt_clip[5];
+void vrt_hook(void) __asm__("vrt_hook");
+long vrt_pre(unsigned char *ws) __asm__("vrt_pre");
+void vrt_post(unsigned char *ws) __asm__("vrt_post");
+
+/* vrt_cpyfm slot (db0bb9ec): a0 = workstation. vrt_pre != 0 -> call the original with screen clipping forced,
+   then restore the clip fields; otherwise tail-jump to the original with a0 intact. */
+__asm__(
+	".text\n"
+	"vrt_hook:\n"
+	"	move.l %a0,-(%sp)\n"
+	"	jsr vrt_pre\n"
+	"	move.l (%sp)+,%a0\n"
+	"	tst.l %d0\n"
+	"	bne.s 1f\n"
+	"	move.l vrt_orig,-(%sp)\n"
+	"	rts\n"
+	"1:	move.l %a0,-(%sp)\n"
+	"	move.l vrt_orig,%a1\n"
+	"	jsr (%a1)\n"
+	"	move.l %d0,-(%sp)\n"
+	"	move.l 4(%sp),-(%sp)\n"
+	"	jsr vrt_post\n"
+	"	addq.l #4,%sp\n"
+	"	move.l (%sp)+,%d0\n"
+	"	addq.l #4,%sp\n"
+	"	rts\n");
 
 /* Slot entry: a0 = workstation. Handled -> rts; otherwise tail-jump to the original with a0 intact. */
 __asm__(
@@ -128,6 +162,32 @@ long mono_blit_c(unsigned char *ws)
 	return 1;
 }
 
+/* Screen destination, clipping off, a destination corner off the screen: force the driver's own clip to the
+ * screen for this call. ponytail: screen destinations only; memory MFDBs are unchecked by the driver too. */
+long vrt_pre(unsigned char *ws)
+{
+	short *contrl = (short *)L(0x8dc), *p = (short *)L(0x8e4);
+	XFDB *dst = *(XFDB **)((char *)contrl + 18);
+	int i;
+
+	if (dst->addr || W(0x4b4))
+		return 0;
+	if (p[4] >= 0 && p[5] >= 0 && p[6] >= 0 && p[7] >= 0 && p[4] <= vrt_xmax && p[6] <= vrt_xmax
+	    && p[5] <= vrt_ymax && p[7] <= vrt_ymax)
+		return 0;
+	for (i = 0; i < 5; i++)
+		vrt_clip[i] = W(0x4b4 + 2 * i);
+	W(0x4b4) = 1; W(0x4b6) = 0; W(0x4b8) = 0; W(0x4ba) = vrt_xmax; W(0x4bc) = vrt_ymax;
+	vrt_fixes++;
+	return 1;
+}
+
+void vrt_post(unsigned char *ws)
+{
+	int i;
+	for (i = 0; i < 5; i++)
+		W(0x4b4 + 2 * i) = vrt_clip[i];
+}
 
 static void fill_rect(unsigned char *ws, short x1, short y1, short x2, short y2)
 {
@@ -207,37 +267,59 @@ static void scan(unsigned long lo, unsigned long hi)
 			mono_xvdi = a;
 }
 
+#define HOOKED(v) ((v) - mono_xvdi >= SPAN)   /* slot points outside the driver: a resident copy of ours */
+#define RES(v, fn, var) (*(unsigned long *)((v) - ((unsigned long)(fn) - (unsigned long)&(var))))
+
 static long patch(void)
 {
-	unsigned long *slot;
+	unsigned long *slot, *vslot, tab;
 	unsigned short *site;
+	int on_mono, on_vrt;
 	scan(0x800, *(unsigned long *)0x42e);
 	if (!mono_xvdi && *(unsigned long *)0x5a8 == 0x1357bd13UL)
 		scan(0x01000000UL, *(unsigned long *)0x5a4);
 	if (!mono_xvdi)
 		return rc = 1;
-	slot = (unsigned long *)(*(unsigned long *)(mono_xvdi + V_TABLE) + SLOT_BLIT);
+	tab = *(unsigned long *)(mono_xvdi + V_TABLE);
+	slot = (unsigned long *)(tab + SLOT_BLIT);
+	vslot = (unsigned long *)(tab + SLOT_VRT);
 	site = (unsigned short *)(mono_xvdi + C_FILL);
+	on_mono = HOOKED(*slot);
+	on_vrt = HOOKED(*vslot);
 	if (stats) {                             /* read the resident copy's counters: same build, same layout */
-		if (*slot == mono_xvdi + F_BLIT1)
+		if (!on_mono && !on_vrt)
 			return rc = 3;
-		memcpy(st, (void *)(*slot - ((unsigned long)mono_blit - (unsigned long)mono_st)), sizeof st);
+		if (on_mono)
+			memcpy(st, (void *)(*slot - ((unsigned long)mono_blit - (unsigned long)mono_st)), sizeof st);
+		if (on_vrt)
+			vrt_fixes = RES(*vslot, vrt_hook, vrt_fixes);
 		return rc = 0;
 	}
 	if (uninstall) {
-		if (*slot == mono_xvdi + F_BLIT1)
+		if (!on_mono && !on_vrt)
 			return rc = 3;
-		*slot = mono_xvdi + F_BLIT1;
-		memcpy(site, fill_site, 6);
+		if (on_mono) {
+			*slot = mono_xvdi + F_BLIT1;
+			memcpy(site, fill_site, 6);
+		}
+		if (on_vrt)
+			*vslot = RES(*vslot, vrt_hook, vrt_orig);
 		flush();
 		return rc = 0;
 	}
-	if (*slot != mono_xvdi + F_BLIT1 || *(unsigned short *)(mono_xvdi + F_BLIT1) != 0x48e7 || memcmp(site, fill_site, 6))
-		return rc = 2;
-	mono_orig = *slot;
-	*slot = (unsigned long)mono_blit;
-	site[0] = 0x4eb9;                        /* jsr mono_fill.l */
-	*(unsigned long *)(site + 1) = (unsigned long)mono_fill;
+	if (VPLANES == 1) {
+		if (*slot != mono_xvdi + F_BLIT1 || *(unsigned short *)(mono_xvdi + F_BLIT1) != 0x48e7 || memcmp(site, fill_site, 6))
+			return rc = 2;
+		mono_orig = *slot;
+		*slot = (unsigned long)mono_blit;
+		site[0] = 0x4eb9;                /* jsr mono_fill.l */
+		*(unsigned long *)(site + 1) = (unsigned long)mono_fill;
+	}
+	if (*vslot == mono_xvdi + F_VRT8 && *(unsigned short *)(mono_xvdi + F_VRT8) == 0x48e7) {
+		vrt_orig = *vslot;
+		*vslot = (unsigned long)vrt_hook;
+	} else if (VPLANES != 1)
+		return rc = 4;
 	flush();
 	return rc = 0;
 }
@@ -262,26 +344,28 @@ int main(int argc, char **argv)
 	strcpy(banner, "yVDI 68000 Jul 30 2026");
 	banner[0] = 'x';
 	linea0();
-	if (!uninstall && !stats && VPLANES != 1) {   /* FR-1: boot-time call in a colour mode is a quiet no-op */
-		say("atwmono: %d-plane mode, nothing to do (not resident)\n", VPLANES);
-		return 0;
-	}
+	vrt_xmax = V_X_MAX - 1;
+	vrt_ymax = V_Y_MAX - 1;
 	Supexec(patch);
 	switch (rc) {
 	case 1: say("atwmono: refused: xVDI Jul 30 2026 68000 build not found\n"); return 1;
 	case 2: say("atwmono: refused: mono blit slot not as expected (already installed, or another driver build)\n"); return 1;
 	case 3: printf("atwmono: not installed\n"); return 0;
+	case 4: say("atwmono: %d-plane mode, nothing to do (not resident)\n", VPLANES); return 0;   /* FR-1 quiet no-op */
 	}
-	if (uninstall) { printf("atwmono: original mono blit restored\n"); return 0; }
+	if (uninstall) { printf("atwmono: original slots restored\n"); return 0; }
 	if (stats) {
 		unsigned long bytes = st[1] + st[3] + st[5];
 		printf("atwmono: aligned %lu (%lu B), misaligned same phase %lu (%lu B), different phase %lu (%lu B), other %lu\n",
 			st[0], st[1], st[2], st[3], st[4], st[5], st[6]);
 		printf("atwmono: FR-2 share of screen-copy bytes = %lu.%lu %%\n", bytes ? st[3] * 100 / bytes : 0,
 			bytes ? st[3] * 1000 / bytes % 10 : 0);
+		printf("atwmono: vrt_cpyfm off-screen calls clipped: %lu\n", vrt_fixes);
 		return 0;
 	}
-	say("atwmono: xVDI at 0x%lx, mono blits and fills use the copy engine\n", mono_xvdi);
+	say("atwmono: xVDI at 0x%lx, %s; vrt_cpyfm off-screen clip %s\n", mono_xvdi,
+	    VPLANES == 1 ? "mono blits and fills use the copy engine" : "no mono hooks",
+	    vrt_orig ? "on" : "off (slot is not the 8-plane routine)");
 	fflush(stdout);
 	Ptermres(_PgmSize, 0);
 	return 0;
