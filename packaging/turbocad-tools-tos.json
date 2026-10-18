@@ -1,8 +1,8 @@
 {
   "name": "turbocad-tools-tos",
   "version": "3.6",
-  "release": "2.sam1",
-  "summary": "TurboCAD converters 3.6 (Technobox; DXF/HPGL/ASCII/GEM <-> TC2) and TBPARTS, relocated to /opt/turbocad (sam, local only). The .TTP converters read LNG files and their input from the current directory (TOS style): run them in /opt/turbocad, not from /usr/bin.",
+  "release": "3.sam1",
+  "summary": "TurboCAD converters 3.6 (Technobox; DXF/HPGL/ASCII/GEM <-> TC2) TBPARTS and the Technobox shell (TBSHELL, resources from C:\\SYS), relocated to /opt/turbocad (sam, local only). The .TTP converters read LNG files and their input from the current directory (TOS style): run them in /opt/turbocad, not from /usr/bin.",
   "licence": "proprietary; TT-local, not for redistribution",
   "dir": "D:\\APPS\\TOOLS",
   "dest": "/opt/turbocad",
@@ -15,6 +15,44 @@
   "extra": {
     "TBCAD2TT.PRG": "C:\\TBCAD2TT.PRG",
     "TBOUT.PRG": "C:\\TBOUT.PRG",
-    "TBSHELL.PRG": "C:\\TBSHELL.PRG"
-  }
+    "TBSHELL.PRG": "C:\\TBSHELL.PRG",
+    "SYS/00TBCAD2.IMG": "C:\\SYS\\00TBCAD2.IMG",
+    "SYS/00TBCAD3.IMG": "C:\\SYS\\00TBCAD3.IMG",
+    "SYS/00TBCAD4.IMG": "C:\\SYS\\00TBCAD4.IMG",
+    "SYS/24TBCAD0.IMG": "C:\\SYS\\24TBCAD0.IMG",
+    "SYS/24TBCAD1.IMG": "C:\\SYS\\24TBCAD1.IMG",
+    "SYS/32TBCAD0.IMG": "C:\\SYS\\32TBCAD0.IMG",
+    "SYS/32TBCAD1.IMG": "C:\\SYS\\32TBCAD1.IMG",
+    "SYS/TBCAD2.RSC": "C:\\SYS\\TBCAD2.RSC",
+    "SYS/TBCAD2.SET": "C:\\SYS\\TBCAD2.SET",
+    "SYS/TBCAD2_0.SET": "C:\\SYS\\TBCAD2_0.SET",
+    "SYS/TBOUT.INF": "C:\\SYS\\TBOUT.INF",
+    "SYS/TBOUT.RSC": "C:\\SYS\\TBOUT.RSC",
+    "SYS/TBSHELL.INI": "C:\\SYS\\TBSHELL.INI",
+    "SYS/TBSHELL.RSC": "C:\\SYS\\TBSHELL.RSC"
+  },
+  "replace": {
+    "SYS/TBSHELL.INI": [
+      [
+        "F:\\SYS\\",
+        "U:\\OPT\\TURBOCAD\\SYS\\"
+      ],
+      [
+        "F:\\TOOLS\\",
+        "U:\\OPT\\TURBOCAD\\"
+      ],
+      [
+        "CAD=F:\\",
+        "CAD=U:\\OPT\\TURBOCAD\\"
+      ],
+      [
+        "F:\\DATA\\",
+        "U:\\ROOT\\TURBOCAD\\"
+      ]
+    ]
+  },
+  "config": [
+    "SYS/TBSHELL.INI",
+    "SYS/TBCAD2.SET"
+  ]
 }
