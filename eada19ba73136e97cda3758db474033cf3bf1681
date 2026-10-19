@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/ci-follows-main request_id=5b45029c-60b6-4985-a911-58a04fd65b52 at 2026-10-19T01:43:31Z
+
+[tenant rchennau/sam-atari-tt030@eada19ba7313] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.30s
+
+[integrate] merged eada19ba7313 into main (was 74df571f5083)
