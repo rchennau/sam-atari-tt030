@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/tt-stack-check request_id=94fc2e41-7a2e-4528-bf9f-59488d63fd8b at 2026-10-19T19:15:53Z
+
+[tenant rchennau/sam-atari-tt030@fed3b336c8af] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.88s
+
+[integrate] merged fed3b336c8af into main (was ae4e14e608ff)
