@@ -73,7 +73,10 @@ static long est_ms(int op, long n, int tram)
     case '5': case '6': us = n * 56; comp = 1; break;   /* lha encode: 11.6-14.2 s / 256 KB on the T425 (2026-10-14 gate) */
     case 'd': us = n * 45; comp = 1; break;             /* lha decode, n = packed bytes: 3.5 s / 95 KB */
     case 'p': us = n * 150; comp = 1; break;            /* tpnmtopng: ~110 us/B on the T425 (2026-09-25 gate, 800x600 ~157 s) */
-    case 'q': us = n * 300; comp = 1; break;            /* tppmquant 256: ~210 us/B on the T425 (2026-09-25 gate, 800x600 301 s) */
+    case 'q': us = 55000000L + n * 300; comp = 1; break; /* tppmquant 256, llvm image, direct T425: 200x150 (90 KB, 21.7k colours)
+                                                          * 82 s (47-112 s via ttjobd), 352x352 167 s, 512x512 237 s (2026-10-19). The colour histogram
+                                                          * makes a fixed ~55 s; byte-linear alone gave a 90 KB job an 86 s
+                                                          * deadline and reset the network (defect 52b70e6b). */
     case 'c': us = 300000000L; break;                   /* bc: run time is the program's, not its size; 300 s -> 905 s watchdog */
     case 'J': us = n * 30; comp = 1; break;             /* ponytail: libjpeg encode, raw rows; estimate until FR-5 measures */
     case 'j': us = n * 300; comp = 1; break;            /* libjpeg decode, n = JPEG bytes (HighWire spike: 1024x768 28 s on the T425) */
