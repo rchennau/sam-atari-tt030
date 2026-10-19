@@ -16,7 +16,12 @@ cd "$(dirname "$0")/.."
 st=~/.local/state/tt030-ci; mkdir -p "$st/runs"; log=$st/last.log
 # Build what the gate landed (operator 2026-10-18: the side repo lands through SAM's tenant lane, land/<name> ->
 # origin/main), never the local checkout's HEAD. CI_REF=<ref> builds something else as a preview: it never publishes.
+# One run at a time: two overlapping runs share the t4 lane and the build dirs (2026-10-19 01:35Z: a red emu step).
+exec 9>"$st/lock"; flock -n 9 || { echo "ci: another run holds $st/lock; this one skipped"; exit 0; }
 git fetch -q origin main || { echo "ci: git fetch origin main failed" >&2; exit 1; }
+# sam-tt030-ci.service runs THIS checkout's ci.sh: fast-forward it so the next run uses the landed script (bash has
+# parsed this whole block already). A checkout that cannot fast-forward is said, and this run still builds origin/main.
+[ -z "${CI_REF:-}" ] && [ "$(git symbolic-ref -q --short HEAD)" = main ] && { git merge -q --ff-only origin/main 2>/dev/null || echo "ci: checkout $(git rev-parse --short HEAD) cannot fast-forward to origin/main: the service keeps running this ci.sh" >&2; }
 ref=${CI_REF:-origin/main}
 rev=$(git rev-parse --short "$ref^{commit}") || { echo "ci: no such ref $ref" >&2; exit 1; }
 # The timer polls every 5 min: a rev already built is skipped unless the last run is 20 h old (the daily drift run)
