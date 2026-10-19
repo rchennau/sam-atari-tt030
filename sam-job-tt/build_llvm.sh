@@ -68,8 +68,9 @@ for f in pngserv pngenc; do
         -I"$PG/clang" -I"$y" -c "$PG/clang/$f.c" -o "$w/pg_$f.o"
     PQOBJS="$PQOBJS $w/pg_$f.o"
 done
+cp -f "$root/sam-yum-tt/src/pmshim.c" "$PQ/clang/"   # PS_JOBHEAP: jobheap.c frees leftovers, no second header
 for f in ppmqserv pmshim ppmquant libppm3; do
-    $CLANG -target t800 -mcpu=t425 -O2 -w -std=gnu89 -DPPM_PACKCOLORS -Dt4_kernel=ppmq_kernel -Dt4_out_cap=ppmq_out_cap \
+    $CLANG -target t800 -mcpu=t425 -O2 -w -std=gnu89 -DPPM_PACKCOLORS -DPS_JOBHEAP -Dt4_kernel=ppmq_kernel -Dt4_out_cap=ppmq_out_cap \
         -I"$PQ/clang" -I"$y" -c "$PQ/clang/$f.c" -o "$w/pq_$f.o"
     PQOBJS="$PQOBJS $w/pq_$f.o"
 done

@@ -26,6 +26,13 @@ xelval pnm_pbmmaxval = 1;
  * In a server that runs it per request that leaked, and the second request ran out of memory (t4,
  * 2026-09-24). ppmquant.c, libppm3.c and this file allocate through ps_malloc/ps_free (-Dmalloc=...);
  * ps_run frees whatever is left when the run ends, however it ends. */
+#ifdef PS_JOBHEAP
+/* Linked into the resident job image (sam-job-tt/build_llvm.sh), whose jobheap.c already frees each job's leftovers:
+ * a second 16-byte header per block cost tppmquant 512x512 ~0.5 MB of its 32767 histogram nodes (status 6). */
+void *ps_malloc(size_t n) { return malloc(n); }
+void ps_free(void *p) { free(p); }
+static void ps_free_all(void) { }
+#else
 struct ps_blk {
     struct ps_blk *prev, *next;
     double align;                                /* keep the user block aligned like malloc's */
@@ -60,6 +67,7 @@ static void ps_free_all(void)
     while (ps_live.next != &ps_live)
         ps_free(ps_live.next + 1);
 }
+#endif
 
 void ps_exit(int code)
 {

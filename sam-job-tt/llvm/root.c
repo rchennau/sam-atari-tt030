@@ -6,7 +6,7 @@
  *           free (after, so a node's reply buffer is never reused before it has gone out).
  * ttjobd keeps at most NODES jobs in flight, so a NODE_ANY job always finds an idle node.
  * Node 0's buffers come from the heap per job (ttjob-ports FR-7, operator MCQ 2026-10-18): payload up to JOB_BIG,
- * reply sized by job_out_cap, both freed after the reply has gone out. A job the heap cannot hold is answered
+ * reply sized by job_out_cap, both freed after the reply has gone out; op 'q' shares one block (in place). A job the heap cannot hold is answered
  * ST_TOOBIG (the client falls back). The TRAM relay keeps its static JOB_MAX buffers.
  * llvm-t800 port: host link 0 (LIN(0), LOUT(0)), TRAM 1 link 1 (LIN(1), LOUT(1)). */
 #include <channel.h>
@@ -39,15 +39,19 @@ static void drain(Channel *c, long n)
 static void work0(Channel *go, Channel *done)
 {
     long n, len, cap;
+    int ip;
     for (;;) {
         n = (long)ChanInInt(go);
-        cap = n >= 0 ? job_out_cap(hdr0[2], hdr0[H_LEVEL], in0, n) : 0;
-        rep0 = n >= 0 ? malloc((size_t)(LREP_HDR + cap)) : NULL;
+        ip = n >= 0 && hdr0[2] == 'q';      /* in place, as ppmqserv: host read the payload behind room for the
+                                               reply header, so input and output share one block */
+        cap = ip ? n : n >= 0 ? job_out_cap(hdr0[2], hdr0[H_LEVEL], in0, n) : 0;
+        rep0 = ip ? in0 - LREP_HDR : n >= 0 ? malloc((size_t)(LREP_HDR + cap)) : NULL;
         jobheap_begin();                     /* the kernel's own allocations from here are the job's */
         if (rep0) len = job_reply(hdr0, in0, n, rep0, 0, cap);
         else { rep0 = err0; len = job_reply(hdr0, in0, -1, err0, 0, 0); }   /* ST_TOOBIG */
         jobheap_end();
-        free(in0); in0 = NULL;
+        if (!ip) free(in0);                  /* in place: mux frees the block as rep0 */
+        in0 = NULL;
         ChanOutInt(done, (int)len);
     }
     ProcStop();
@@ -98,7 +102,9 @@ static void host(Channel *hin, Channel *t1o, Channel *go0, Channel *freec)
         n = (long)g4(h + H_LEN);
         if (node == 0) {
             for (k = 0; k < JOB_HDR; k++) hdr0[k] = h[k];
-            in0 = n >= 0 && n <= JOB_BIG ? malloc((size_t)(n > 0 ? n : 1)) : NULL;
+            k = h[2] == 'q' ? LREP_HDR : 0;     /* op 'q' runs in place (work0) */
+            in0 = n >= 0 && n <= JOB_BIG ? malloc((size_t)(k + (n > 0 ? n : 1))) : NULL;
+            if (in0) in0 += k;
             if (!in0) { if (n > 0) drain(hin, n); n = -1; }
             else if (n > 0) ChanIn(hin, in0, (int)n);
             ChanOutInt(go0, (int)n);
