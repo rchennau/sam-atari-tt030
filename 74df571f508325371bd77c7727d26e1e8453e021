@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/sam-ci-onboard request_id=48343f63-e835-41fb-a168-47d6c5225bc6 at 2026-10-19T01:27:21Z
+
+[tenant rchennau/sam-atari-tt030@74df571f5083] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.42s
+
+[integrate] merged 74df571f5083 into main (was def46853d803)
