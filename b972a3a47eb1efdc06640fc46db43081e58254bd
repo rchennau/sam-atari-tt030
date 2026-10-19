@@ -1,0 +1,7 @@
+land: REBASE_REQUIRED branch=land/fr5-ports request_id=10f4f5cb-368f-4253-a0da-2ff61b6ae186 at 2026-10-19T18:42:35Z
+
+[tenant rchennau/sam-atari-tt030@b972a3a47eb1] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.76s
+
+[integrate] branch is not a fast-forward of main@ae4e14e608ff — rebase and resubmit
