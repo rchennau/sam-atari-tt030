@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/ci-preview-state request_id=24a6c4e6-d863-4ce8-9f64-4d46118c3b85 at 2026-10-19T02:31:25Z
+
+[tenant rchennau/sam-atari-tt030@29777014de29] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.53s
+
+[integrate] merged 29777014de29 into main (was df7147cc2688)
