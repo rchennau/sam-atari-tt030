@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/q-deadline request_id=bc86c545-7245-485b-8a6a-8775f6724e8c at 2026-10-19T05:55:20Z
+
+[tenant rchennau/sam-atari-tt030@b0aafd5d5ed0] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.40s
+
+[integrate] merged b0aafd5d5ed0 into main (was e63a8253e59b)
