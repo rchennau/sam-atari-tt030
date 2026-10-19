@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/fr4-release request_id=89139e19-e452-4b75-a012-315ee0a261b9 at 2026-10-19T03:39:45Z
+
+[tenant rchennau/sam-atari-tt030@e63a8253e59b] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.27s
+
+[integrate] merged e63a8253e59b into main (was 33dea110cdb1)
