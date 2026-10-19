@@ -95,7 +95,7 @@ The **SAM (Sensible Agent Management)** platform orchestrated end-to-end develop
    - Built Motorola 68030 host binaries using `m68k-atari-mint-gcc` (GCC 15.2 cross-compiler, `scripts/setup_cross_mint.sh`) and INMOS ANSI C (`icc`/`ilink` under `t4`) for the T425 transputer server code.
 2. **Automated Emulation & Integration Testing**:
    - Hatari runs the package pipeline end to end (`scripts/test_hatari_ping_rpm.sh`, `scripts/test_e2e_ping_rpm.py`); Hatari cannot emulate the ATW800/2, so transputer code is checked under the `t4` emulator against host builds (`sam-job-tt/emu/run_emu_tests.sh`), and every performance gate runs on the real TT.
-   - CI (`scripts/ci.sh`) runs on every commit and nightly: host test suites, the emulated lane, the transputer image build, the RPM builds, and a publish gate that sends a new package version to the LAN mirror only from a passing run.
+   - Changes land through SAM's gate (push `land/<name>`; the gate runs the host suites and fast-forwards `main`). CI (`scripts/ci.sh`, fractal) then builds each new `origin/main` within 5 min and rebuilds daily: host test suites, the emulated lane, the transputer image build, the RPM builds, and a publish gate that sends a new package version to the LAN mirror only from a passing run.
 3. **Live Staging & Deployment**:
    - Uploads go over the Modem 2 serial link (ZMODEM, `scripts/tt_zput.sh`, SHA-256 checked); day-to-day access is Dropbear SSH over the DaynaPORT WiFi.
    - Every script logs its run to a local log and a central event.
