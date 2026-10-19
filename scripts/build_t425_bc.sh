@@ -1,6 +1,6 @@
 #!/bin/sh
 # tbc (GNU bc 1.05 for scripts on the T425; tt030-t425-kernel-ports W3), as two RPMs:
-#   build/tbc-1.0-1.m68kmint.rpm          /usr/bin/tbc + /usr/lib/t425/tbc.btl
+#   build/tbc-1.0-<REL>.m68kmint.rpm      /usr/bin/tbc + /usr/lib/t425/tbc.btl
 #   build/tbc-t425-on-1.0-1.m68kmint.rpm  /etc/t425/enabled/tbc   (held until the FR-5 gate)
 # Both sides compile the same bcren.h-prepended bc sources (sam-yum-tt/t4bc.sh makes them) with bcshim.c,
 # so the T425 and the 68030 fallback give identical output.
@@ -9,7 +9,8 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 RT=$REPO/sam-yum-tt/src
 CC=$REPO/tools/cross-mint/usr/bin/m68k-atari-mint-gcc
 W=/tmp/tbc-build
-REL=${1:-2}
+mkdir -p "$REPO/build"   # a fresh CI worktree has none
+REL=${1:-$(git -C "$REPO" rev-list --count HEAD -- scripts/build_t425_bc.sh sam-yum-tt/src sam-job-tt/libttjob.c sam-job-tt/jobwire.h)}   # ttjob-ports FR-4: from commit count
 sh "$REPO/sam-yum-tt/t4bc.sh" /tmp/bq > /dev/null
 # tbc.btl since 1.0-2: the same bc sources through llvm-t800 -Os (0.85 / 0.94 / 0.94 of the icc image on the TT,
 # PMS tt030-llvm-t800-adoption FR-5). The source order below is the image timed on the TT.
@@ -21,25 +22,27 @@ rm -rf /tmp/bql && sh "$REPO/sam-yum-tt/t4bc.sh" /tmp/bql --copies && rm -rf /tm
     || { echo "bcserv: not confined to 5 MB (NFR-2)" >&2; exit 1; }
 rm -rf "$W" && mkdir -p "$W" && cp /tmp/bq/*.c /tmp/bq/*.h "$W"/ && cp "$RT/tbc.c" "$W"/
 cd "$W"
-# TTJOB=1: t4call goes through ttjobd (tt030-ttjob-ports FR-3; needs a resident image with op 'c')
-TJ=; TJS=; [ "${TTJOB:-0}" = 1 ] && { TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"; TJS="$TJ $REPO/sam-job-tt/libttjob.c"; }
+# ttjob-ports FR-4: the shipped binary IS the ttjobd client (falls back to the direct T425 path, then the 68030);
+# TTJOB=0 builds the old direct-only binary.
+TJ=; TJS=; [ "${TTJOB:-1}" = 1 ] && { TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"; TJS="$TJ $REPO/sam-job-tt/libttjob.c"; }
 "$CC" -m68020-60 -O2 -s -w -std=gnu89 $TJ -I. -I"$RT" -o tbc tbc.c bc.c scan.c execute.c global.c load.c main.c \
     storage.c util.c number.c getopt.c getopt1.c bcshim.c \
     "$RT/t4call.c" "$RT/t4lock.c" "$RT/t4adler.c" "$RT/atwboot.c" $TJS
-[ -n "$TJ" ] && cp tbc "$REPO/build/tbc-ttjob"   # test binary
+[ -n "$TJ" ] && cp tbc "$REPO/build/tbc-ttjob"   # test binary (same bytes as the packaged tbc)
 cd "$REPO"
 python3 - "$W" "$REL" <<'PY'
-import sys
+import os, sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
 w = sys.argv[1]
-open(f"build/tbc-1.0-{sys.argv[2]}.m68kmint.rpm", "wb").write(R.write_rpm("tbc", "1.0", sys.argv[2], [
+out = [os.path.abspath(f"build/tbc-1.0-{sys.argv[2]}.m68kmint.rpm"), os.path.abspath("build/tbc-t425-on-1.0-1.m68kmint.rpm")]
+open(out[0], "wb").write(R.write_rpm("tbc", "1.0", sys.argv[2], [
     ("/usr/bin/tbc", 0o100755, open(f"{w}/tbc", "rb").read()),
     ("/usr/lib/t425/tbc.btl", 0o100644, open("/tmp/bql/bcserv.btl", "rb").read()),
 ], summary="GNU bc 1.05 for scripts on the ATW800/2 T425, same result on the 68030 (sam)",
    description="tbc.btl is built with llvm-t800, whose runtime is Apache-2.0 WITH LLVM-exception (llvm-t800 LICENSE)."))
-open("build/tbc-t425-on-1.0-1.m68kmint.rpm", "wb").write(R.write_rpm("tbc-t425-on", "1.0", "1", [
+open(out[1], "wb").write(R.write_rpm("tbc-t425-on", "1.0", "1", [
     ("/etc/t425/enabled/tbc", 0o100644, b""),
 ], summary="turn on T425 offload for tbc (after its FR-5 gate)", requires_=["tbc"]))
-print(f"build/tbc-1.0-{sys.argv[2]}.m68kmint.rpm (tbc-t425-on unchanged)")
+print(*out)   # last line = the RPM paths (ci.sh build_rpms reads it); tbc-t425-on stays -1 (empty flag file)
 PY
