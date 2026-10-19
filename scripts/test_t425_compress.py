@@ -120,6 +120,8 @@ def test_compkern_raw_deflate_op_for_zip(tmp_path):
     """op 'r' (zip's zlib path): 1 data_type byte (1 = text, 0 = binary) + a raw deflate stream."""
     import ctypes
     import zlib
+    if not (os.path.isdir(Z) and os.path.isdir(B)):
+        pytest.skip("zlib/bzip2 sources not unpacked under tools/rpm-src")
     so = tmp_path / "ck.so"
     srcs = [os.path.join(SRC, "compkern.c")] + [os.path.join(Z, f) for f in (
         "adler32.c", "crc32.c", "deflate.c", "trees.c", "zutil.c", "inflate.c", "inftrees.c", "inffast.c")] + [os.path.join(B, f) for f in (

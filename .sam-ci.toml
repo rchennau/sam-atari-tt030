@@ -1,0 +1,4 @@
+# Gate test for the SAM tenant lane (docs/runbooks/tenant-project-repos.md in rchennau/sam): the host suites only,
+# as ci.sh step 1. No toolchains in the container (tools/ is gitignored), so builds and RPMs stay in ci.sh on fractal.
+test = "python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/"
+timeout_s = 600
