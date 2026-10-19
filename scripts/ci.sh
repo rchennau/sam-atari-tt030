@@ -13,7 +13,9 @@
 set -uo pipefail
 {   # the whole script is one block, so bash parses it before running: editing ci.sh during a run garbled that run (2026-10-13)
 cd "$(dirname "$0")/.."
-st=~/.local/state/tt030-ci; mkdir -p "$st/runs"; log=$st/last.log
+st=~/.local/state/tt030-ci; mkdir -p "$st/runs"; log=$st/last.log; res=$st/last.txt
+# a CI_REF preview keeps its own result, so the timer's "already built" check reads only origin/main runs
+[ -n "${CI_REF:-}" ] && { log=$st/preview.log; res=$st/preview.txt; }
 # Build what the gate landed (operator 2026-10-18: the side repo lands through SAM's tenant lane, land/<name> ->
 # origin/main), never the local checkout's HEAD. CI_REF=<ref> builds something else as a preview: it never publishes.
 # One run at a time: two overlapping runs share the t4 lane and the build dirs (2026-10-19 01:35Z: a red emu step).
@@ -71,10 +73,10 @@ outcome=$([ -z "$fails" ] && echo pass || echo fail)
 # what the TT runs vs the mirror (tt_versions.py): reported, never part of the outcome (a TT that has not run
 # yum update yet is not a code failure)
 tt=$(/opt/sam/venv/bin/python3 scripts/tt_versions.py "$MIRROR" 2>&1 | tee -a "$log" | tail -1); tt=${tt#tt_versions: }
-echo "$(date -u +%FT%TZ) rev=$rev outcome=$outcome failed=${fails:-none} published=${published:-none} tt=[$tt]" | sed "s/published= /published=/" | tee "$st/last.txt"
+echo "$(date -u +%FT%TZ) rev=$rev outcome=$outcome failed=${fails:-none} published=${published:-none} tt=[$tt]" | sed "s/published= /published=/" | tee "$res"
 PYTHONPATH=/opt/sam/runtime/src /opt/sam/venv/bin/python3 -c "
 from sam.utils.sam_logger import emit
-emit('tt030.ci.run', outcome='$outcome', rev='$rev', failed='${fails:-none}', published='${published:-none}', tt='$tt')" >/dev/null 2>&1 || echo "ci: central log emit failed (result still in $st)" >&2
+emit('tt030.ci.run', outcome='$outcome', rev='$rev', preview='${CI_REF:-}', failed='${fails:-none}', published='${published:-none}', tt='$tt')" >/dev/null 2>&1 || echo "ci: central log emit failed (result still in $st)" >&2
 cp "$log" "$st/runs/$(date -u +%Y%m%dT%H%M%SZ)-$rev-$outcome.log"; ls -1t "$st/runs" | tail -n +51 | sed "s|^|$st/runs/|" | xargs -r rm -f   # keep 50
 [ -z "$fails" ]
 exit
