@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/rom-readme-status request_id=0f491a89-53ba-440d-9bc9-beb8f614272f at 2026-10-19T16:55:25Z
+
+[tenant rchennau/sam-atari-tt030@ae4e14e608ff] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.37s
+
+[integrate] merged ae4e14e608ff into main (was b0aafd5d5ed0)
