@@ -1,8 +1,10 @@
 # SAM ROM TT (`sam-rom-tt`) — custom TT030 firmware
 
-> **Status: ALPHA — runs in the emulator, untried on hardware.** `rom0` boots in Hatari as a TT
-> ROM, executes, and prints over the MFP serial port. No chip has been burned; the roadmap below
-> is unstarted.
+> **Status: ALPHA — runs in the emulator, untried on hardware.** `rom0`–`rom4` boot in Hatari as a TT
+> ROM and print over the MFP serial port (Modem 1). **`rom4` was burned to four AT29C010A flash chips and
+> verified on 2026-09-20, and has not been fitted** (as of 2026-10-19). Fitting it needs a capture on Modem 1:
+> fractal's serial adapter is on Modem 2. Next steps live in the SAM PMS `tt030-rom-set` (a streamlined ROM
+> for the as-built TT that keeps FreeMiNT and the SAM stack; this firmware becomes its monitor).
 
 A bare-metal firmware for the Atari TT030's four socketed ROM chips: no TOS, no EmuTOS, no GEMDOS,
 BIOS, VDI or AES. Operator goal (2026-09-17): a completely custom ROM, chiefly to escape the RAM
@@ -147,6 +149,5 @@ Next step: RAM sizing (skipping TOS's slow test), then SCSI + FAT16 — roadmap 
 
 ## Blocked on the operator
 
-- Part number of the blank EPROMs (capacity, and which pins the TT holds fixed).
-- Whether a UV eraser is available — it sets the iteration cost.
-- Plan constraint **C1** (`atari-tt030-enhancement`) forbids ROM flashing; a burn needs it amended.
+Resolved 2026-09-20: the blanks are AT29C010A flash (no UV eraser needed), and constraint **C1** was amended
+to allow flash sets beside the kept originals. Open: fitting the `rom4` set (PMS `tt030-rom-set` FR-3).
