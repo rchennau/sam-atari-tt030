@@ -1,8 +1,8 @@
 #!/bin/sh
 # lha 1.14i with its -lh5-/6-/7- encoder on the T425 (tt030-t425-kernel-ports W1), as two RPMs:
-#   build/lha-1.14i-6.m68kmint.rpm          /usr/bin/lha + /usr/lib/t425/lha.btl (decode, INMOS icc)
+#   build/lha-1.14i-<REL>.m68kmint.rpm      /usr/bin/lha + /usr/lib/t425/lha.btl (decode, INMOS icc)
 #                                           + /usr/lib/t425/lha-enc.btl (encode, llvm-t800 -Os)
-#   build/lha-t425-on-1.14i-6.m68kmint.rpm  /etc/t425/enabled/lha
+#   build/lha-t425-on-1.14i-<REL>.m68kmint.rpm  /etc/t425/enabled/lha
 # The split (tt030-llvm-t800-adoption FR-5, operator MCQ 2026-10-15): on the TT, clang's encoder took 0.85-0.89
 # of icc's time and its decoder 1.04-1.05, so each direction ships the faster compiler's image (as tbzip2 did).
 # Source: SpareMiNT's lha-1.14i-1 SRPM (tools/rpm-src/x/), its two patches, and its spec's switches:
@@ -162,7 +162,12 @@ open(p, "w", encoding="latin-1").write(s)
 PY
 T4O=
 # TTJOB=1: t4call goes through ttjobd when it runs (tt030-ttjob-ports FR-3; needs a resident image with the lha ops)
-TJ=; [ "${TTJOB:-0}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
+# ttjob-ports FR-4: the shipped binary IS the ttjobd client (falls back to the direct T425 path, then the 68030);
+# TTJOB=0 builds the old direct-only binary. Release = commits touching this port's inputs, so ci.sh never meets
+# "same NVR, different bytes".
+TJ=; [ "${TTJOB:-1}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
+mkdir -p "$REPO/build"   # a fresh CI worktree has none
+REL=$(git -C "$REPO" rev-list --count HEAD -- scripts/build_t425_lha.sh sam-yum-tt/src sam-job-tt/libttjob.c sam-job-tt/jobwire.h)
 for c in t4call t4lock t4adler atwboot; do
     "$XBIN/m68k-atari-mint-gcc" -m68020-60 -O2 -c $TJ -I"$RT" -o "$W/$c.o" "$RT/$c.c"
     T4O="$T4O $W/$c.o"
@@ -175,22 +180,23 @@ PATH=$XBIN:$PATH make -s CC=m68k-atari-mint-gcc \
     OPTIMIZE="-std=gnu89 -include time.h -O2 -m68020-60 -DHAVE_NO_LCHOWN -DT425 -I$RT" \
     LDFLAGS="$T4O" > "$W/make.log" 2>&1 || { tail -20 "$W/make.log"; exit 1; }
 "$XBIN/m68k-atari-mint-strip" src/lha
-[ -n "$TJ" ] && cp src/lha "$REPO/build/lha-ttjob"   # test binary; the RPMs below are built as before
+[ -n "$TJ" ] && cp src/lha "$REPO/build/lha-ttjob"   # test binary (same bytes as the packaged lha)
 sh "$REPO/sam-yum-tt/t4clang.sh" lha /tmp/lh > /dev/null   # runs t4lha.sh (icc) first, then the clang images
 cd "$REPO"
-python3 - "$W/lha-114i/src/lha" /tmp/lh/lhaserv.b4h /tmp/lh/clang/lhaserv-Os.btl <<'PY'
-import sys
+python3 - "$W/lha-114i/src/lha" /tmp/lh/lhaserv.b4h /tmp/lh/clang/lhaserv-Os.btl "$REL" <<'PY'
+import os, sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
-lha, btl, enc = sys.argv[1], sys.argv[2], sys.argv[3]
-open("build/lha-1.14i-6.m68kmint.rpm", "wb").write(R.write_rpm("lha", "1.14i", "6", [
+lha, btl, enc, rel_ = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+out = [os.path.abspath(f"build/{n}-1.14i-{rel_}.m68kmint.rpm") for n in ("lha", "lha-t425-on")]
+open(out[0], "wb").write(R.write_rpm("lha", "1.14i", rel_, [
     ("/usr/bin/lha", 0o100755, open(lha, "rb").read()),
     ("/usr/lib/t425/lha.btl", 0o100644, open(btl, "rb").read()),
     ("/usr/lib/t425/lha-enc.btl", 0o100644, open(enc, "rb").read()),
 ], summary="LHa 1.14i; -lh5-/-lh6- encoding and decoding offload to the ATW800/2 T425 when lha-t425-on is installed (sam)",
     provides=["lha"]))
-open("build/lha-t425-on-1.14i-6.m68kmint.rpm", "wb").write(R.write_rpm("lha-t425-on", "1.14i", "6", [
+open(out[1], "wb").write(R.write_rpm("lha-t425-on", "1.14i", rel_, [
     ("/etc/t425/enabled/lha", 0o100644, b""),
 ], summary="turn on T425 offload for lha (after its FR-5 gate)", requires_=["lha"]))
-print("build/lha-1.14i-6.m68kmint.rpm build/lha-t425-on-1.14i-6.m68kmint.rpm")
+print(*out)   # last line = the RPM paths (ci.sh build_rpms reads it)
 PY
