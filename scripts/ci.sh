@@ -3,8 +3,9 @@
 #   1. host test suites: scripts/test_*.py under pytest (excludes the two that need the TT or Hatari:
 #      test_e2e_ping_rpm.py, test_hatari_ping_rpm.sh)
 #   2. the job-queue emulated lane: sam-job-tt/emu/run_emu_tests.sh (libttjob + host-vs-t4 jobtest)
-#   3. the resident transputer image builds (sam-job-tt/build_t4.sh)
-#   4. the TT RPMs build: ttjob (sam-job-tt/build_rpm.sh), t425-compress, ttmon, dropbear, toswin2, ttkbdd (scripts/build_*_rpm.sh)
+#   3. the resident transputer image builds (sam-job-tt/build_t4.sh: INMOS rollback images; build_llvm.sh: the booted one)
+#   4. the TT RPMs build: ttjob (sam-job-tt/build_rpm.sh), t425-compress, ttmon, dropbear, toswin2, ttkbdd (scripts/build_*_rpm.sh),
+#      and the ttjob-ports FR-4 ports zip, lha, libjpeg, tpnmtopng, tppmquant, tbc (scripts/build_t425_*.sh)
 #   5. publish gate (FR-9): only when 1-4 all passed, each RPM whose name (NVR) the LAN mirror lacks is added with
 #      tt_rpm.py add (signed index); an NVR already there with different bytes fails the run (bump the version). A red run publishes nothing; a publish failure turns the run red.
 #   6. report what the TT runs vs the mirror (scripts/tt_versions.py; not part of the outcome)
@@ -44,8 +45,10 @@ fails=
 step pytest /opt/sam/venv/bin/python3 -m pytest -q --ignore=scripts/test_e2e_ping_rpm.py scripts/
 step emu    env JOBS="${JOBS:-1000}" sam-job-tt/emu/run_emu_tests.sh
 step image  sam-job-tt/build_t4.sh
+step llvm   sam-job-tt/build_llvm.sh
 rpms=
-build_rpms() { local r; r=$(sam-job-tt/build_rpm.sh | tail -1) && rpms="$r" && r=$(scripts/build_t425_compress.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_ttmon_rpm.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_dropbear_rpm.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_toswin2_rpm.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_ttkbdd_rpm.sh | tail -1) && rpms="$rpms $r"; }
+build_rpms() { local r; r=$(sam-job-tt/build_rpm.sh | tail -1) && rpms="$r" && r=$(scripts/build_t425_compress.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_ttmon_rpm.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_dropbear_rpm.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_toswin2_rpm.sh | tail -1) && rpms="$rpms $r" && r=$(scripts/build_ttkbdd_rpm.sh | tail -1) && rpms="$rpms $r" \
+    && for p in zip lha libjpeg pnmtopng ppmquant bc; do r=$(sh scripts/build_t425_$p.sh | tail -1) && rpms="$rpms $r" || return 1; done; }   # ttjob-ports FR-4 ports
 step rpm    build_rpms
 MIRROR=${TT_MIRROR:-/mnt/vault/tt030}
 published=
