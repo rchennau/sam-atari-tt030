@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/nfr5-mixed request_id=e664ce57-35ae-47e7-baeb-e7b694ae390b at 2026-10-19T03:33:14Z
+
+[tenant rchennau/sam-atari-tt030@33dea110cdb1] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.49s
+
+[integrate] merged 33dea110cdb1 into main (was 29777014de29)
