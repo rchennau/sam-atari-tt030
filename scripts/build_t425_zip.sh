@@ -1,7 +1,7 @@
 #!/bin/sh
 # zip 2.3 with deflate on the T425 (tt030-t425-kernel-ports W1), as two RPMs:
-#   build/zip-2.3-4.m68kmint.rpm          zip, zipcloak, zipnote, zipsplit + /usr/lib/t425/zip.btl (+ docs, man)
-#   build/zip-t425-on-2.3-4.m68kmint.rpm  /etc/t425/enabled/zip   (held until the FR-5 gate)
+#   build/zip-2.3-<REL>.m68kmint.rpm      zip, zipcloak, zipnote, zipsplit + /usr/lib/t425/zip.btl (+ docs, man)
+#   build/zip-t425-on-2.3-<REL>.m68kmint.rpm  /etc/t425/enabled/zip   (held until the FR-5 gate)
 # Source: SpareMiNT's zip-2.3-2 SRPM (tools/rpm-src/x/) + its two patches, built with USE_ZLIB against the
 # pinned zlib 1.3.2 (zip 2.3's own zlib path): the T425 runs the same zlib (compserv op 'r' = raw
 # deflate, the parameters of zip's zl_deflate_init), so the 68030 fallback in this binary and the T425
@@ -116,7 +116,12 @@ PY
 OBJS=
 # TTJOB=1: t4call goes through ttjobd when it runs (tt030-ttjob-ports FR-3). zip's kernel is compserv's raw deflate,
 # op 'r', which the resident job image already serves (tgzip's ops), so no image change is needed.
-TJ=; [ "${TTJOB:-0}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
+# ttjob-ports FR-4: the shipped binary IS the ttjobd client (falls back to the direct T425 path, then the 68030);
+# TTJOB=0 builds the old direct-only binary. Release = commits touching this port's inputs, so ci.sh never meets
+# "same NVR, different bytes".
+TJ=; [ "${TTJOB:-1}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
+mkdir -p "$REPO/build"   # a fresh CI worktree has none
+REL=$(git -C "$REPO" rev-list --count HEAD -- scripts/build_t425_zip.sh sam-yum-tt/src sam-job-tt/libttjob.c sam-job-tt/jobwire.h)
 for c in t4call t4lock t4adler atwboot; do
     "$CC" -m68020-60 -O2 -c $TJ -I"$RT" -o "$W/$c.o" "$RT/$c.c"; OBJS="$OBJS $W/$c.o"
 done
@@ -127,16 +132,16 @@ done
 PATH=$XBIN:$PATH make -s -f unix/Makefile zips CC=m68k-atari-mint-gcc BIND=m68k-atari-mint-gcc \
     CFLAGS="-std=gnu89 -O2 -m68020-60 -I. -DUNIX -DUSE_ZLIB -DT425 -I$RT -I$Z" \
     LFLAGS2="-s $OBJS" > "$W/make.log" 2>&1 || { tail -25 "$W/make.log"; exit 1; }
-[ -n "$TJ" ] && cp "$W/zip-2.3/zip" "$REPO/build/zip-ttjob"   # test binary; the RPMs below are built as before
+[ -n "$TJ" ] && cp "$W/zip-2.3/zip" "$REPO/build/zip-ttjob"   # test binary (same bytes as the packaged zip)
 sh "$REPO/sam-yum-tt/t4compress.sh" /tmp/cb > /dev/null
 mkdir -p "$W/stock" && (cd "$W/stock" && 7z e -y "/mnt/vault/tt030/m68kmint/zip-2.3-2.m68kmint.rpm" > /dev/null \
     && cpio -idm --quiet < zip-2.3-2.m68kmint.cpio)
 cd "$REPO"
-python3 - "$W" <<'PY'
+python3 - "$W" "$REL" <<'PY'
 import os, sys
 sys.path.insert(0, "scripts")
 import rpm_header as R
-w = sys.argv[1]
+w, rel_ = sys.argv[1], sys.argv[2]
 files = [(f"/usr/bin/{b}", 0o100755, open(f"{w}/zip-2.3/{b}", "rb").read())
          for b in ("zip", "zipcloak", "zipnote", "zipsplit")]
 stock = os.path.join(w, "stock")
@@ -147,11 +152,13 @@ for root, dirs, names in sorted(os.walk(stock)):
         if rel.startswith(("/usr/doc/", "/usr/man/")):
             files.append((rel, 0o100644, open(p, "rb").read()))
 files.append(("/usr/lib/t425/zip.btl", 0o100644, open("/tmp/cb/compserv.b4h", "rb").read()))
-open("build/zip-2.3-4.m68kmint.rpm", "wb").write(R.write_rpm("zip", "2.3", "4", files,
+out = [os.path.abspath(f"build/{n}-2.3-{rel_}.m68kmint.rpm") for n in ("zip", "zip-t425-on")]
+open(out[0], "wb").write(R.write_rpm("zip", "2.3", rel_, files,
     summary="zip 2.3 (zlib); deflate offloads to the ATW800/2 T425 when zip-t425-on is installed (sam)",
     provides=["zip"]))
-open("build/zip-t425-on-2.3-4.m68kmint.rpm", "wb").write(R.write_rpm("zip-t425-on", "2.3", "4",
+open(out[1], "wb").write(R.write_rpm("zip-t425-on", "2.3", rel_,
     [("/etc/t425/enabled/zip", 0o100644, b"")], summary="turn on T425 offload for zip (after its FR-5 gate)",
     requires_=["zip"]))
-print("build/zip-2.3-4.m68kmint.rpm build/zip-t425-on-2.3-4.m68kmint.rpm", len(files), "files")
+print(len(files), "files", file=sys.stderr)
+print(*out)   # last line = the RPM paths (ci.sh build_rpms reads it)
 PY
