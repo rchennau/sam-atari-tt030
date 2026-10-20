@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/zip-repro-553746cb request_id=f7f23305-9069-4975-b6b6-1a060f5cfb46 at 2026-10-20T15:55:14Z
+
+[tenant rchennau/sam-atari-tt030@f92efefa433b] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.33s
+
+[integrate] merged f92efefa433b into main (was 597d4da404f0)
