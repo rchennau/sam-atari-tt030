@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/ppmq-4ab13d11 request_id=712ed6e4-8516-43a2-a627-b585c4b95a93 at 2026-10-20T07:31:54Z
+
+[tenant rchennau/sam-atari-tt030@53e06aeb2f4f] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.32s
+
+[integrate] merged 53e06aeb2f4f into main (was b706fd2287a5)
