@@ -19,6 +19,8 @@ static void p4(unsigned char *b, unsigned long v) { b[0] = v; b[1] = v >> 8; b[2
 static int wr(const unsigned char *b, long n) { long g = 0, r; while (g < n) { r = write(fd, b + g, n - g); if (r <= 0) return -1; g += r; } return 0; }
 static int rd(unsigned char *b, long n) { long g = 0, r; while (g < n) { r = read(fd, b + g, n - g); if (r <= 0) return -1; g += r; } return 0; }
 static void lost(void) { if (fd >= 0) close(fd); fd = -1; }
+/* ttjob-ports NFR-2: FreeMiNT's 8 KB default costs a wake-up per 8 KB each way (~1.5 MB/s); 32000 is the most it grants */
+static void sockbuf(int s) { int v = 32000; setsockopt(s, SOL_SOCKET, SO_SNDBUF, &v, sizeof v); setsockopt(s, SOL_SOCKET, SO_RCVBUF, &v, sizeof v); }
 int ttjob_submit(int op, int level, const void *in, long n)
 {
     unsigned char h[JOB_HDR];
@@ -27,6 +29,7 @@ int ttjob_submit(int op, int level, const void *in, long n)
         struct sockaddr_un sa;
         memset(&sa, 0, sizeof sa); sa.sun_family = AF_UNIX; strncpy(sa.sun_path, ttjob_socket, sizeof sa.sun_path - 1);
         if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) return -1;
+        sockbuf(fd);
         if (connect(fd, (struct sockaddr *)&sa, sizeof sa) < 0) { lost(); return -1; }
     }
     lastid = (lastid % 65535) + 1;

@@ -31,7 +31,7 @@
 #define QMAX 32
 #define REBOOT_RETRY_S 60         /* a failed re-boot is tried again this often */
 
-struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; clock_t due; };
+struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; clock_t due; clock_t t_hdr, t_req, t_link; };
 static struct job queue[QMAX], inflight[NODES];
 static int nq, nin, up;
 static int leased = -1;              /* client index holding the T425 lease (OP_LEASE), or -1 */
@@ -281,6 +281,7 @@ static void send_jobs(void)
         j.buf[0] = (unsigned char)j.wid; j.buf[1] = (unsigned char)(j.wid >> 8);
         if (link_write(j.buf, JOB_HDR + j.n) != JOB_HDR + j.n) { wipe_free(j.buf, JOB_HDR + j.n); go_down("link write failed"); return; }
         j.sent = time(NULL);
+        j.t_link = clock();
         last_io = clock();
         inflight[nin++] = j;
     }
@@ -316,7 +317,11 @@ static void poll_link(void)
                     say(LOG_INFO, "job '%c' %ld B on node %d: %ld s, status %d", inflight[i].buf[2], inflight[i].n,
                         rbuf[R_NODE], (long)(time(NULL) - inflight[i].sent), rbuf[2]);
                 if (getenv("TTJOBD_TRACE"))
-                    say(LOG_INFO, "reply wid %u from node %d (assigned %d)", wid, rbuf[R_NODE], inflight[i].node);
+                    say(LOG_INFO, "reply wid %u from node %d (assigned %d): req %ld ms, queue %ld ms, link+run %ld ms, out %ld B",
+                        wid, rbuf[R_NODE], inflight[i].node,
+                        (long)(inflight[i].t_req - inflight[i].t_hdr) * 1000L / (long)CLOCKS_PER_SEC,
+                        (long)(inflight[i].t_link - inflight[i].t_req) * 1000L / (long)CLOCKS_PER_SEC,
+                        (long)(clock() - inflight[i].t_link) * 1000L / (long)CLOCKS_PER_SEC, olen);
                 busy[inflight[i].node] = 0;
                 wipe_free(inflight[i].buf, JOB_HDR + inflight[i].n);
                 inflight[i] = inflight[--nin];
@@ -388,7 +393,9 @@ int main(int argc, char **argv)
         if (FD_ISSET(ls, &rs)) {
             int c = accept(ls, NULL, NULL);
             for (i = 0; i < MAXCL && cl[i] >= 0; i++) ;
-            if (c >= 0 && i < MAXCL) { cl[i] = c; fcntl(c, F_SETFL, fcntl(c, F_GETFL, 0) | O_NONBLOCK); drop_out(i); }
+            if (c >= 0 && i < MAXCL) { int v = 32000;   /* NFR-2: 8 KB default = a wake-up per 8 KB; 32000 is the most FreeMiNT grants */
+                setsockopt(c, SOL_SOCKET, SO_SNDBUF, &v, sizeof v); setsockopt(c, SOL_SOCKET, SO_RCVBUF, &v, sizeof v);
+                cl[i] = c; fcntl(c, F_SETFL, fcntl(c, F_GETFL, 0) | O_NONBLOCK); drop_out(i); }
             else if (c >= 0) close(c);
         }
         for (i = 0; i < MAXCL; i++) if (cl[i] >= 0 && FD_ISSET(cl[i], &ws)) flush_out(i);
@@ -396,8 +403,10 @@ int main(int argc, char **argv)
             unsigned char h[JOB_HDR];
             long n;
             int k, mine;
+            clock_t t_hdr;
             if (cl[i] < 0 || !FD_ISSET(cl[i], &rs)) continue;
             if (rd(cl[i], h, JOB_HDR)) { drop_client(i); continue; }   /* client gone */
+            t_hdr = clock();
             n = (long)g4(h + H_LEN);
             if (n < 0 || n > big_max || (n > JOB_MAX && h[3] != NODE_ANY && h[3] != 0)) {   /* above JOB_MAX: the T425 only */
                 answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_TOOBIG); drop_client(i); continue;
@@ -426,10 +435,11 @@ int main(int argc, char **argv)
                 answer(cl[i], (unsigned short)(h[0] | (h[1] << 8)), ST_DOWN);
                 continue;
             }
-            queue[nq].fd = cl[i]; queue[nq].cid = (unsigned short)(h[0] | (h[1] << 8)); queue[nq].n = n;
+            queue[nq].fd = cl[i]; queue[nq].cid = (unsigned short)(h[0] | (h[1] << 8)); queue[nq].n = n; queue[nq].t_hdr = t_hdr;
             if (!(queue[nq].buf = malloc(JOB_HDR + n)) || (memcpy(queue[nq].buf, h, JOB_HDR), n > 0 && rd(cl[i], queue[nq].buf + JOB_HDR, n))) {
                 wipe_free(queue[nq].buf, JOB_HDR + n); answer(cl[i], queue[nq].cid, ST_DOWN); continue;
             }
+            queue[nq].t_req = clock();
             nq++;
         }
         send_jobs();

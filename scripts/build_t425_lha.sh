@@ -101,7 +101,9 @@ assert inc in s, "extract.c: lha.h include not found"
 s = s.replace(inc, inc + '''
 #ifdef T425
 #include "t4call.h"
-#define LHA_T4_DMIN (256L * 1024)	/* original size. Measured 2026-09-24: decode is cheap here, so the
+#define LHA_T4_DMIN (512L * 1024)	/* original size. ponytail: 512 KB since 2026-10-20 — 256 KB members through ttjobd
+					   measured text 1.09x, bin 0.87x, random 1.12x the 68030 (FR-5 run): the ~0.7 s ttjob
+					   cost needs a bigger member. Before: 256 KB. Measured 2026-09-24: decode is cheap here, so the
 					   ~1 s boot loses below this (16 KB 0.92 -> 1.82 s); 256 KB text
 					   6.9 -> 5.9 s (0.86), binary 7.9 -> 7.0 s (0.89) */
 #define LHA_T4_DMAX (1536L * 1024)	/* packed + original must fit the T425's 4 MB board */
