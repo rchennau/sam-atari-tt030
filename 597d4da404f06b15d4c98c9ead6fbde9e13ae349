@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/fr5-subsec request_id=94f8a787-cd41-4d92-a6ea-5c5e35deb877 at 2026-10-20T15:36:22Z
+
+[tenant rchennau/sam-atari-tt030@597d4da404f0] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.32s
+
+[integrate] merged 597d4da404f0 into main (was 53e06aeb2f4f)
