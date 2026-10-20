@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/tt-boot-time request_id=4a3198cb-02d1-4cfb-97c3-9e19285fccc9 at 2026-10-20T06:13:21Z
+
+[tenant rchennau/sam-atari-tt030@b706fd2287a5] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s........................................s..              [100%]
+53 passed, 7 skipped in 1.35s
+
+[integrate] merged b706fd2287a5 into main (was e7cedfe596d7)
