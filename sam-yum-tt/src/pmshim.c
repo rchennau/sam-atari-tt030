@@ -17,6 +17,12 @@
 static const unsigned char *ps_in;
 static long ps_in_len;
 static unsigned char *ps_out;
+/* ppmqserv sets it: ps_out and ps_in are one block with ps_out lower (root image op 'q', defect 4ab13d11), so the pixel
+ * array is built at ps_out + PS_GAP over the gap and the input as it is read (each pixel's sizeof(pixel) bytes land
+ * behind the next unread 3) and the output, written over it later, stays behind it (PS_GAP > the P6 header). ppm_readppm checks
+ * the room itself and mallocs when it is not there (direct ppmqserv: ps_out == ps_in). */
+int ps_overlay;
+#define PS_GAP 64
 static long ps_out_cap, ps_out_pos;
 static long ps_in_pos;                            /* the row readers' place in the input */
 static jmp_buf ps_jb;
@@ -29,9 +35,55 @@ xelval pnm_pbmmaxval = 1;
 #ifdef PS_JOBHEAP
 /* Linked into the resident job image (sam-job-tt/build_llvm.sh), whose jobheap.c already frees each job's leftovers:
  * a second 16-byte header per block cost tppmquant 512x512 ~0.5 MB of its 32767 histogram nodes (status 6). */
-void *ps_malloc(size_t n) { return malloc(n); }
-void ps_free(void *p) { free(p); }
-static void ps_free_all(void) { }
+/* Blocks <= PS_NODE (ppmquant's 12-byte colorhist nodes, ~32k of them) come from slabs with a free list: jobheap's
+ * 16 B header plus the runtime's own on each node left 800x600 at the heap edge (defect 4ab13d11). ps_run's
+ * ps_free_all returns the slabs. ponytail: one size class, linear slab lookup in ps_free (<= PS_SLABS compares). */
+#define PS_NODE 16
+#define PS_PER_SLAB 4096                          /* 64 KB slabs */
+#define PS_SLABS 64
+static char *ps_slab[PS_SLABS];
+static int ps_nslab;
+static long ps_slab_used;
+static void *ps_freelist;
+
+void *ps_malloc(size_t n)
+{
+    void *p;
+    if (n > PS_NODE)
+        return malloc(n);
+    if (ps_freelist) {
+        p = ps_freelist;
+        ps_freelist = *(void **)p;
+        return p;
+    }
+    if (ps_nslab == 0 || ps_slab_used == PS_PER_SLAB) {
+        if (ps_nslab == PS_SLABS || (ps_slab[ps_nslab] = (char *)malloc(PS_NODE * PS_PER_SLAB)) == NULL)
+            return malloc(n);
+        ps_nslab++;
+        ps_slab_used = 0;
+    }
+    return ps_slab[ps_nslab - 1] + PS_NODE * ps_slab_used++;
+}
+
+void ps_free(void *p)
+{
+    int i;
+    for (i = 0; p && i < ps_nslab; i++)
+        if ((char *)p >= ps_slab[i] && (char *)p < ps_slab[i] + PS_NODE * PS_PER_SLAB) {
+            *(void **)p = ps_freelist;
+            ps_freelist = p;
+            return;
+        }
+    free(p);
+}
+
+static void ps_free_all(void)
+{
+    while (ps_nslab > 0)
+        free(ps_slab[--ps_nslab]);
+    ps_slab_used = 0;
+    ps_freelist = NULL;
+}
 #else
 struct ps_blk {
     struct ps_blk *prev, *next;
@@ -169,7 +221,8 @@ void pm_freearray(char **its, int rows)
 {
     (void)rows;
     if (its) {                                   /* ppm_readppm below: one block + the row pointers */
-        ps_free(its[0]);
+        if (!(ps_overlay && (unsigned char *)its[0] == ps_out + PS_GAP))
+            ps_free(its[0]);
         ps_free(its);
     }
 }
@@ -209,10 +262,13 @@ pixel **ppm_readppm(FILE *file, int *colsP, int *rowsP, pixval *maxvalP)
     if (ps_header(&c, &r, &m) != '6')
         pm_error("not a raw PPM");
     rows = (pixel **)ps_malloc((size_t)r * sizeof(pixel *));
-    blk = (pixel *)ps_malloc((size_t)(c * r) * sizeof(pixel));
+    p = ps_in + ps_in_pos;
+    if (ps_overlay && ps_out + PS_GAP + c * r * ((long)sizeof(pixel) - 3) <= p && ps_out + PS_GAP + c * r * (long)sizeof(pixel) <= ps_in + ps_in_len)
+        blk = (pixel *)(ps_out + PS_GAP);
+    else
+        blk = (pixel *)ps_malloc((size_t)(c * r) * sizeof(pixel));
     if (rows == NULL || blk == NULL)
         pm_error("out of memory");
-    p = ps_in + ps_in_pos;
     for (y = 0; y < r; y++) {
         rows[y] = blk + y * c;
         for (x = 0; x < c; x++, p += 3)

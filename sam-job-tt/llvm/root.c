@@ -26,6 +26,10 @@ void jobheap_begin(void), jobheap_end(void);   /* jobheap.c: free each job's lef
 #include "worker_imgs.h"
 #endif
 
+/* op 'q': room between the reply header and the payload for ppmquant's 4-byte pixels (pmshim.c ps_overlay; defect
+ * 4ab13d11: input + a separate pixel array did not fit the heap at 800x600). 64 = pmshim's PS_GAP; n / 3 >= pixels. */
+#define QGAP(n) (LREP_HDR + 64 + (((n) / 3 + 8) & ~7L))
+
 static unsigned char hdr0[JOB_HDR], *in0, *rep0, err0[LREP_HDR];   /* in0/rep0: heap, one node-0 job at a time */
 static unsigned char hdrf[JOB_HDR], fwd[JOB_MAX], repm[LREP_HDR + JOB_MAX];
 
@@ -42,10 +46,10 @@ static void work0(Channel *go, Channel *done)
     int ip;
     for (;;) {
         n = (long)ChanInInt(go);
-        ip = n >= 0 && hdr0[2] == 'q';      /* in place, as ppmqserv: host read the payload behind room for the
+        ip = n > 0 && hdr0[2] == 'q';      /* in place, as ppmqserv: host read the payload behind room for the
                                                reply header, so input and output share one block */
         cap = ip ? n : n >= 0 ? job_out_cap(hdr0[2], hdr0[H_LEVEL], in0, n) : 0;
-        rep0 = ip ? in0 - LREP_HDR : n >= 0 ? malloc((size_t)(LREP_HDR + cap)) : NULL;
+        rep0 = ip ? in0 - QGAP(n) : n >= 0 ? malloc((size_t)(LREP_HDR + cap)) : NULL;
         jobheap_begin();                     /* the kernel's own allocations from here are the job's */
         if (rep0) len = job_reply(hdr0, in0, n, rep0, 0, cap);
         else { rep0 = err0; len = job_reply(hdr0, in0, -1, err0, 0, 0); }   /* ST_TOOBIG */
@@ -102,7 +106,7 @@ static void host(Channel *hin, Channel *t1o, Channel *go0, Channel *freec)
         n = (long)g4(h + H_LEN);
         if (node == 0) {
             for (k = 0; k < JOB_HDR; k++) hdr0[k] = h[k];
-            k = h[2] == 'q' ? LREP_HDR : 0;     /* op 'q' runs in place (work0) */
+            k = h[2] == 'q' && n > 0 ? (int)QGAP(n) : 0;   /* op 'q' runs in place (work0) */
             in0 = n >= 0 && n <= JOB_BIG ? malloc((size_t)(k + (n > 0 ? n : 1))) : NULL;
             if (in0) in0 += k;
             if (!in0) { if (n > 0) drain(hin, n); n = -1; }

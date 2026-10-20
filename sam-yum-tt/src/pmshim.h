@@ -2,6 +2,7 @@
 #ifndef PMSHIM_H
 #define PMSHIM_H
 #include <stddef.h>
+extern int ps_overlay;
 void ps_exit(int code);
 void *ps_malloc(size_t n);
 void ps_free(void *p);

@@ -15,6 +15,7 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
     colors = in[0] | ((long)in[1] << 8) | ((long)in[2] << 16) | ((long)in[3] << 24);
     if (colors < 2 || colors > 32767)
         return -1;
+    ps_overlay = 1;                          /* in place: out and in share one block (pmshim.c) */
     return pq_run((int)colors, in + 4, n - 4, out, cap);
 }
 
