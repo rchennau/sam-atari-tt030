@@ -23,8 +23,9 @@ cmd() { o=$W/out.$2; case $1 in
   bc-sqrt) echo 'scale=500; sqrt(2)' | tbc > $o;;  bc-pi) echo 'scale=200; 4*a(1)' | tbc -l > $o;;  bc-pow) echo '2^20000' | tbc > $o;;
   zip) rm -f $o; zip -q -X $o text;;  png-rgb) tpnmtopng photo.ppm > $o;;  png-gray) tpnmtopng photo.pgm > $o;;
   pq256) tppmquant 256 photo.ppm > $o;; esac; }
-run() { n=$1.$2; s=$(date +%s); cmd $1 $n 2>$W/err.$n; rc=$?; e=$(date +%s)
-  echo "R $1 $2 rc=$rc t=$((e-s)) md5=$(md5sum < $W/out.$n | cut -c1-8) err=$(tr '\n' '|' < $W/err.$n)"; }
+# MiNT /kern/uptime is sub-second (NFR-2 needs it; date +%s is 1 s); read, not $(cut): 0.04 s overhead vs 0.4 s
+run() { n=$1.$2; read s x < /kern/uptime; cmd $1 $n 2>$W/err.$n; rc=$?; read e x < /kern/uptime
+  echo "R $1 $2 rc=$rc t=$(awk "BEGIN{printf \"%.2f\", $e-$s}") md5=$(md5sum < $W/out.$n | cut -c1-8) err=$(tr '\n' '|' < $W/err.$n)"; }
 restore() { for t in libjpeg tpnmtopng tppmquant lha zip tbc; do [ -e /etc/t425/enabled/$t.fr5off ] && mv /etc/t425/enabled/$t.fr5off /etc/t425/enabled/$t; done
   grep -q ttjobd /tmp/t425.lock 2>/dev/null && [ -d /kern/$(cut -d" " -f1 /tmp/t425.lock) ] || { (nohup sh /etc/rc.ttjobd < /dev/null > /dev/null 2>&1 &); sleep 25; }
   echo "restored: $(cat /tmp/t425.lock) toggles: $(ls /etc/t425/enabled | tr '\n' ' ')"; echo DONE; }
