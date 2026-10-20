@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/nfr2-overhead request_id=632b236d-a25e-44bb-8957-649acdc764e7 at 2026-10-20T20:17:15Z
+
+[tenant rchennau/sam-atari-tt030@eb4be2aed169] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s...........................................s..           [100%]
+56 passed, 7 skipped in 1.40s
+
+[integrate] merged eb4be2aed169 into main (was f92efefa433b)
