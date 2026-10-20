@@ -13,6 +13,7 @@ def build_and_run(data: bytes) -> int:
         with open(main_src, "w") as f:
             f.write(
                 "#include <stdio.h>\n"
+                "#include <stdlib.h>\n"
                 "#include \"t4adler.h\"\n"
                 "int main(int argc, char **argv)\n"
                 "{\n"
