@@ -121,7 +121,11 @@ OBJS=
 # "same NVR, different bytes".
 TJ=; [ "${TTJOB:-1}" = 1 ] && TJ="-DT4CALL_TTJOB -I$REPO/sam-job-tt"
 mkdir -p "$REPO/build"   # a fresh CI worktree has none
-REL=$(git -C "$REPO" rev-list --count HEAD -- scripts/build_t425_zip.sh sam-yum-tt/src sam-job-tt/libttjob.c sam-job-tt/jobwire.h)
+IN="scripts/build_t425_zip.sh sam-yum-tt/src sam-job-tt/libttjob.c sam-job-tt/jobwire.h"
+REL=$(git -C "$REPO" rev-list --count HEAD -- $IN)
+# zip 2.3 compiles __DATE__ into its banner, so a rebuild on another day changed all four binaries at the same release
+# and CI's publish refused it (defect 553746cb). GCC honours SOURCE_DATE_EPOCH: the date of the commit that set REL.
+export SOURCE_DATE_EPOCH=$(git -C "$REPO" log -1 --format=%ct HEAD -- $IN)
 for c in t4call t4lock t4adler atwboot; do
     "$CC" -m68020-60 -O2 -c $TJ -I"$RT" -o "$W/$c.o" "$RT/$c.c"; OBJS="$OBJS $W/$c.o"
 done
