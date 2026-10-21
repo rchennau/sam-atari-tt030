@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/ttkbd-key-install request_id=55712af1-76c2-44bb-a0f8-6d753a417a6f at 2026-10-21T17:10:36Z
+
+[tenant rchennau/sam-atari-tt030@0ed198b9d07e] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+...s.....sss...s...........................................s..           [100%]
+56 passed, 7 skipped in 1.49s
+
+[integrate] merged 0ed198b9d07e into main (was d798dc582d76)
