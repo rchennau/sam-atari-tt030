@@ -164,8 +164,13 @@ Manual steps, if you are not using the script:
 
 
 1. **Key (once, on the remote system management host, as the user who will type):** `python3 scripts/ttkbd_send.py keygen` writes
-   `~/.config/atari-tt/ttkbd.key` (mode 600) and prints the public key; write its 32 raw bytes to the
-   TT's `/etc/ttkbd.pub`. The TT accepts exactly one key.
+   `~/.config/atari-tt/ttkbd.key` (mode 600) and prints the public key (64 hex). Install it with
+   `scripts/ttkbd_key_install.sh <hex>` (any account with ssh to the TT): backs up `/etc/ttkbd.pub` to
+   `/etc/ttkbd.pub.<UTC stamp>`, writes the 32 raw bytes, checks the md5, restarts ttkbdd and checks :7590. The TT accepts
+   exactly one key, so the previous holder is refused (`bad signature, refused` in `/var/log/ttkbdd.log`). Run keygen as
+   yourself, never under `sudo` (that makes root's key). `ttkbd_send.py` is not executable in the checkout: call it with `python3`.
+   Holder since 2026-10-21: the operator's desktop account (pub md5 1fe7b030); `sam`'s key (2026-09-23, 9b61d817) is in
+   `/etc/ttkbd.pub.20261021T170723Z`. Scripted WiFi typing as `sam` (tests) needs that key back, or use `--serial`.
 2. **TT:** the WiFi listener starts at boot (`/etc/rc.ttkbdd` from `mint.cnf`; log `/var/log/ttkbdd.log`).
 3. **The remote system management host, from the desktop session:** `python3 scripts/ttkbd_send.py grab`. Keys stop typing on
    the remote system management host and type on the TT. **Right Ctrl + Right Alt + Esc** stops.
