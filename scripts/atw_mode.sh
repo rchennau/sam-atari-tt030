@@ -1,7 +1,7 @@
 #!/bin/bash
 # atw_mode.sh — choose the ATW800/2 boot mode (PMS tt030-atw800-video-modes FR-2).
 #   atw_mode.sh show            current mode and its name (C:\AUTO\XVDIMENU.INF word 0 = mode - 1, 0-based)
-#   atw_mode.sh set <mode>      write <mode> (1..36, docs/atw-modes.tsv) for the NEXT boot
+#   atw_mode.sh set <mode>      write <mode> (1..39, docs/atw-modes.tsv) for the NEXT boot
 #   atw_mode.sh restore         put back the backed-up original (mode 15 = 1024x768x16)
 # XVDIMENU applies the mode at boot only (Phase 0, 2026-10-15), so reboot after set/restore (tt_reboot.sh --wait-back).
 # The first run backs the card's file up to $BAK (md5 must match the Phase 0 one). Writes go over Modem 2

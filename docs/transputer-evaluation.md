@@ -6,15 +6,16 @@ from measured numbers. The second kind is not a measurement and should be confir
 
 Facts the rows rely on (all measured, README / `docs/resolution-management.md` / `sam-job-tt`):
 - `ttjobd` job round trip ≤ 7 ms p50; link 462 KB/s per direction to the T425.
-- At pixel clocks ≥ 108 MHz, including the default 1920×1080 mode 32 and mono mode 37, the picture blanks while
-  the T425 runs a job. Jobs still complete.
+- At pixel clocks ≥ 108 MHz (1920×1080 modes 32 and 37; 37 is the boot mode since 2026-10-20) the picture blanked
+  while the T425 ran bulk-data jobs (2026-10-16). Logins and compute jobs watched on 2026-10-17 did not blank. Jobs
+  always complete.
 - The T425 sees VRAM from 0x80600000. The TRAMs have no path to VRAM.
 - The T425 loses wherever data is large and work per byte small: inflate, LZW, SHA-256, image scaling
   (`sam-t425-ports` "measured and declined").
 
 | Program | Heavy work | Where it runs | Basis | Note |
 | :--- | :--- | :--- | :--- | :--- |
-| `dropbear` (sam-ssh-tt) | X25519, Ed25519 verify | **68030 in mode 32**, T425 in modes ≤ 102.6 MHz | measured | Offload cuts login crypto 25.0 → 14.4 s, but `DROPBEAR_NO_ATW=1` keeps it off the T425 in the default mode because every login would blank the screen. Mode 32 users pay the slow login. |
+| `dropbear` (sam-ssh-tt) | X25519, Ed25519 verify | T425 in every mode (since 2026-10-17) | measured | Offload cuts login crypto 25.0 → 14.4 s. Until 2026-10-17 `DROPBEAR_NO_ATW=1` kept it on the 68030 in mode 32 because logins blanked the screen; a watched login that day did not blank, so it was commented out. |
 | `ttjobd` / `libttjob` (sam-job-tt) | queue for all offload | T425 + 2 TRAMs | measured | The transputer path itself. |
 | T425 ports (`tbc`, `djpeg`, `lha`, `tbzip2`, `tgzip`, …) | per port | per port table | measured | Every port timed; losers declined with numbers (`sam-t425-ports/README.md`). Open: FR-8 rows in tt030-ttjob-ports. |
 | `yum-tt` + `rpm` | SHA-256, inflate, RSA verify | 68030 | measured | SHA-256 on the T425 lost incl. transfer (`shabench`); inflate 1.42–1.67× slower on the T425. RSA verify is one 256-byte signature per refresh. |
@@ -57,7 +58,9 @@ certificates, with better entropy than the TT's timer-jitter seed.
 
 ## Findings
 
-1. **The default mode blocks transputer use for anything interactive.** Mode 32 blanks the screen during every T425
+1. *(2026-10-17: partly superseded. Logins and compute jobs did not blank in mode 32, and Dropbear offload is back
+   on; bulk-data jobs are the remaining trigger. The boot mode is 37 since 2026-10-20, same clock.)*
+   **The default mode blocks transputer use for anything interactive.** Mode 32 blanks the screen during every T425
    job. Today that keeps Dropbear's measured 1.7× faster login on the 68030, and it rules out the T425 for the screensaver and
    screenshots. Batch jobs through `ttjobd` still run and blank briefly. A ≤ 102.6 MHz default (mode 24 1280×960 or
    28 1440×960, both stable with offload since FR-6) would re-enable SSH offload. That is an operator display choice.

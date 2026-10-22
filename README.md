@@ -12,8 +12,8 @@ The Atari TT030 is a 32-bit Motorola 68030-based workstation running at 32 MHz w
 ### ATW800/2 Transputer Co-Processor
 The ATW800/2 is a VME expansion card with an FPGA that provides fast 2D colour graphics and a **synthetic T425 transputer** (an FPGA implementation of the INMOS 32-bit T425; the card's User's Manual quotes 50+ MHz, and earlier notes in this repo assumed 40 MHz; the clock has not been measured here). The T425 has 5 MB of usable RAM: from T425 address `0x80600000` up is the card's video memory. The 68030 talks to it over the card's link driver (`fpgabios`): about 0.16 ms fixed cost per round-trip and 462 KB/s per direction after this project's driver-call fix.
 
-### Display modes (measured 2026-10-15)
-The ATW800/2 drives HDMI through its xVDI driver; the boot mode is set from with `scripts/atw_mode.sh` (a reboot per change) or via the XVDI menu. On the operator's ASUS VS247H-P, 11 vendor modes plus a custom 1920×1080 mono mode display: 800×600 (256 / 65536 colours), 1024×768 (256 / 65536), 1280×720, 1280×800 (256 / 65536), 1280×960, 1280×1024, 1440×960 and 1920×1080 (256 colours), and 1920×1080 mono. Modes below 55 Hz or taller than 1080 lines are out of the monitor's range. **Default: 1920×1080, 256 colours.** At pixel clocks of 108 MHz and above the picture blanks while the T425 runs a job, so in that mode SSH crypto stays on the 68030 (`DROPBEAR_NO_ATW`). Full table, timings and method: [`docs/resolution-management.md`](docs/resolution-management.md).
+### Display modes (measured 2026-10-15, updated 2026-10-21)
+The ATW800/2 drives HDMI through its xVDI driver; the boot mode is set with `scripts/atw_mode.sh` (a reboot per change) or via the XVDI menu. The card's table holds 36 vendor modes plus three custom ones: 37 (1920×1080 mono), 38 (1600×1200) and 39 (1664×936, 256 colours at 102.6 MHz). On the operator's ASUS VS247H-P, 11 vendor modes plus custom 37 and 39 display: 800×600 (256 / 65536 colours), 1024×768 (256 / 65536), 1280×720, 1280×800 (256 / 65536), 1280×960, 1280×1024, 1440×960 and 1920×1080 (256 colours), 1664×936 (256 colours) and 1920×1080 mono. Modes below 55 Hz or taller than 1080 lines are out of the monitor's range. **Boot mode since 2026-10-20: 37, 1920×1080 mono, white text on a black background** (`/etc/atw-mono-colours.sh`), with the `atwmono` hook driving the card's copy engine for mono copies. At pixel clocks of 108 MHz and above (modes 26, 32 and 37) bulk-data T425 jobs blanked the picture; logins and compute jobs watched on 2026-10-17 did not, so SSH crypto runs on the T425 in every mode (`DROPBEAR_NO_ATW` off). Every mode with its timings and measured status: [`docs/xvdi-mode-matrix.md`](docs/xvdi-mode-matrix.md); method, benchmarks and PLL limits: [`docs/resolution-management.md`](docs/resolution-management.md).
 
 ### TRAM modules (added 2026-10-12)
 The card has two sockets for classic TRAMs (TRAnsputer Modules). Both now hold **Transtech TTM15F-45-F** modules, characterised on the real TT (`sam-tram-tt/`):
@@ -33,8 +33,8 @@ The primary purpose of this project is to adapt and modify legacy and modern Uni
 ### Product rules (operator, 2026-10-17)
 1. **Every app is evaluated for the transputers by default.** Each new or changed program records, in its plan or
    README, whether its heavy work runs on the T425, the TRAMs or the 68030 and why, with a measurement or a stated
-   blocker. Known blockers: at pixel clocks of 108 MHz and above (the default 1920×1080 mode) the picture blanks
-   while the T425 runs a job; the TRAMs cannot reach video memory; programs on the T425 go through `ttjobd`.
+   blocker. Known blockers: at pixel clocks of 108 MHz and above (the 1920×1080 modes, including boot mode 37) the
+   picture blanked while the T425 ran bulk-data jobs (compute jobs did not, 2026-10-17); the TRAMs cannot reach video memory; programs on the T425 go through `ttjobd`.
 2. **Runtime follows the standard Linux filesystem layout** (track `tt030-fhs-layout`): command-line programs in
    `/usr/bin`, system tools and daemons in `/sbin` or `/usr/sbin`, GEM applications in `/opt/<app>/`, installed by
    RPM. Only the TOS boot set stays on `C:`; test binaries go to `/tmp`.
@@ -52,7 +52,7 @@ Each custom software component contains its own dedicated project directory, REA
 7. **[`tt_bridge`](tt_bridge/README.md)**: *Superseded by `ttmon` (2026-09-13).* HTTP/1.1 client; replaced by MQTT telemetry.
 8. **[`sam-kbd-tt`](sam-kbd-tt/README.md)** — **complete: keyboard and mouse working on the real TT, started at boot**: a Linux PC's keyboard and mouse drive the TT as if they were its own (XaAES, TeraDesk, TosWin2), alongside the physical keyboard. `ttkbdd` injects through FreeMiNT's kbdvec / mousevec paths over a raw serial link or a signed, XChaCha20-Poly1305-encrypted TCP session; one command on the PC, `scripts/ttkbd-session.sh`; the TT's top-right corner hands control back (track `tt030-remote-keyboard`).
 9. **[`sam-t425-ports`](sam-t425-ports/README.md)** — faster SpareMiNT userland: CPU-heavy programs rebuilt for the 68030 and, where it measurably wins, offloaded to the T425 (`tbc` 0.19–0.25 of stock bc, `djpeg` 0.37, `lha` 0.46–0.51); every port gated on the real TT, losses recorded.
-10. **[`sam-job-tt`](sam-job-tt/README.md)** — **in production on the TT (2026-10-13)**: the transputer job queue. `ttjobd` owns the ATW800/2 link, boots a resident image on the T425 and both TRAMs, and runs jobs (echo, SHA-256, X25519, Ed25519 verify, ChaCha20, and on the T425 deflate/gzip/inflate/bzip2) for local clients over a Unix socket through `libttjob`. It schedules each job by expected finish time across the three nodes (9 bzip2 jobs from 3 clients 1.64× faster than the T425 alone). A watchdog resets and re-boots the network if a node hangs (about 2 s). If a TRAM is missing it boots a smaller image (T425 + TRAM 1, or T425 only) and writes `/var/run/ttjob.topology`. Packaged as the `ttjob` RPM. Op results are checked against host builds under the `t4` emulator.
+10. **[`sam-job-tt`](sam-job-tt/README.md)** — **in production on the TT (2026-10-13)**: the transputer job queue. `ttjobd` owns the ATW800/2 link, boots a resident image on the T425 and both TRAMs, and runs jobs (echo, SHA-256, X25519, Ed25519 verify, ChaCha20, and on the T425 deflate/gzip/inflate/bzip2) for local clients over a Unix socket through `libttjob`. It schedules each job by expected finish time across the three nodes (9 bzip2 jobs from 3 clients 1.64× faster than the T425 alone). A watchdog resets and re-boots the network if a node hangs (about 2 s). If a TRAM is missing it boots a smaller image (T425 + TRAM 1, or T425 only) and writes `/var/run/ttjob.topology`. Packaged as the `ttjob` RPM (1.0-85 on the TT, 2026-10-21). Op results are checked against host builds under the `t4` emulator. Known open: on 1.0-85, 1.44 MB cjpeg and png-rgb jobs fail "job too big" when run after other jobs, though they pass on an idle daemon (node-0 heap; SAM defect 393e4dcc).
 11. **[`sam-tram-tt`](sam-tram-tt/README.md)**: probes and benchmarks for the two TRAMs: link discovery, the 3-node boot, device id, clock and RAM sizing, the FPU test, link round-trips, and the 68030 ↔ T425 hop and SharedMem measurements.
 ---
 
@@ -135,8 +135,8 @@ flowchart LR
 | rpm DB backfill | `scripts/rpm_va_classify.py` | ✅ `rpm -Va` classified: 0 real drift |
 | Offline rpm DB writer | `scripts/tt_rpmdb.py` (`check`, `add`) + `scripts/tt_db1tool.c` (real db1.85) | ✅ 2026-10-10: wrote mintlib + ncurses into card 2 (TT's rpm verified the result in Hatari) |
 | rpm >64 KB fix | `rpm-3.0.6-4.sam2` (`wcpu_repack.py --suffix`, `mint_stack.py` on stripped binaries) | ✅ 2026-10-10: the sam1 rebuild had lost its 256 KB stack; sam2 = 512 KB, on the mirror |
-| Native TOS/GEM → FHS | `scripts/tt_tospkg.py` + `packaging/*.json` (bytes from the card's HD00, never git) | 🟡 2026-10-10: six `/opt/<app>` RPMs on the LAN mirror, Hatari-tested; real TT pending (PMS `tt030-fhs-layout`) |
-| Job-queue packages | `sam-job-tt/build_rpm.sh` (`ttjob`), `scripts/build_t425_compress.sh` (`t425-compress` 1.6, through `ttjobd`) | ✅ 2026-10-13: both rebuild byte-identical; CI publishes a new version only from a passing run |
+| Native TOS/GEM → FHS | `scripts/tt_tospkg.py` + `packaging/*.json` (bytes from the card's HD00, never git) | 🟡 2026-10-10: six `/opt/<app>` RPMs on the LAN mirror, Hatari-tested. On the real TT (rpm -qa 2026-10-21): nvdi-tools, turbocad-tools, wordplus and xptr installed (PMS `tt030-fhs-layout`) |
+| Job-queue packages | `sam-job-tt/build_rpm.sh` (`ttjob`), `scripts/build_t425_compress.sh` (`t425-compress`, 1.7-66 on the TT 2026-10-21, through `ttjobd`) | ✅ 2026-10-13: both rebuild byte-identical; CI publishes a new version only from a passing run |
 | Card image | `scripts/build_hd10_ext2.sh` + `staging/SAM_RPMS/` | ✅ rebuilt with the yum tools; **not boot-tested** (needs an SD flash) |
 
 ### FreeMiNT rpm / yum package management
@@ -196,6 +196,9 @@ flowchart LR
 | One command | `scripts/ttkbd-session.sh` (serial default, `--wifi`) | ✅ restores the Modem 2 console on the chord or hot corner |
 | PC capture | `ttkbd_send.py grab`, `scripts/ttkbd-session.sh`, a udev uaccess rule | ✅ operator confirmed the live session works (2026-09-23) |
 | Start at boot | `/etc/rc.ttkbdd` + `mint.cnf` exec line | ✅ on the card; after a reboot ttkbdd was PID 19, listening |
+| Key install | `scripts/ttkbd_key_install.sh <hex>` | ✅ 2026-10-21: backup, md5 check, ttkbdd restart, :7590 check; the TT accepts one key (the operator's since 2026-10-21) |
+| Wire check (NFR-4) | tcpdump of TCP 7590 while typing | ✅ 2026-10-21: 63 packets, no plaintext ASCII, UTF-16 or Atari make codes |
+| Known defect | `ttkbd_send.py` on a refused key | 🔴 prints "session up" and exits 0 although the TT refused the key (SAM defect b5fae241) |
 
 Details, results and run instructions: [`sam-kbd-tt/README.md`](sam-kbd-tt/README.md).
 
@@ -205,7 +208,8 @@ Details, results and run instructions: [`sam-kbd-tt/README.md`](sam-kbd-tt/READM
 - **CPU / FPU**: Motorola MC68030 @ 32 MHz · MC68882 FPU
 - **Memory**: 4 MB ST-RAM · 64 MB TT-RAM
 - **Storage**: BlueSCSI v2 (Pico 2) SCSI ID 0 (`HD00_512.hda`, FAT16) and SCSI ID 1 (`HD10_512.hda`, 1 GiB Ext2 RAW)
-- **Networking**: BlueSCSI DaynaPORT WiFi · serial SLIP on Modem 2
+- **Networking**: BlueSCSI DaynaPORT WiFi · Modem 2 serial console at 38400 (SLIP on it parked since 2026-09-13)
+- **LAN port (SCC channel A, `/dev/lan`)**: a USB serial cable to the build host (`/dev/atari-tt-lan`, 2026-10-21). The first cable, a Kenwood radio cable, carries build host → TT only (38400 baud verified); its pinout is not Mac. An FTDI DB9 adapter plus a Mac-to-PC DB9/mini-DIN8 cable is on order.
 - **Co-Processor**: ATW800/2 card: synthetic (FPGA) T425 transputer with 5 MB usable RAM, 2D graphics core
 - **TRAMs**: two Transtech TTM15F-45-F in the card's TRAM sockets: T4-class, no FPU, 4 MB each, half the T425's loop speed
 

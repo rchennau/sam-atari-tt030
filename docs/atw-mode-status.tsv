@@ -1,0 +1,21 @@
+# Measured status per xVDI mode, joined by scripts/atw_modes.py --md into docs/xvdi-mode-matrix.md. Tab-separated.
+# monitor = ASUS VS247H-P result (2026-10-15 atw_moderun.sh unless noted); t425 = picture during T425 jobs, watched by the operator.
+mode	monitor	t425	notes
+10	shown	—	
+11	shown	—	
+14	shown	—	
+15	shown	stable	full offload, no blanking
+18	shown	—	
+21	shown	—	
+22	shown	stable	full offload, 65536 colours
+24	shown	stable	FR-6 2026-10-17: 2 runs, 0 blanks
+26	shown	blanks	108 MHz: blanks during T425 jobs
+28	shown	stable	FR-6 2026-10-17; 54.2 Hz, under the monitor's stated 55 Hz, still shown
+30	OUT OF RANGE	—	50 Hz
+31	untested	—	label says 50 Hz; record is programmed for 40 Hz
+32	shown	compute OK, bulk blanks	2026-10-17: logins and X25519 jobs do not blank; tgzip-style bulk jobs did. PLL VCO 1377 MHz, over the GW2AR-18 spec
+34	OUT OF RANGE	—	40 Hz
+35	untested	—	label says 60 Hz; record is programmed for 30 Hz
+37	shown	not watched	custom (mode 32 timing, 1 bit). Boot mode since 2026-10-20; black background, white text (/etc/atw-mono-colours.sh); atwmono copy-engine hook: blits 268 → 4444/s
+38	OUT OF RANGE	—	custom 1600×1200 reduced blanking; the monitor rejects > 1080 lines
+39	shown	not watched	custom 1664×936×8 at 102.6 MHz (in-spec VCO on C8); boot mode 2026-10-17 to 2026-10-20

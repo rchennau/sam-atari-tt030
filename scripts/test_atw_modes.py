@@ -31,3 +31,12 @@ def test_bad_files_fail_loudly():
         A.decode(good[:-6] + bytes(6))               # marker missing
     with pytest.raises(ValueError):
         A.decode(good[:36] + struct.pack(">H", 999) + good[38:])   # bytes/line vs width
+
+
+def test_card_timings_match_the_measured_table():
+    """docs/resolution-management.md computed these from the dividers; the card's table must still decode to them."""
+    here = os.path.join(os.path.dirname(__file__), "..", "staging", "XVDI_CARD", "XVDI.BIB")
+    rows = {r["mode"]: r for r in A.decode(open(here, "rb").read())}
+    assert (rows[32]["pclk_mhz"], rows[32]["h_khz"], rows[32]["v_hz"]) == (137.7, 66.2, 59.6)
+    assert (rows[39]["pclk_mhz"], rows[39]["htotal"], rows[39]["vtotal"]) == (102.6, 1824, 967)
+    assert rows[37]["bpp"] == 1 and rows[37]["pclk_mhz"] == 137.7

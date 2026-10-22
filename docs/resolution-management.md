@@ -19,7 +19,7 @@ Track `tt030-atw800-video-modes` (SAM repo `maestro/tracks/`).
 
 | Tool | What it does |
 | :--- | :--- |
-| `scripts/atw_modes.py` | decode `XVDI.BIB` → `docs/atw-modes.tsv` (size, depth, VRAM, 2 MB fit) |
+| `scripts/atw_modes.py` | decode `XVDI.BIB` → `docs/atw-modes.tsv` (size, depth, VRAM, 2 MB fit); `--md` → the timing matrix [`xvdi-mode-matrix.md`](xvdi-mode-matrix.md) (joined with `docs/atw-mode-status.tsv`) |
 | `scripts/atw_mode.sh show\|set <mode>\|restore` | set the next boot's mode from the remote system management host; backup + SHA-256-verified upload over the serial line |
 | `scripts/atw_moderun.sh MODE...` | per mode: set, reboot, check size (`atwres`), XaAES log and `xVDI`/`EdDI` cookies, then `vdibench` ×3 over serial |
 | `src/atwbg/atwres.c` | prints the live `W H PLANES` from the Line-A variables |
@@ -50,7 +50,7 @@ on the T425, 0 blanks per run.
 | 37 | 1920×1080 | 2 | 253 | 137.7 | 66.2 | 59.6 | shown | 427 | 816 | 671 | 250 | — |
 | 38 | 1600×1200 | 256 | 1875 | 129.6 | 73.6 | 59.8 | OUT OF RANGE | 753 | 2041 | 717 | 1250 | — |
 
-Mode 39 (**live and the boot default since 2026-10-17 ~16:55 PDT; the operator confirmed a normal desktop; `XVDI.BIB` d238c3ac on the card, previous table deb47fbb in `~/.local/state/tt030-deploy/xvdi-1664/card.bib.orig`**): 1664×936×8 (16:9) on mode 32's reduced-blanking timing at the
+Mode 39 (**boot default from 2026-10-17 ~16:55 PDT to 2026-10-20, when mode 37 replaced it; the operator confirmed a normal desktop; `XVDI.BIB` d238c3ac on the card, previous table deb47fbb in `~/.local/state/tt030-deploy/xvdi-1664/card.bib.orig`**): 1664×936×8 (16:9) on mode 32's reduced-blanking timing at the
 proven-stable 102.6 MHz clock (PLL 19/1): htotal 1824, vtotal 967 → 56.25 kHz, 58.2 Hz, 1521 KB. The goal is mode 32's
 aspect with offload that does not blank. Built from the live table (md5 deb47fbb) → `XVDI.BIB` md5 d238c3ac
 (`~/.local/state/tt030-deploy/xvdi-1664/`). Width is a multiple of 32 like every vendor mode.
@@ -69,11 +69,18 @@ Mode 28 computes to 54.2 Hz, just under the monitor's stated 55 Hz, and still di
    82.8 MHz (mode 22, same memory traffic as mode 32) stay stable — so the trigger tracks pixel clock, not video
    memory bandwidth. Threshold: between **102.6 MHz** (modes 24 and 28 stable, FR-6 2026-10-17) and 108 MHz (blanks).
 3. **Mono is slower than 256 colours** at the same size (mode 37 vs 32): lines 1.7×, bars 2.5×, blits 4.8× slower;
-   text about equal. Under investigation (FR-8).
+   text about equal. Cause: the driver copies mono with the CPU; the card's copy engine is used only at 8 bits and up.
+   The resident `atwmono` hook (atwtools) drives the engine for byte-aligned mono copies: blits 268 → 4444/s, bit-exact
+   (track `tt030-atw-display-tuning` NFR-2, 2026-10-20). Request to the vendor: [`vendor-note-atw800-mono.md`](vendor-note-atw800-mono.md).
 4. **SSH cost of keeping the T425 idle:** login 16–18 s with offload vs **27.1 s** on the 68030 (X25519 6.3 s,
    Ed25519 sign 2.5 s, verify 9.0 s).
 
 ## Chosen configuration (operator, 2026-10-15)
+
+**Current (2026-10-20):** boot mode **37** (1920×1080, 1 bit). `/etc/atw-mono-colours.sh` (hand-installed, not in an RPM yet), run from `xaaes.cnf`
+after the `atwmono` hook, sets VDI colours 0/1 to black/white (white text on black) when the screen has one plane;
+256-colour modes keep `DEFAULT.PAL`. Dropbear offload is on (`DROPBEAR_NO_ATW` commented out since 2026-10-17).
+Mode 37 shares mode 32's 137.7 MHz clock; no watched T425 run in mode 37 is recorded. The history follows.
 
 **2026-10-17 update (operator watching):** in mode 32, T425 X25519 jobs, TRAM-pinned X25519 jobs and an SSH login with T425 offload (20 s, against ~28 s on the 68030) did **not** blank the picture. So compute-only jobs are fine, and the blanks came with bulk-data jobs (tgzip). Dropbear offload is now ON in mode 32 (`DROPBEAR_NO_ATW` commented out). Whether 300 KB SHA-256 jobs blank was not answered.
 
@@ -104,3 +111,4 @@ do not touch the T425; the serial console (Modem 2) is preferred for connections
   ODIV cannot go below 2, so a 137.7 MHz pixel clock cannot be in spec. **Hypothesis, not measured:** the
   intermittent blanking at ≥ 108 MHz is the PLL past its limits, not T425 load. On 2026-10-17 neither T425 nor TRAM
   load reproduced it. To settle it: read the FPGA's speed-grade marking, and run mode 39 (1026 MHz VCO) long-term.
+  Mode 39 was the boot mode 2026-10-17 to 2026-10-20; no watched T425 run in it is recorded, so this is still open.

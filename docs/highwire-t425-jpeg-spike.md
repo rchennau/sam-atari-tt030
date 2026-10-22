@@ -46,8 +46,8 @@ it booted 3 of 3 nodes again.
    needs no TT code. HighWire was written for it (`UA-pixels`).
 2. **T425 JPEG offload is technically sound** (identical output, ~0.55× the 68030 time). It is worth building only
    for images that never pass the proxy (local files, `file://`), and only once one of these holds:
-   - the default display mode moves to ≤ 102.6 MHz (mode 39 1664×936, pending operator test), so jobs stop
-     blanking; or
+   - the default display mode moves to ≤ 102.6 MHz, so jobs stop blanking (mode 39, 1664×936, was the boot mode
+     2026-10-17 to 2026-10-20; since then it is mode 37 at 137.7 MHz); or
    - TRAM-only jobs are shown not to blank, so images could run on the TRAMs.
 3. **Prerequisites, if built:**
    - a ttjobd `J` op with band output (JOB_MAX);
