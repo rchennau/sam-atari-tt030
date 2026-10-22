@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/docs-boot-mode-32 request_id=4f910b9a-d599-43e4-b59c-0d832dda5fa8 at 2026-10-22T04:41:23Z
+
+[tenant rchennau/sam-atari-tt030@54040c07c6f5] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s......sss...s...................................................s.. [100%]
+66 passed, 7 skipped in 1.65s
+
+[integrate] merged 54040c07c6f5 into main (was 939ffcd74598)
