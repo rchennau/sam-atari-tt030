@@ -1,5 +1,6 @@
 #!/bin/bash
 # tt-input-toggle.sh — the "TT Keyboard & Mouse" launcher icon (track tt030-remote-keyboard FR-12).
+# --start (FR-13, the TT's request listener): start only; a running session is left alone.
 # Click 1: start a serial ttkbd-session (this keyboard and mouse drive the TT). Click 2: stop it through the sender's
 # normal exit path (SIGINT -> ungrab, quit frame, the TT releases every key and button; ttygetty respawns the console).
 # Refuses, with a notification, while another program holds the Modem 2 line lock (tt_zput.sh, tt_serial.py, a mode
@@ -13,6 +14,7 @@ PIDF=${XDG_RUNTIME_DIR:-/tmp}/tt-input-toggle.pid
 note() { notify-send -a "TT Keyboard & Mouse" -i input-keyboard "TT Keyboard & Mouse" "$1" 2>/dev/null; echo "tt-input-toggle: $1"; }
 
 if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then
+    [ "${1:-}" = --start ] && { echo "tt-input-toggle: already running"; exit 0; }   # FR-13: a TT request never stops one
     pkill -INT -u "$(id -u)" -f "ttkbd_send.py --serial .* grab" && note "Stopping — control back on this computer" \
         || note "Session is still starting; click again in a few seconds"
     exit 0

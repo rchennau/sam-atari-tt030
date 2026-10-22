@@ -181,6 +181,22 @@ Manual steps, if you are not using the script:
 Key map notes: Linux keys 1–68 map 1:1; Right Ctrl/Alt → the TT's single Control/Alternate; Home →
 Clr/Home; F11 → Undo; F12 → Help; the UK 102nd key → `\`; keypad mapped to the TT keypad.
 
+## Starting from the TT (FR-13, 2026-10-21)
+
+The session always runs on the remote system management host (it grabs that host's keyboard and mouse), so the TT
+can only ask for it:
+
+- **TT:** `/opt/ttkbd/ttkbd.prg` (ttkbdd RPM). Drag it from drive F `opt\ttkbd` onto the desktop once, then
+  *Options → Save Desktop*. Double-click: it runs `/usr/bin/ttkbd-request`, which signs
+  `{"op":"ttkbd-start","request_id","ts"}` with the card's request key (`ttsign`, the key yum's build requests use;
+  `op` keeps the two kinds apart) and publishes it to `sam/tt030/kbd/request`. About 5 s on the 68030 (measured
+  2026-10-21). An alert appears only on failure.
+- **Host:** `scripts/ttkbd_request_listen.py`, a systemd user unit (`tt-kbd-request.service`, SAM `iac/fractal`) in
+  the desktop session. It accepts only a valid signature against `sam-kbd-tt/tt-request.pub`, `op` ttkbd-start, age
+  ≤ 120 s and an unseen id; then `tt-input-toggle.sh --start` (no-op if a session runs; refused while the serial line
+  is busy). The estate broker is anonymous, which is why the signature is required.
+- **Stop:** as before: the TT's top-right corner, Right Ctrl + Right Alt + Esc, or the launcher icon.
+
 ## Hardware
 
 - Atari TT030, FreeMiNT 1.19 (`4eb44d14`) with XaAES, BlueSCSI DaynaPORT WiFi at 192.168.0.30
