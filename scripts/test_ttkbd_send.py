@@ -43,3 +43,4 @@ def test_mouse_pump_scales_carries_splits_and_buttons():
     assert sent[0] == (0, 1, 0) and sent[1][1] == 1
     assert [x for _, x, _ in sent[2:5]] == [127, 127, 46]
     assert sent[-2][0] == 2 and sent[-1][0] == 0
+

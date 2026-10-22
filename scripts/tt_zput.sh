@@ -16,6 +16,8 @@ cp "$LOCAL" "$STAGE/$NAME"                               # sz sends the basename
 want=$(sha256sum "$STAGE/$NAME" | cut -d' ' -f1)
 exec 9> /tmp/atari-tt-serial.lock; flock 9   # one user of the line at a time (tt_serial.py takes it too)
 export TT_SERIAL_LOCKED=1                     # our own tt_serial.py call below must not wait on us
+python3 "$HERE/tt_serial.py" --clear --port "$PORT" \
+    || { echo "tt_zput: the TT's serial console does not answer" >&2; exit 1; }   # clears an orphaned ttkbdd -S (ae6225de)
 stty -F "$PORT" 38400 raw -echo -ixon -ixoff -crtscts clocal cread
 exec 3<>"$PORT"          # hold the port open for the whole run: bytes arriving while nothing has it open are dropped
 # Start rz and wait for its ZRINIT frame (hex header "B01...") in ONE process, on the held-open port: a fixed

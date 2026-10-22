@@ -533,6 +533,9 @@ static void serve(int c)
 	crypto_chacha20_h(subkey, sess_key, nonce);	/* once per session (v3) */
 	if (session_begin())
 		goto out;
+	/* accepted: one ack byte, so the sender can tell this from a refusal (which only closes; defect b5fae241) */
+	if (write(c, "\006", 1) != 1)
+		goto out;
 	fprintf(stderr, "ttkbdd: session up\n");
 	for (;;) {
 		r = recv_exact(c, rec, sizeof rec, SILENCE_S);

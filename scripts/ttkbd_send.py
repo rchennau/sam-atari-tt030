@@ -137,6 +137,15 @@ class Session:
         f_pub = f_sk.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         sig = Ed25519PrivateKey.from_private_bytes(seed).sign(chal + tt_pub + f_pub + b"ttkbd1")
         self.s.sendall(f_pub + sig)
+        # The TT answers one ack byte once it has verified the key; a refusal just closes (defect b5fae241:
+        # the old sender called that 'session up'). The 68030 verifies Ed25519 in seconds, hence the long wait.
+        try:
+            ok = self.s.recv(1)
+        except socket.timeout:
+            ok = None
+        if ok != MSG_ACK:
+            raise SystemExit("ttkbd_send: the TT refused this key (see /var/log/ttkbdd.log there; install yours with "
+                             "ttkbd_key_install.sh)" if ok == b"" else f"ttkbd_send: no answer from the TT after the handshake ({ok!r})")
         shared = f_sk.exchange(X25519PublicKey.from_public_bytes(tt_pub))
         self.key = hashlib.blake2b(shared + chal + tt_pub + f_pub, digest_size=32).digest()
         self.ctr = 0
