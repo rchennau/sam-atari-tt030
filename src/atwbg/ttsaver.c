@@ -6,10 +6,10 @@
  * SIGTERM/SIGINT/SIGHUP switch the picture back on before exiting (killing it while blanked left the screen dark,
  * 2026-10-17); SIGKILL cannot be caught, so after `kill -9` recover with `vtgprobe CTRL 0`.
  * The mode's ctrl_reg comes from the driver's VTG shadow (ATWInfo + 32), so it works in every mode.
- * -x matrix (FR-9): in 8-plane modes, instead of blanking it saves the screen to RAM, draws falling glyphs straight
+ * -x matrix (FR-9): in 8-plane and 1-plane modes (1 plane: white-on-black dithered tail, 2026-10-21), instead of blanking it saves the screen to RAM, draws falling glyphs straight
  * into VRAM (src/atwbg/matrix.c; the VDI is not re-entrant from a background process) in colours picked from the
  * live LUT, and restores the saved screen on wake or on SIGTERM; after -f more minutes it restores and blanks.
- * Other plane counts, no 2 MB of RAM, or no 8x16 font: plain blanking. While the saver is on it holds the AES screen
+ * Other plane counts, no RAM for the saved screen, or no 8x16 font: plain blanking. While the saver is on it holds the AES screen
  * lock (wind_update BEG_UPDATE), so GEM apps that lock before drawing (toswin2's cursor blink, textwin.c) wait instead
  * of drawing over the animation. ponytail: an app that draws without the lock is still overwritten by the restore.
  * Transputers (product rule 1): the T425 can write VRAM (0x80600000 up), but in mode 32 the picture blanks while
@@ -72,7 +72,9 @@ static int matrix_start(void)
 {
 	unsigned short lut[256];
 	__FONT *f = __fonts[2];
-	if (VPLANES != 8 || VWRAP < V_X_MAX || !f || f->form_height != 16 || f->form_width < 256 || f->first_ade != 0)
+	long i, zero = 0;
+	if ((VPLANES != 8 && VPLANES != 1) || VWRAP * 8 / VPLANES < V_X_MAX || !f || f->form_height != 16 ||
+	    f->form_width < 256 || f->first_ade != 0)
 		return -1;
 	scr_bytes = (long)VWRAP * V_Y_MAX;
 	if (!(saved = malloc(scr_bytes))) return -1;
@@ -80,9 +82,14 @@ static int matrix_start(void)
 	mx.fb = VRAM; mx.stride = VWRAP; mx.cols = V_X_MAX / 8; mx.rows = V_Y_MAX / 16;
 	mx.font = (const unsigned char *)f->dat_table; mx.fwidth = f->form_width;
 	if (mx_init(&mx, (unsigned long)clock() | 1)) { free(saved); saved = 0; return -1; }
-	c_dst = (unsigned char *)lut; Supexec(k_lut);
-	mx_colours(&mx, lut);
 	chunked(k_copy, saved, VRAM, scr_bytes);
+	if (VPLANES == 1) {          /* ponytail: background = the commoner of 0x00/0xFF on the saved screen; a mostly-ink screen inverts the look */
+		for (i = 0; i < scr_bytes; i++) zero += saved[i] == 0 ? 1 : saved[i] == 0xFF ? -1 : 0;
+		mx_mono(&mx, zero >= 0 ? 0x00 : 0xFF);
+	} else {
+		c_dst = (unsigned char *)lut; Supexec(k_lut);
+		mx_colours(&mx, lut);
+	}
 	anim = 1;                                            /* from here a SIGTERM restores */
 	c_val = mx.bg; chunked(k_fill, VRAM, 0, scr_bytes);
 	return 0;

@@ -8,6 +8,8 @@
 static const char glyphs[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$+-*=<>:;|";
 static unsigned char rev[256];          /* bit-reversed byte: glyphs are drawn mirrored, as in the film */
 static uint32_t mask4[16];           /* 4 font bits -> 4 bytes of 0xFF/0x00 in memory order (endian-neutral) */
+/* 1 bit: ink kept per dither level, even/odd rows; head and first band solid, then 50 %, 25 %, 12.5 % */
+static const unsigned char dither[MX_BANDS + 1][2] = {{0xFF, 0xFF}, {0xFF, 0xFF}, {0xAA, 0x55}, {0x88, 0x22}, {0x80, 0x08}};
 
 static unsigned long rnd(struct mx *m)
 {
@@ -44,6 +46,15 @@ void mx_colours(struct mx *m, const unsigned short *lut)
 	}
 }
 
+void mx_mono(struct mx *m, unsigned char bg)
+{
+	int b;
+	m->bpp = 1;
+	m->bg = bg;
+	m->head = 0;
+	for (b = 0; b < MX_BANDS; b++) m->band[b] = b + 1;
+}
+
 int mx_init(struct mx *m, unsigned long seed)
 {
 	int i, j;
@@ -75,12 +86,21 @@ void mx_free(struct mx *m)
 	m->pos = 0; m->speed = m->tick = m->glyph = 0;
 }
 
+static void cell1(struct mx *m, int r, int c, int level)    /* 1 bit; level < 0: erase */
+{
+	unsigned char *p = m->fb + (long)r * 16 * m->stride + c, ch = m->glyph[r * m->cols + c];
+	int y;
+	for (y = 0; y < 16; y++, p += m->stride)
+		*p = m->bg ^ (level < 0 ? 0 : rev[m->font[y * m->fwidth + ch]] & dither[level][y & 1]);
+}
+
 static void cell(struct mx *m, int r, int c, int colour)    /* colour < 0: erase */
 {
 	uint32_t *p = (uint32_t *)(m->fb + (long)r * 16 * m->stride + c * 8);
 	uint32_t fg = 0x01010101U * (colour < 0 ? m->bg : colour), bg = 0x01010101U * m->bg, k;
 	unsigned char ch = m->glyph[r * m->cols + c];
 	int y;
+	if (m->bpp == 1) { cell1(m, r, c, colour); return; }
 	for (y = 0; y < 16; y++, p += m->stride / 4) {
 		k = colour < 0 ? 0 : rev[m->font[y * m->fwidth + ch]];
 		p[0] = (mask4[k >> 4] & fg) | (~mask4[k >> 4] & bg);
@@ -91,7 +111,7 @@ static void cell(struct mx *m, int r, int c, int colour)    /* colour < 0: erase
 void mx_clear(struct mx *m)
 {
 	int y;
-	for (y = 0; y < m->rows * 16; y++) memset(m->fb + y * m->stride, m->bg, m->cols * 8);
+	for (y = 0; y < m->rows * 16; y++) memset(m->fb + y * m->stride, m->bg, m->cols * (m->bpp == 1 ? 1 : 8));
 }
 
 int mx_frame(struct mx *m)

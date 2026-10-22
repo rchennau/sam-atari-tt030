@@ -75,3 +75,55 @@ def test_frames_stay_in_area_and_palette(tmp_path):
     assert s["lit"] > 0 and s["cells"] > 3000                   # it actually drew, ~6 cells per step
     _, again = _run(tmp_path, 3000)
     assert again == s                                           # deterministic for a seed
+
+
+MONO = r'''
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "matrix.h"
+#define COLS 100
+#define ROWS 30
+#define STRIDE (COLS + 4)               /* 1 bit: one byte per cell row, 4 guard bytes per line */
+#define GUARD 0xAA
+int main(int argc, char **argv)
+{
+	static unsigned char font[16 * 256], fb[(ROWS * 16 + 4) * STRIDE];
+	struct mx m;
+	long i, frames = atol(argv[1]), cells = 0, lit = 0;
+	int x, y, ok = 1, bg = atoi(argv[2]);
+	for (i = 0; i < (long)sizeof font; i++) font[i] = (unsigned char)(i * 2654435761UL >> 24);
+	memset(fb, GUARD, sizeof fb);
+	memset(&m, 0, sizeof m);
+	m.fb = fb; m.stride = STRIDE; m.cols = COLS; m.rows = ROWS; m.font = font; m.fwidth = 256;
+	mx_mono(&m, (unsigned char)bg);
+	if (mx_init(&m, 12345)) return 1;
+	mx_clear(&m);
+	for (i = 0; i < frames; i++) cells += mx_frame(&m);
+	for (y = 0; y < ROWS * 16 + 4; y++)
+		for (x = 0; x < STRIDE; x++) {
+			unsigned char v = fb[y * STRIDE + x];
+			if (!(y < ROWS * 16 && x < COLS)) { if (v != GUARD) ok = 0; }
+			else if (v != bg) lit++;
+		}
+	printf("cells %ld lit %ld ok %d\n", cells, lit, ok);
+	mx_free(&m);
+	return 0;
+}
+'''
+
+
+def _mono(tmp_path, frames, bg):
+    (tmp_path / "m.c").write_text(MONO)
+    exe = tmp_path / "m"
+    subprocess.run(["gcc", "-std=c99", "-Wall", "-Werror", "-I", SRC, "-o", exe, tmp_path / "m.c", f"{SRC}/matrix.c"],
+                   check=True)
+    out = subprocess.run([exe, str(frames), str(bg)], text=True, capture_output=True, check=True).stdout.split()
+    return dict(zip(out[0::2], (int(w) for w in out[1::2])))
+
+
+def test_mono_stays_in_area_for_both_backgrounds(tmp_path):
+    for bg in (0x00, 0xFF):                                     # white-on-black (mode 37 today) and the stock look
+        s = _mono(tmp_path, 3000, bg)
+        assert s["ok"] == 1 and s["lit"] > 0 and s["cells"] > 3000
+    assert _mono(tmp_path, 0, 0)["lit"] == 0                     # cleared screen is all background
