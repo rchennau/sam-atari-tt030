@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/atwtools-mono-colours request_id=788d5e90-3e6f-4d07-8389-40ef793e3e3c at 2026-10-22T02:44:46Z
+
+[tenant rchennau/sam-atari-tt030@a8ef931224f6] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s.....sss...s...........................................s..          [100%]
+57 passed, 7 skipped in 1.79s
+
+[integrate] merged a8ef931224f6 into main (was 79bc81264a7a)
