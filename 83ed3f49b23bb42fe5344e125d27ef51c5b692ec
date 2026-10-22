@@ -1,0 +1,8 @@
+land: SUCCESS branch=land/393e4dcc-lha-heap request_id=acfabea2-5d6b-4a4d-afcf-9e5b7d5251e2 at 2026-10-22T07:09:44Z
+
+[tenant rchennau/sam-atari-tt030@83ed3f49b23b] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s......sss...s....................................................s. [ 98%]
+.                                                                        [100%]
+67 passed, 7 skipped in 1.60s
+
+[integrate] merged 83ed3f49b23b into main (was 1e607b4345f8)
