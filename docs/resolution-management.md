@@ -77,7 +77,7 @@ Mode 28 computes to 54.2 Hz, just under the monitor's stated 55 Hz, and still di
 
 ## Chosen configuration (operator, 2026-10-15)
 
-**Current (2026-10-20):** boot mode **37** (1920×1080, 1 bit). `/etc/atw-mono-colours.sh` (hand-installed, not in an RPM yet), run from `xaaes.cnf`
+**Current (2026-10-20):** boot mode **37** (1920×1080, 1 bit). `/etc/atw-mono-colours.sh` (atwtools 1.4, `%config`), run from `xaaes.cnf`
 after the `atwmono` hook, sets VDI colours 0/1 to black/white (white text on black) when the screen has one plane;
 256-colour modes keep `DEFAULT.PAL`. Dropbear offload is on (`DROPBEAR_NO_ATW` commented out since 2026-10-17).
 Mode 37 shares mode 32's 137.7 MHz clock; no watched T425 run in mode 37 is recorded. The history follows.

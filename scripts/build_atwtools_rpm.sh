@@ -5,6 +5,9 @@
 #              bootdump.prg (boot console text from C:\AUTO\BOOTLOG.PRG -> /var/log/boot.log + syslog)
 #   /usr/bin   atwpal atwres atwshot blitchk fillchk mxprobe vdiprof vtgprobe ttsound vdibench
 #   /usr/share/atw/palettes  normal.pal, amber.pal (scripts/atw_palette.py)
+#   /etc/atw-mono-colours.sh  %config(noreplace): white text on black in 1-plane modes, run from xaaes.cnf after
+#              atwmono (operator 2026-10-20; was hand-installed until atwtools 1.4). The xaaes.cnf run line stays a
+#              per-card edit: xaaes.cnf belongs to the boot set, not to this package.
 # C:\AUTO\DEFAULT.PAL stays on C: (xVDI reads it before MiNT). TTRUN.PRG/EMUTOS.PRG stay too (plain-TOS runs,
 # sam-rom-tt). Stripped builds, so reproducible. Prints the RPM path.
 . "$(dirname "$0")/tt_log.sh"   # log every run for SAM (operator rule 2026-10-13)
@@ -33,10 +36,11 @@ files = [f(f"/usr/sbin/{n}", n) for n in ("ttsaver.prg", "atwmono.prg", "ttreboo
 files += [f(f"/usr/bin/{n}", n) for n in ("atwpal", "atwres", "atwshot", "blitchk", "fillchk", "mxprobe", "vdiprof",
                                            "vtgprobe", "ttsound", "vdibench")]
 files += [(f"/usr/share/atw/palettes/{n}", 0o100644, open(f"{o}/{n}", "rb").read()) for n in ("normal.pal", "amber.pal")]
+files += [("/etc/atw-mono-colours.sh", 0o100755, open("src/atwbg/atw-mono-colours.sh", "rb").read())]
 out = f"build/atwtools-{v}-1.m68kmint.rpm"
-open(out, "wb").write(R.write_rpm("atwtools", v, "1", files,
+open(out, "wb").write(R.write_rpm("atwtools", v, "1", files, fileflags={"/etc/atw-mono-colours.sh": 1 | 16},
     summary="ATW800/2 display tools: screensaver (matrix), mono copy-engine hook, probes, screenshots (sam)",
     description="ttsaver, atwmono, ttreboot, bootdump in /usr/sbin; atwpal, atwres, atwshot, blitchk, fillchk, mxprobe, vdiprof, "
-                "vtgprobe, ttsound, vdibench in /usr/bin; palettes in /usr/share/atw/palettes."))
+                "vtgprobe, ttsound, vdibench in /usr/bin; palettes in /usr/share/atw/palettes; /etc/atw-mono-colours.sh."))
 print(out)
 PY
