@@ -1,0 +1,8 @@
+land: SUCCESS branch=land/2e2fc56a-supervisor request_id=f0b52e20-27b4-48b3-a832-75c2827833b7 at 2026-10-22T17:39:38Z
+
+[tenant rchennau/sam-atari-tt030@3338b1280ff2] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s......sss...s....................................................s. [ 98%]
+.                                                                        [100%]
+67 passed, 7 skipped in 1.79s
+
+[integrate] merged 3338b1280ff2 into main (was d5c43726ae7c)
