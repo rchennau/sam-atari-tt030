@@ -1,7 +1,7 @@
 # xVDI mode matrix (ATW800/2 on the TT030)
 
 Every mode in the card's live `C:\AUTO\XVDI.BIB` (md5 d238c3ac, 39 records: 36 vendor + custom 37–39), with its
-programmed timing and what was measured on the TT. Snapshot 2026-10-21; boot mode **37** (1920×1080, 1 bit).
+programmed timing and what was measured on the TT. Snapshot 2026-10-21; boot mode **32** (1920×1080, 256 colours, amber palette).
 
 - **Timing columns are decoded, not measured:** pixel clock = 27 MHz × PLL feedback ÷ input divider ÷ 5; H kHz and
   V Hz follow from the totals. "(label)" is the refresh the record claims; modes 31 and 35 claim 50/60 Hz but are
@@ -57,11 +57,11 @@ Measured results live in `docs/atw-mode-status.tsv`; edit that, not the table be
 | 29 | 1600 x 1200 2 50Hz | 1600×1200 | 2 | 234 | yes | 135.0 | 62.5 | 50.0 (50) | 2160×1250 | 64/192/304 | 1/3/46 | +H +V | untested | — |  |
 | 30 | 1600 x 1200 256 50Hz | 1600×1200 | 256 | 1875 | yes | 135.0 | 62.5 | 50.0 (50) | 2160×1250 | 64/192/304 | 1/3/46 | +H +V | OUT OF RANGE | — | 50 Hz |
 | 31 | 1600 x 1200 65536 50Hz | 1600×1200 | 65536 | 3750 | NO | 108.0 | 50.0 | 40.0 (40) | 2160×1250 | 64/192/304 | 1/3/46 | +H +V | untested | — | label says 50 Hz; record is programmed for 40 Hz |
-| 32 | 1920 x 1080 256 60Hz | 1920×1080 | 256 | 2025 | yes | 137.7 | 66.2 | 59.6 (60) | 2080×1111 | 48/32/80 | 3/5/23 | -H +V | shown | compute OK, bulk blanks | 2026-10-17: logins and X25519 jobs do not blank; tgzip-style bulk jobs did. PLL VCO 1377 MHz, over the GW2AR-18 spec |
+| 32 **(boot)** | 1920 x 1080 256 60Hz | 1920×1080 | 256 | 2025 | yes | 137.7 | 66.2 | 59.6 (60) | 2080×1111 | 48/32/80 | 3/5/23 | -H +V | shown | compute OK, bulk blanks | Boot mode since 2026-10-21 21:3x PDT (operator: amber at 1920×1080; DEFAULT.PAL amber). 2026-10-17: logins and X25519 jobs do not blank; tgzip-style bulk jobs did. PLL VCO 1377 MHz, over the GW2AR-18 spec |
 | 33 | 1920 x 1080 65536 50Hz | 1920×1080 | 65536 | 4050 | NO | 116.1 | 55.8 | 50.2 (50) | 2080×1111 | 48/32/80 | 3/5/23 | -H +V | untested | — |  |
 | 34 | 1920 x 1200 2 40Hz | 1920×1200 | 2 | 281 | yes | 129.6 | 50.0 | 40.3 (40) | 2592×1242 | 128/208/336 | 1/3/38 | -H +V | OUT OF RANGE | — | 40 Hz |
 | 35 | 1920 x 1200 256 60Hz | 1920×1200 | 256 | 2250 | NO | 97.2 | 37.5 | 30.2 (30) | 2592×1242 | 128/208/336 | 1/3/38 | -H +V | untested | — | label says 60 Hz; record is programmed for 30 Hz |
 | 36 | 1920 x 1200 256 50Hz | 1920×1200 | 256 | 2250 | NO | 126.9 | 61.0 | 49.6 (50) | 2080×1231 | 48/32/80 | 3/5/23 | -H +V | untested | — |  |
-| 37 **(boot)** | 1920 x 1080 2 60Hz | 1920×1080 | 2 | 253 | yes | 137.7 | 66.2 | 59.6 (60) | 2080×1111 | 48/32/80 | 3/5/23 | -H +V | shown | not watched | custom (mode 32 timing, 1 bit). Boot mode since 2026-10-20; black background, white text (/etc/atw-mono-colours.sh); atwmono copy-engine hook: blits 268 → 4444/s |
+| 37 | 1920 x 1080 2 60Hz | 1920×1080 | 2 | 253 | yes | 137.7 | 66.2 | 59.6 (60) | 2080×1111 | 48/32/80 | 3/5/23 | -H +V | shown | not watched | custom (mode 32 timing, 1 bit). Boot mode 2026-10-20 to 10-21; black background, white text (/etc/atw-mono-colours.sh); atwmono copy-engine hook: blits 268 → 4444/s |
 | 38 | 1600 x 1200 256 60Hz | 1600×1200 | 256 | 1875 | yes | 129.6 | 73.6 | 59.8 (60) | 1760×1231 | 48/32/80 | 3/5/23 | +H +V | OUT OF RANGE | — | custom 1600×1200 reduced blanking; the monitor rejects > 1080 lines |
-| 39 | 1664 x 936 256 58Hz | 1664×936 | 256 | 1521 | yes | 102.6 | 56.2 | 58.2 (58) | 1824×967 | 48/32/80 | 3/5/23 | -H +V | shown | not watched | custom 1664×936×8 at 102.6 MHz (in-spec VCO on C8); boot mode 2026-10-17 to 2026-10-20 |
+| 39 | 1664 x 936 256 58Hz | 1664×936 | 256 | 1521 | yes | 102.6 | 56.2 | 58.2 (58) | 1824×967 | 48/32/80 | 3/5/23 | -H +V | shown | not watched | custom 1664×936×8 at 102.6 MHz (in-spec VCO on C8); boot mode 2026-10-17 to 2026-10-20 and briefly 2026-10-21 |
