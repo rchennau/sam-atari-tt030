@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/atwshot-mono request_id=b7b10284-9f26-44d3-8a9f-25ee5395a645 at 2026-10-22T04:01:14Z
+
+[tenant rchennau/sam-atari-tt030@34ed5d171535] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s......sss...s...................................................s.. [100%]
+66 passed, 7 skipped in 1.72s
+
+[integrate] merged 34ed5d171535 into main (was 395e8949c76f)
