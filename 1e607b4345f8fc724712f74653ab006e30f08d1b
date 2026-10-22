@@ -1,0 +1,8 @@
+land: SUCCESS branch=land/ttkbd-defects request_id=f491fa4d-94d4-4c3e-a70c-84560a981759 at 2026-10-22T05:18:23Z
+
+[tenant rchennau/sam-atari-tt030@1e607b4345f8] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s......sss...s....................................................s. [ 98%]
+.                                                                        [100%]
+67 passed, 7 skipped in 1.66s
+
+[integrate] merged 1e607b4345f8 into main (was 54040c07c6f5)
