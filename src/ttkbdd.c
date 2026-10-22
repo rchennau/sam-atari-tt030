@@ -209,6 +209,9 @@ static void pointer(short *x, short *y, short *w, short *h)
 }
 
 static int corner = 1;	/* -c: 0 off, 1 top-right, 2 top-left, 3 bottom-right, 4 bottom-left */
+/* The corner hands back only after the pointer has been outside it in this session: a session ended by the corner
+ * leaves the pointer there, and the next session's first mouse frame would otherwise end it at once (2026-10-21). */
+static int corner_armed;
 
 static int in_corner(void)
 {
@@ -238,7 +241,9 @@ static int frame(const uint8_t f[4], int reply_fd)
 		return 0;
 	if (f[0] & F_MOUSE) {
 		mouse(f[1], (signed char)f[2], (signed char)f[3]);
-		if (reply_fd >= 0 && in_corner() && write(reply_fd, "\005", 1) == 1)
+		if (!in_corner())
+			corner_armed = 1;
+		else if (corner_armed && reply_fd >= 0 && write(reply_fd, "\005", 1) == 1)
 			fprintf(stderr, "ttkbdd: hot corner — control back to the remote system management host\n");
 		return 0;
 	}
@@ -311,6 +316,7 @@ static void restore_kbrate(void)
 
 static void session_end(const char *why)
 {
+	corner_armed = 0;
 	release_held();
 	release_mouse();
 	restore_kbrate();
