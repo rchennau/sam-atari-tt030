@@ -117,6 +117,12 @@ for f in lhaserv slide huf crcio maketree shuf dhuf maketbl larc; do
         -Dt4_kernel=lha_kernel -Dt4_out_cap=lha_out_cap -I"$LH/clang" -I"$y" -c "$LH/clang/$f.c" -o "$w/lha_$f.o"
     LHAOBJS="$LHAOBJS $w/lha_$f.o"
 done
+# Root only (defect 393e4dcc): slide.c's static hash doubles as "buffers allocated"; jobheap.c frees those buffers
+# after each job, so the root's lhaserv clears it (exported as lha_hash) and every job allocates afresh. The TRAMs
+# have no jobheap and keep lha's cache. Built from sam-yum-tt/src: $LH is only refreshed when missing.
+$OBJCOPY --redefine-sym hash=lha_hash "$w/lha_slide.o" && $OBJCOPY --globalize-symbol=lha_hash "$w/lha_slide.o"   # two passes: one does not globalize the renamed symbol
+$CLANG -target t800 -mcpu=t425 -O2 -w -std=gnu89 -DEUC -DSYSV_SYSTEM_DIR -DTZSET -DSUPPORT_LH6 -DLHA_RESIDENT \
+    -Dt4_kernel=lha_kernel -Dt4_out_cap=lha_out_cap -I"$LH/clang" -I"$y" -c "$y/lhaserv.c" -o "$w/lha_lhaserv_root.o"
 $CLANG $CFLAGS -c "$here/llvm/chacha20.c" -o "$w/chacha20.o"
 $CLANG $CFLAGS -c "$y/sha256.c" -o "$w/sha256.o"
 $CLANG $CFLAGS -c "$y/t4adler.c" -o "$w/t4adler.o"
@@ -137,7 +143,7 @@ COMMON_OBJS="$w/jobnode.o $w/jobexec.o $w/chacha20.o $w/sha256.o $w/t4adler.o \
              $w/c25519.o $w/f25519.o $w/sha512_32.o $w/edsign.o $w/ed25519.o $w/fprime.o $w/morph25519.o \
              $w/adler32.o $w/crc32.o $w/deflate.o $w/trees.o $w/zutil.o $w/inflate.o $w/inftrees.o $w/inffast.o \
              $w/blocksort.o $w/huffman.o $w/crctable.o $w/randtable.o $w/decompress.o $w/bzcompress.o $w/bzlib.o $w/compkern.o $LHAOBJS"
-ROOT_OBJS="$(echo "$COMMON_OBJS" | sed "s|$w/jobexec.o|$w/jobexec_root.o|") $JPOBJS $PQOBJS $w/bc.o $w/bcjob.o $w/jobheap.o"
+ROOT_OBJS="$(echo "$COMMON_OBJS" | sed -e "s|$w/jobexec.o|$w/jobexec_root.o|" -e "s|$w/lha_lhaserv.o|$w/lha_lhaserv_root.o|") $JPOBJS $PQOBJS $w/bc.o $w/bcjob.o $w/jobheap.o"
 # FR-7: every root allocation goes through jobheap.c, which frees each job's leftovers
 WRAP="-Wl,--wrap=malloc,--wrap=free,--wrap=realloc,--wrap=calloc"
 

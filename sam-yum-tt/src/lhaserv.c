@@ -121,6 +121,15 @@ long t4_kernel(int op, int level, const unsigned char *in, long n, unsigned char
         return 2 + lm_out_pos;
     }
     /* lha numbers methods lh0=0 ... lh7=7 (LZHUFF5_METHOD_NUM etc.) */
+#ifdef LHA_RESIDENT
+    /* resident job image: jobheap.c freed the last job's buffers, but slide.c's static hash (its "already
+     * allocated" flag) still points at them; the next job wrote into freed blocks and corrupted the heap
+     * (defect 393e4dcc). build_llvm.sh exports it as lha_hash; clearing it makes encode_alloc allocate again. */
+    {
+        extern unsigned int *lha_hash;
+        lha_hash = NULL;
+    }
+#endif
     interface.method = encode_alloc(method);
     interface.infile = stdin;                    /* never read: fread is t4_fread */
     interface.outfile = stdout;
