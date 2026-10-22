@@ -1,0 +1,7 @@
+land: SUCCESS branch=land/teradesk-mouse-icon request_id=a08e6588-dc7f-4a19-b47f-02e752a6db54 at 2026-10-22T04:38:58Z
+
+[tenant rchennau/sam-atari-tt030@939ffcd74598] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s......sss...s...................................................s.. [100%]
+66 passed, 7 skipped in 1.65s
+
+[integrate] merged 939ffcd74598 into main (was fbec1aa81032)
