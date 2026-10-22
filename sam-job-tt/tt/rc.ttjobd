@@ -7,3 +7,6 @@
 # Image (ttjob-ports FR-4): the llvm-t800 image with every port's op. Rollback to the INMOS image without a downgrade:
 # replace /usr/lib/t425/llvm/jobfull.btl with /usr/lib/t425/jobfull.btl below and reboot.
 /usr/sbin/ttjobd /usr/lib/t425/llvm/jobfull.btl /var/run/ttjob.sock < /dev/null >> /var/log/ttjobd.log 2>&1 &
+# 2e2fc56a: restarts ttjobd when it is stuck in a link trap past a job's deadline (one copy; ttjobd-watch calls this
+# script for the restart, and the second watch exits at once)
+/usr/sbin/ttjobd-watch < /dev/null > /dev/null 2>&1 &

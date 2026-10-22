@@ -1,6 +1,6 @@
 #!/bin/bash
 # build_rpm.sh — package the job queue (tt030-transputer-job-queue, Deployment §5) as build/ttjob-<V>-<R>.m68kmint.rpm:
-#   /usr/sbin/ttjobd, /usr/bin/ttjobcli, /usr/bin/ttlease, /usr/bin/ttjobk, /etc/rc.ttjobd,
+#   /usr/sbin/ttjobd, /usr/sbin/ttjobd-watch (2e2fc56a), /usr/bin/ttjobcli, /usr/bin/ttlease, /usr/bin/ttjobk, /etc/rc.ttjobd,
 #   /usr/lib/t425/job{full,t1,t0}.btl (INMOS, build_t4.sh; the rollback images) and, since ttjob-ports FR-4, the
 #   llvm images /usr/lib/t425/llvm/jobfull.btl (= jobllvm.btl, 3 nodes) + jobt0.btl (= jobllvm0.btl, T425 only) from
 #   build_llvm.sh. ttjobd falls back to jobt1/jobt0 in the booted image's directory: llvm has no 2-node image, so a
@@ -31,7 +31,8 @@ files = [("/usr/sbin/ttjobd", 0o100755, rd(f"{here}/build/ttjobd.ttp")),
          ("/usr/bin/ttjobcli", 0o100755, rd(f"{here}/build/ttjobcli.ttp")),
          ("/usr/bin/ttlease", 0o100755, rd(f"{here}/build/ttlease.ttp")),
          ("/usr/bin/ttjobk", 0o100755, rd(f"{here}/build/ttjobk.ttp")),
-         ("/etc/rc.ttjobd", 0o100755, rd(f"{here}/tt/rc.ttjobd"))]
+         ("/etc/rc.ttjobd", 0o100755, rd(f"{here}/tt/rc.ttjobd")),
+         ("/usr/sbin/ttjobd-watch", 0o100755, rd(f"{here}/tt/ttjobd-watch"))]
 files += [(f"/usr/lib/t425/{b}.btl", 0o100644, rd(f"{here}/build/{b}.btl")) for b in ("jobfull", "jobt1", "jobt0")]
 files += [("/usr/lib/t425/llvm", 0o40755, b""),   # listed, so rpm -e removes it
           ("/usr/lib/t425/llvm/jobfull.btl", 0o100644, rd(f"{here}/build/jobllvm.btl")),

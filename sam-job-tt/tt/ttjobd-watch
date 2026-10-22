@@ -1,0 +1,35 @@
+#!/bin/bash
+# ttjobd-watch — restart ttjobd when it is stuck inside a link trap that never returns (defect 2e2fc56a).
+# ttjobd's own FR-7 watchdog runs in its loop, so a blocked OP_READ/OP_WRITE (2026-10-20: CPU time frozen 20 min,
+# ssh logins queued behind it) stops the watchdog too. ttjobd writes its earliest in-flight deadline (epoch s) to
+# /var/run/ttjob.due before each link write; this process restarts it when that deadline is GRACE s past AND
+# ttjobd's CPU time (/kern/<pid>/stat utime+stime) did not move over the last TICK: the manual recovery, automated
+# (kill, rm /tmp/t425.lock, /etc/rc.ttjobd). A lock that names another program (a lease, a direct-path run with
+# ttjobd stopped on purpose) is left alone. Started by /etc/rc.ttjobd; one copy (pid file).
+PIDF=/var/run/ttjobd-watch.pid
+[ -s $PIDF ] && [ -d /kern/$(cat $PIDF) ] && exit 0
+echo $$ > $PIDF
+GRACE=${TTJOBD_WATCH_GRACE:-60}
+TICK=${TTJOBD_WATCH_TICK:-10}
+log() { echo "ttjobd-watch: $*" >> /var/log/ttjobd.log; }
+last=
+while sleep $TICK; do
+    read p name < /tmp/t425.lock 2>/dev/null || { last=; continue; }
+    case $name in *ttjobd*) ;; *) last=; continue ;; esac
+    [ -d /kern/$p ] || { last=; continue; }
+    read d < /var/run/ttjob.due 2>/dev/null || d=0
+    cpu=$(awk '{ print $14 + $15 }' /kern/$p/stat 2>/dev/null)
+    now=$(date +%s)
+    if [ "${d:-0}" -gt 0 ] && [ $now -gt $((d + GRACE)) ] && [ "$last" = "$p $cpu" ]; then
+        log "job past its deadline by $((now - d)) s and ttjobd $p CPU time frozen at $cpu: restarting it"
+        kill -TERM $p
+        for i in 1 2 3 4 5 6 7 8 9 10; do [ -d /kern/$p ] || break; sleep 1; done
+        [ -d /kern/$p ] && { log "ttjobd $p ignored TERM: KILL"; kill -KILL $p; sleep 1; }
+        rm -f /tmp/t425.lock
+        bash /etc/rc.ttjobd
+        log "restarted ttjobd (old pid $p)"
+        last=
+        continue
+    fi
+    last="$p $cpu"
+done

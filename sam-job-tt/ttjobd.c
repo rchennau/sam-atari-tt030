@@ -31,13 +31,30 @@
 #define QMAX 32
 #define REBOOT_RETRY_S 60         /* a failed re-boot is tried again this often */
 
-struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; clock_t due; clock_t t_hdr, t_req, t_link; };
+struct job { int fd; unsigned short cid, wid; long n; unsigned char *buf; time_t sent; int node; clock_t due; time_t due_t; clock_t t_hdr, t_req, t_link; };
 static struct job queue[QMAX], inflight[NODES];
 static int nq, nin, up;
 static int leased = -1;              /* client index holding the T425 lease (OP_LEASE), or -1 */
 static const char *img;
 static int absent[NODES];            /* FR-8: nodes the booted image does not contain (never scheduled) */
 static const char *topo_path = "/var/run/ttjob.topology";
+/* 2e2fc56a: the earliest in-flight deadline (epoch s, 0 = none) for ttjobd-watch, which restarts ttjobd when a link
+ * trap never returns (this process is then stuck inside it, so the FR-7 watchdog below cannot run). One open fd,
+ * rewritten in place only when the value changes. */
+static const char *due_path = "/var/run/ttjob.due";
+static int due_fd = -1;
+static time_t due_shown = -1;
+static void due_note(time_t extra)
+{
+    char b[16];
+    time_t d = extra;
+    int i, n;
+    for (i = 0; i < nin; i++) if (!d || inflight[i].due_t < d) d = inflight[i].due_t;
+    if (d == due_shown || due_fd < 0) return;
+    due_shown = d;
+    n = snprintf(b, sizeof b, "%11ld\n", (long)d);
+    if (lseek(due_fd, 0, SEEK_SET) == 0) write(due_fd, b, n);
+}
 static time_t down_since;
 static unsigned short nextwid;
 static unsigned char rbuf[LREP_HDR + JOB_BIG];          /* node 0 replies up to JOB_BIG (ttjob-ports FR-7) */
@@ -257,6 +274,7 @@ static void go_down(const char *why)                        /* link out of step:
     down_since = time(NULL);                        /* main loop retries the boot every REBOOT_RETRY_S */
     for (i = 0; i < nin; i++) { answer(inflight[i].fd, inflight[i].cid, ST_DOWN); wipe_free(inflight[i].buf, JOB_HDR + inflight[i].n); }
     nin = 0;
+    due_note(0);
     memset(busy, 0, sizeof busy);
     for (i = 0; i < nq; i++) { answer(queue[i].fd, queue[i].cid, ST_DOWN); wipe_free(queue[i].buf, JOB_HDR + queue[i].n); }
     nq = 0;
@@ -277,6 +295,8 @@ static void send_jobs(void)
         if (node == 0) end0 = clock() + (clock_t)(est_ms(j.buf[2], j.n, 0) * CLOCKS_PER_SEC / 1000);
         /* FR-7: deadline = 3 x the expected time on that node + 5 s */
         j.due = clock() + (clock_t)((3 * est_ms(j.buf[2], j.n, node != 0) + 5000) * (long)CLOCKS_PER_SEC / 1000);
+        j.due_t = time(NULL) + (3 * est_ms(j.buf[2], j.n, node != 0) + 5000) / 1000 + 1;
+        due_note(j.due_t);                          /* before the write: the trap that never returns may be this one */
         j.wid = ++nextwid;
         j.buf[0] = (unsigned char)j.wid; j.buf[1] = (unsigned char)(j.wid >> 8);
         if (link_write(j.buf, JOB_HDR + j.n) != JOB_HDR + j.n) { wipe_free(j.buf, JOB_HDR + j.n); go_down("link write failed"); return; }
@@ -325,6 +345,7 @@ static void poll_link(void)
                 busy[inflight[i].node] = 0;
                 wipe_free(inflight[i].buf, JOB_HDR + inflight[i].n);
                 inflight[i] = inflight[--nin];
+                due_note(0);
             } else
                 say(LOG_WARNING, "reply for unknown job %u dropped", wid);
             wipe(rbuf, LREP_HDR + olen);                       /* the result now lives only in the client's buffer */
@@ -362,6 +383,8 @@ int main(int argc, char **argv)
     unlink(path);
     if (bind(ls, (struct sockaddr *)&sa, sizeof sa) < 0 || listen(ls, MAXCL) < 0) { perror(path); return 1; }
     chmod(path, 0660);
+    due_fd = open(due_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    due_note(0);
     for (i = 0; i < MAXCL; i++) cl[i] = -1;
     for (;;) {
         /* Short jobs: for 20 ms after link activity, spin on the link alone (no select, no Syield). Syield hands the
