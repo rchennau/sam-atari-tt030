@@ -29,7 +29,11 @@ def main(src, out):
     if data.startswith(b"ATWSHOT "):
         head, data = data.split(b"\n", 1)
         W, H, planes = (int(v) for v in head.split()[1:])
-    if planes == 8:
+    if planes == 1:                      # bit 1 = VDI colour 1 = white since the 2026-10-20 white-on-black look
+        assert len(data) == W // 8 * H, f"expected {W // 8 * H} bytes, got {len(data)}"
+        on, off = b"\xff\xff\xff", b"\x00\x00\x00"
+        rows = [b"".join(on if data[y * (W // 8) + x // 8] & (0x80 >> (x & 7)) else off for x in range(W)) for y in range(H)]
+    elif planes == 8:
         lut = [rgb(p) for p in struct.unpack(">256H", data[:512])]
         px = data[512:]
         assert len(px) == W * H, f"expected {W * H} pixel bytes, got {len(px)}"
