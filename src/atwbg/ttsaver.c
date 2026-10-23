@@ -1,11 +1,12 @@
 /* ttsaver — screensaver for the ATW800/2 (PMS tt030-atw-display-tuning FR-5, FR-9).
- * After N idle minutes it switches the card's video timing generator off (ctrl_reg bit a = 0), so the monitor sleeps;
+ * After N idle minutes it blanks the screen by loading an all-black hardware LUT (saved first, restored on wake);
  * the first key, mouse move or mouse button switches it back on. Idle = no change in the IKBD buffer tail index and
  * the Line-A mouse position/buttons, polled every 0.25 s; polling only reads, so no keystroke is swallowed.
  * Serial traffic does not wake the screen (automation over Modem 2 needs no picture).
  * SIGTERM/SIGINT/SIGHUP switch the picture back on before exiting (killing it while blanked left the screen dark,
- * 2026-10-17); SIGKILL cannot be caught, so after `kill -9` recover with `vtgprobe CTRL 0`.
- * The mode's ctrl_reg comes from the driver's VTG shadow (ATWInfo + 32), so it works in every mode.
+ * 2026-10-17); SIGKILL cannot be caught, so after `kill -9` reload the palette: `atwpal -l /c/AUTO/DEFAULT.PAL`.
+ * It never switches the video timing generator off: a VDI client drawing while ctrl_reg bit a = 0 hard-hangs the TT
+ * (defect 36bc464e, reproduced 2/2 on 2026-10-22; 0/2 with the VTG on). > 8-plane modes do not use the LUT: no blank there.
  * -x matrix (FR-9): in 8-plane and 1-plane modes (1 plane: white-on-black dithered tail, 2026-10-21), instead of blanking it saves the screen to RAM, draws falling glyphs straight
  * into VRAM (src/atwbg/matrix.c; the VDI is not re-entrant from a background process) in colours picked from the
  * live LUT, and restores the saved screen on wake or on SIGTERM; after -f more minutes it restores and blanks.
@@ -31,13 +32,12 @@
 #include <unistd.h>
 #include "matrix.h"
 
-#define CTRL (*(volatile unsigned short *)0xFEDFF800UL)        /* VTG control register (write-only) */
-#define SHADOW (*(volatile unsigned short *)0xFEDFDC20UL)      /* driver's copy of the mode's ctrl_reg */
 #define VRAM ((unsigned char *)0xFEC00000UL)                   /* Logbase in every mode (mxprobe 2026-10-17) */
 #define LUT ((volatile unsigned short *)0xFEDFF000UL)          /* 256 x RGB565 hardware LUT */
 #define CHUNK 65536L                                           /* bytes per supervisor call: ~25 ms, MiNT keeps running */
 
-static unsigned short on_val;
+static unsigned short lut_saved[256];
+static int blanked;
 static volatile int off, anim;
 static int ap_id = -1, locked;
 static unsigned char *saved;
@@ -65,8 +65,15 @@ static void chunked(long (*fn)(void), unsigned char *dst, unsigned char *src, lo
 
 static unsigned long vram_sum(void) { c_sum = 0; chunked(k_sum, VRAM, 0, scr_bytes); return c_sum; }
 
-static long vtg_off(void) { on_val = SHADOW; CTRL = on_val & ~0x01; return 0; }
-static long vtg_on(void) { CTRL = on_val; return 0; }
+static long scr_off(void)
+{
+	int i;
+	if (VPLANES > 8 || blanked) return 0;
+	for (i = 0; i < 256; i++) { lut_saved[i] = LUT[i]; LUT[i] = 0; }
+	blanked = 1;
+	return 0;
+}
+static long scr_on(void) { int i; if (blanked) for (i = 0; i < 256; i++) LUT[i] = lut_saved[i]; blanked = 0; return 0; }
 
 static int matrix_start(void)
 {
@@ -105,7 +112,7 @@ static void matrix_stop(void)
 }
 
 static void lock(int on) { if (ap_id >= 0 && locked != on) { wind_update(on ? BEG_UPDATE : END_UPDATE); locked = on; } }
-static void bye(int sig) { matrix_stop(); if (off) Supexec(vtg_on); lock(0); _exit(128 + sig); }
+static void bye(int sig) { matrix_stop(); if (off) Supexec(scr_on); lock(0); _exit(128 + sig); }
 
 static long frame(void)     /* one animation step, then sleep out the rest of a 1/15 s frame */
 {
@@ -160,13 +167,13 @@ int main(int argc, char **argv)
 			tail = t; mx_ = x; my = y; mb = b;
 			idle = 0;
 			matrix_stop();
-			if (off) { Supexec(vtg_on); off = 0; }
+			if (off) { Supexec(scr_on); off = 0; }
 			lock(0);
 		} else if (anim) {
-			if (++idle >= fallback * 15) { matrix_stop(); Supexec(vtg_off); off = 1; }   /* idle counts frames here */
+			if (++idle >= fallback * 15) { matrix_stop(); Supexec(scr_off); off = 1; }   /* idle counts frames here */
 		} else if (!off && ++idle >= limit * 4) {
 			lock(1);
-			if (!matrix || matrix_start()) { Supexec(vtg_off); off = 1; }
+			if (!matrix || matrix_start()) { Supexec(scr_off); off = 1; }
 			else idle = 0;
 		}
 	}
