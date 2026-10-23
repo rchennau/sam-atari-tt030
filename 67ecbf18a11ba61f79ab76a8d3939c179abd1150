@@ -1,0 +1,8 @@
+land: SUCCESS branch=land/36bc464e-ttsaver-lut request_id=378dbbb2-c8be-49a8-9269-df5c2e1bed11 at 2026-10-23T04:56:30Z
+
+[tenant rchennau/sam-atari-tt030@67ecbf18a11b] `python -m pytest -q -p no:cacheprovider --ignore=scripts/test_e2e_ping_rpm.py scripts/` rc=0
+....s......sss...s....................................................s. [ 98%]
+.                                                                        [100%]
+67 passed, 7 skipped in 1.81s
+
+[integrate] merged 67ecbf18a11b into main (was 3338b1280ff2)
